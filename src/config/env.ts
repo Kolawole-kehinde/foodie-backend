@@ -11,3 +11,11 @@ function checkRequiredEnvVariables(key: string) {
 
    return value
 }
+
+
+export const env = {
+  port: checkRequiredEnvVariables("PORT"),
+  isProduction: checkRequiredEnvVariables("NODE_ENV") === "production",
+  nodeEnv: checkRequiredEnvVariables("NODE_ENV"),
+  logLevel: checkRequiredEnvVariables("LOG_LEVEL"),
+};
