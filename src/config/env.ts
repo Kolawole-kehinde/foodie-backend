@@ -18,4 +18,4 @@ export const env = {
   isProduction: checkRequiredEnvVariables("NODE_ENV") === "production",
   nodeEnv: checkRequiredEnvVariables("NODE_ENV"),
   logLevel: checkRequiredEnvVariables("LOG_LEVEL"),
-};
+} as const
