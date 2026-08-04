@@ -41,7 +41,11 @@ const envSchema = z.object({
 
 
   // Redis 
-  REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+REDIS_HOST: z.string(),
+REDIS_PORT: z.coerce.number(),
+REDIS_PASSWORD: z.string().min(1, "REDIS_PASSWORD is required"),
+REDIS_DB: z.string().min(1, "REDIS_DB is required"),
 
  
   // JWT

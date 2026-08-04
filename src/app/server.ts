@@ -18,6 +18,8 @@ import { createServer } from "node:http";
 import { logger } from "../config/logger.js";
 import { env } from "../config/env.js";
 import { createApp } from "./app.js";
+import { prisma } from "../database/prisma/client.js";
+import { redis } from "../database/redis/client.js";
 
 // import { env } from "@/config";
 
@@ -25,6 +27,8 @@ import { createApp } from "./app.js";
 async function bootstrap() {
   try {
     logger.info("Starting application...");
+
+    await redis.connect();
 
     /**
      * Later we'll connect:
@@ -72,8 +76,16 @@ async function bootstrap() {
       });
     };
 
-    process.on("SIGINT", () => void shutdown("SIGINT"));
-    process.on("SIGTERM", () => void shutdown("SIGTERM"));
+   process.on("SIGINT", async () => {
+  await prisma.$disconnect();
+await redis.quit();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
   } catch (error) {
     logger.fatal({ error }, "Application failed to start");
 

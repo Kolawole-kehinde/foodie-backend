@@ -1,10 +1,8 @@
-import {
-  PrismaClientKnownRequestError,
-  PrismaClientValidationError,
-} from "@prisma/client/runtime/library";
+
 import { ConflictError } from "./ConflictError.js";
 import { NotFoundError } from "./NotFoundError.js";
 import { DatabaseError } from "./DatabaseError.js";
+import { PrismaClientKnownRequestError, PrismaClientValidationError } from "@prisma/client/runtime/client";
 
 
 export function mapPrismaError(error: unknown) {
