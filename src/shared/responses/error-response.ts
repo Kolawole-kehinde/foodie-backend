@@ -12,6 +12,6 @@ export function sendError(
     message: error.message,
     code: error.code,
     errors: error.details ?? null,
-    requestId,
+    ...(requestId && { requestId }),
   });
 }
