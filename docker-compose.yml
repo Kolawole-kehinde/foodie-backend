@@ -3,9 +3,8 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16
-
+    platform: linux/amd64
     container_name: ecommerce_postgres
-
     restart: unless-stopped
 
     environment:
@@ -32,9 +31,7 @@ services:
     image: redis:8-alpine
 
     container_name: ecommerce_redis
-
     restart: unless-stopped
-
     ports:
       - "6379:6379"
 

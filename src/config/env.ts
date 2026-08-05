@@ -41,43 +41,43 @@ const envSchema = z.object({
 
 
   // Redis 
-REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+// REDIS_URL: z.string().min(1, "REDIS_URL is required"),
 REDIS_HOST: z.string(),
 REDIS_PORT: z.coerce.number(),
-REDIS_PASSWORD: z.string().min(1, "REDIS_PASSWORD is required"),
-REDIS_DB: z.string().min(1, "REDIS_DB is required"),
+REDIS_PASSWORD: z.string().optional(),
+REDIS_DB: z.coerce.number().default(0),
 
  
   // JWT
-  JWT_ACCESS_SECRET: z
-    .string()
-    .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+  // JWT_ACCESS_SECRET: z
+  //   .string()
+  //   .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
 
-  JWT_REFRESH_SECRET: z
-    .string()
-    .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
-  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
-  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  // JWT_REFRESH_SECRET: z
+  //   .string()
+  //   .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
+  // JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  // JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
 
  
   // Cookies
-  COOKIE_SECRET: z
-    .string()
-    .min(32, "COOKIE_SECRET must be at least 32 characters"),
-  COOKIE_DOMAIN: z.string(),
-  COOKIE_SECURE: z.coerce.boolean().default(false),
+  // COOKIE_SECRET: z
+  //   .string()
+  //   .min(32, "COOKIE_SECRET must be at least 32 characters"),
+  // COOKIE_DOMAIN: z.string(),
+  // COOKIE_SECURE: z.coerce.boolean().default(false),
 
  
   // Frontend
-  CLIENT_URL: z.string().url(),
+  // CLIENT_URL: z.string().url(),
 
 
   // Email
-  SMTP_HOST: z.string(),
-  SMTP_PORT: z.coerce.number(),
-  SMTP_USER: z.string(),
-  SMTP_PASS: z.string(),
-  SMTP_FROM: z.string().email(),
+  // SMTP_HOST: z.string(),
+  // SMTP_PORT: z.coerce.number(),
+  // SMTP_USER: z.string(),
+  // SMTP_PASS: z.string(),
+  // SMTP_FROM: z.string().email(),
 
 
   // Logging
@@ -119,33 +119,37 @@ export const env = {
   },
 
   redis: {
-    URL: config.REDIS_URL,
+    HOST: config.REDIS_HOST,
+    PORT: config.REDIS_PORT,
+    PASSWORD: config.REDIS_PASSWORD,
+    DB: config.REDIS_DB,
+
   },
 
-  jwt: {
-    ACCESS_SECRET: config.JWT_ACCESS_SECRET,
-    REFRESH_SECRET: config.JWT_REFRESH_SECRET,
-    ACCESS_EXPIRES_IN: config.JWT_ACCESS_EXPIRES_IN,
-    REFRESH_EXPIRES_IN: config.JWT_REFRESH_EXPIRES_IN,
-  },
+  // jwt: {
+  //   ACCESS_SECRET: config.JWT_ACCESS_SECRET,
+  //   REFRESH_SECRET: config.JWT_REFRESH_SECRET,
+  //   ACCESS_EXPIRES_IN: config.JWT_ACCESS_EXPIRES_IN,
+  //   REFRESH_EXPIRES_IN: config.JWT_REFRESH_EXPIRES_IN,
+  // },
 
-  cookie: {
-    SECRET: config.COOKIE_SECRET,
-    DOMAIN: config.COOKIE_DOMAIN,
-    SECURE: config.COOKIE_SECURE,
-  },
+  // cookie: {
+  //   SECRET: config.COOKIE_SECRET,
+  //   DOMAIN: config.COOKIE_DOMAIN,
+  //   SECURE: config.COOKIE_SECURE,
+  // },
 
-  client: {
-    URL: config.CLIENT_URL,
-  },
+  // client: {
+  //   URL: config.CLIENT_URL,
+  // },
 
-  mail: {
-    HOST: config.SMTP_HOST,
-    PORT: config.SMTP_PORT,
-    USER: config.SMTP_USER,
-    PASS: config.SMTP_PASS,
-    FROM: config.SMTP_FROM,
-  },
+  // mail: {
+  //   HOST: config.SMTP_HOST,
+  //   PORT: config.SMTP_PORT,
+  //   USER: config.SMTP_USER,
+  //   PASS: config.SMTP_PASS,
+  //   FROM: config.SMTP_FROM,
+  // },
 
   logger: {
     LEVEL: config.LOG_LEVEL,

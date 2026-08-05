@@ -4,9 +4,8 @@
 
 
 
-import { PrismaClient } from "@prisma/client/extension";
+import { PrismaClient } from "@prisma/client";
 import { env } from "../../config/env.js";
-
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient;
