@@ -1,96 +1,90 @@
 import { UserStatus, type PrismaClient } from "@prisma/client";
-import { createUserRepository, type UserRepository } from "../repositories/user.repository.js";
-import { createEmailVerificationTokenRepository, type EmailVerificationTokenRepository } from "../repositories/email-verification-token.repository.js";
+import {createUserRepository,type UserRepository,} from "../repositories/user.repository.js";
+import { createEmailVerificationTokenRepository } from "../repositories/email-verification-token.repository.js";
 import type { PasswordService } from "./password.service.js";
 import type { TokenService } from "./token.service.js";
 import type { AuditService } from "./audit.service.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { AuditActions } from "../constants/audit-action.constants.js";
+import type { RegisterRequestDto } from "../dto/register-request.dto.js";
+import type { RegisterResponseDto } from "../dto/register-response.dto.js";
+
 
 
 type CreateAuthServiceDependencies = {
   prisma: PrismaClient;
-
   userRepository: UserRepository;
-
-  emailVerificationTokenRepository: EmailVerificationTokenRepository;
-
   passwordService: PasswordService;
-
   tokenService: TokenService;
-
   auditService: AuditService;
 };
 
-type RegisterInput = {
-  email: string;
-  password: string;
-};
+export const createAuthService = ({
+   prisma,
+  userRepository,
+  passwordService,
+  tokenService,
+  auditService,
+}: CreateAuthServiceDependencies) => {
 
 
+  const register = async (dto: RegisterRequestDto,): Promise<RegisterResponseDto> => {
 
+    const { email, password } = dto;
 
-export const createAuthService = (
-  dependencies: CreateAuthServiceDependencies
-) => {
-  const {
-    prisma,
-    userRepository,
-    passwordService,
-    tokenService,
-    auditService,
-  } = dependencies;
+    const existingUser = await userRepository.findByEmail(email);
 
-const register = async ({ email, password,}: RegisterInput) => {
+    if (existingUser) {
+      throw new ConflictError("Email already exists");
+    }
 
-  const existingUser = await userRepository.findByEmail(email);
+    const passwordHash = await passwordService.hash(password);
 
-  if (existingUser) {
-    throw new ConflictError("Email already exists");
-  }
+    const verificationToken = tokenService.generateRandomToken();
 
-  const passwordHash =  await passwordService.hash(password);
+    const tokenHash = tokenService.hashToken(verificationToken);
 
-  const verificationToken = tokenService.generateRandomToken();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
 
-  const tokenHash = tokenService.hashToken(verificationToken);
+    const user = await prisma.$transaction(async (tx) => {
+      const userRepositoryTx = createUserRepository(tx);
 
-  const expiresAt = new Date(
-    Date.now() + 1000 * 60 * 30
-  );
+      const verificationRepositoryTx = createEmailVerificationTokenRepository(tx);
 
-  await prisma.$transaction(async (tx) => {
-    const userRepositoryTx = createUserRepository(tx);
+      const user = await userRepositoryTx.create({
+        email,
+        passwordHash,
+        status: UserStatus.PENDING_VERIFICATION,
+      });
 
-    const verificationRepositoryTx = createEmailVerificationTokenRepository(tx);
-
-    const user = await userRepositoryTx.create({
-      email,
-      passwordHash,
-      status: UserStatus.PENDING_VERIFICATION,
-    });
-
-    await verificationRepositoryTx.create({
-      tokenHash,
-      expiresAt,
-      user: {
-        connect: {
-          id: user.id,
+      await verificationRepositoryTx.create({
+        tokenHash,
+        expiresAt,
+        user: {
+          connect: {
+            id: user.id,
+          },
         },
-      },
+      });
+
+      return user;
     });
 
     await auditService.log({
       action: AuditActions.REGISTRATION_INITIATED,
       userId: user.id,
     });
-  });
+
+    // Email queue will be added next.
+
+    return {
+      message: "Registration successful. Please verify your email.",
+    };
+  };
 
   return {
-    message:
-      "Registration successful. Please verify your email.",
+    register,
   };
-};
 };
 
 export type AuthService = ReturnType<typeof createAuthService>;

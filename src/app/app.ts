@@ -3,6 +3,7 @@ import { notFound } from '../middlewares/notFound.js'
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from '../docs/swagger.js';
 import { errorHandler } from '../middlewares/errorHandler.js';
+import { authRoutes } from './container.js';
 
 
 
@@ -18,6 +19,8 @@ export function createApp () {
     app.use("/docs",swaggerUi.serve,
   swaggerUi.setup(swaggerSpec)
 );
+
+app.use("/api/v1/auth", authRoutes);
     // 404 MUST come after all routes
 app.use(notFound);
 
