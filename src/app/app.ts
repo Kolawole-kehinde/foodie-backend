@@ -1,5 +1,10 @@
 import express from 'express'
 import { notFound } from '../middlewares/notFound.js'
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from '../docs/swagger.js';
+import { errorHandler } from '../middlewares/errorHandler.js';
+
+
 
 
 
@@ -10,7 +15,17 @@ export function createApp () {
 
     app.use(express.json())
     app.use(express.urlencoded({extended: true}))
-    app.use(notFound)
+    app.use("/docs",swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
+    // 404 MUST come after all routes
+app.use(notFound);
+
+// Global error handler MUST be last
+app.use(errorHandler);
+
+
+
 
 
 

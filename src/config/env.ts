@@ -47,6 +47,10 @@ REDIS_PORT: z.coerce.number(),
 REDIS_PASSWORD: z.string().optional(),
 REDIS_DB: z.coerce.number().default(0),
 
+
+//Bccrypt 
+BCRYPT_ROUNDS: z.coerce.number().default(12),
+
  
   // JWT
   // JWT_ACCESS_SECRET: z
@@ -125,6 +129,10 @@ export const env = {
     DB: config.REDIS_DB,
 
   },
+
+  auth: {
+  BCRYPT: config.BCRYPT_ROUNDS
+},
 
   // jwt: {
   //   ACCESS_SECRET: config.JWT_ACCESS_SECRET,
