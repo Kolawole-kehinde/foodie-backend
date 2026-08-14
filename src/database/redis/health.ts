@@ -1,17 +1,11 @@
-// Used only for health checks.
+import { redis } from "./client.js";
 
-import { redis } from "./client";
-
-export async function checkRedisHealth() {
+export const checkRedisHealth = async (): Promise<boolean> => {
   try {
-    await redis.ping();
+    const result = await redis.ping();
 
-    return {
-      status: "up",
-    };
+    return result === "PONG";
   } catch {
-    return {
-      status: "down",
-    };
+    return false;
   }
-}
+};

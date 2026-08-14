@@ -12,7 +12,15 @@ export const createAuthController = ({
   const register = asyncHandler(async (req, res) => {
     const dto: RegisterRequestDto = req.body;
 
-    const result = await authService.register(dto);
+    const ipAddress = req.ip;
+    const userAgent = req.get("user-agent");
+
+    const context = {
+      ...(ipAddress !== undefined ? { ipAddress } : {}),
+      ...(userAgent !== undefined ? { userAgent } : {}),
+    };
+
+    const result = await authService.register(dto, context);
 
     return res.status(201).json(result);
   });

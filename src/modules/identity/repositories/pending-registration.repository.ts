@@ -1,7 +1,6 @@
-
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
-type CreatePendingRegistrationData = {
+export type CreatePendingRegistrationData = {
   email: string;
   passwordHash: string;
   verificationTokenHash: string;
@@ -10,17 +9,21 @@ type CreatePendingRegistrationData = {
   userAgent?: string;
 };
 
-export const createPendingRegistrationRepository = (db: DatabaseClient) => {
-  
+type PendingRegistrationUpdateData =
+  Parameters<
+    DatabaseClient["pendingRegistration"]["update"]
+  >[0]["data"];
+
+export const createPendingRegistrationRepository = (
+  db: DatabaseClient
+) => {
   const findByEmail = async (email: string) => {
     return db.pendingRegistration.findUnique({
       where: { email },
     });
   };
 
-  const findByTokenHash = async (
-    verificationTokenHash: string
-  ) => {
+  const findByTokenHash = async (verificationTokenHash: string) => {
     return db.pendingRegistration.findUnique({
       where: {
         verificationTokenHash,
@@ -32,7 +35,21 @@ export const createPendingRegistrationRepository = (db: DatabaseClient) => {
     data: CreatePendingRegistrationData
   ) => {
     return db.pendingRegistration.create({
-      data,
+      data: {
+        email: data.email,
+        passwordHash: data.passwordHash,
+        verificationTokenHash: data.verificationTokenHash,
+        verificationTokenExpiresAt:
+          data.verificationTokenExpiresAt,
+
+        ...(data.ipAddress !== undefined
+          ? { ipAddress: data.ipAddress }
+          : {}),
+
+        ...(data.userAgent !== undefined
+          ? { userAgent: data.userAgent }
+          : {}),
+      },
     });
   };
 
@@ -50,7 +67,7 @@ export const createPendingRegistrationRepository = (db: DatabaseClient) => {
 
   const update = async (
     id: string,
-    data: Prisma.PendingRegistrationUpdateInput
+    data: PendingRegistrationUpdateData
   ) => {
     return db.pendingRegistration.update({
       where: { id },
@@ -68,5 +85,4 @@ export const createPendingRegistrationRepository = (db: DatabaseClient) => {
   };
 };
 
-export type PendingRegistrationRepository =
-  ReturnType<typeof createPendingRegistrationRepository>;
+export type PendingRegistrationRepository = ReturnType<typeof createPendingRegistrationRepository>;

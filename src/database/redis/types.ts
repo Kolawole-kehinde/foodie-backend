@@ -1,3 +1,3 @@
-import Redis from "ioredis";
+import type { Redis } from "ioredis";
 
 export type RedisClient = Redis;
