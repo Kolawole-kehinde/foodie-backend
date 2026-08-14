@@ -77,11 +77,12 @@ BCRYPT_ROUNDS: z.coerce.number().default(12),
 
 
   // Email
-  // SMTP_HOST: z.string(),
-  // SMTP_PORT: z.coerce.number(),
-  // SMTP_USER: z.string(),
-  // SMTP_PASS: z.string(),
-  // SMTP_FROM: z.string().email(),
+  SMTP_HOST: z.string(),
+  SMTP_PORT: z.coerce.number(),
+  SMTP_USER: z.string(),
+  SMTP_PASS: z.string(),
+  SMTP_FROM: z.string().email(),
+  APP_URL: z.string().url(),
 
 
   // Logging
@@ -151,13 +152,14 @@ export const env = {
   //   URL: config.CLIENT_URL,
   // },
 
-  // mail: {
-  //   HOST: config.SMTP_HOST,
-  //   PORT: config.SMTP_PORT,
-  //   USER: config.SMTP_USER,
-  //   PASS: config.SMTP_PASS,
-  //   FROM: config.SMTP_FROM,
-  // },
+  mail: {
+    HOST: config.SMTP_HOST,
+    PORT: config.SMTP_PORT,
+    USER: config.SMTP_USER,
+    PASS: config.SMTP_PASS,
+    FROM: config.SMTP_FROM,
+    CLIENT_URL: config.APP_URL,
+  },
 
   logger: {
     LEVEL: config.LOG_LEVEL,
