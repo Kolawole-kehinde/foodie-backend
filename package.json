@@ -5,6 +5,7 @@
   "main": "dist/server.ts",
   "scripts": {
     "dev": "tsx watch src/app/server.ts",
+    "worker:email": "tsx watch src/workers/email.worker.ts",
     "build": "tsc",
     "start": "node dist/server.ts"
   },
@@ -13,6 +14,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@prisma/client": "^6.19.3",
     "bcrypt": "^6.0.0",
     "bullmq": "^6.1.1",

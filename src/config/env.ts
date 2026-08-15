@@ -81,7 +81,7 @@ BCRYPT_ROUNDS: z.coerce.number().default(12),
   SMTP_PORT: z.coerce.number(),
   SMTP_USER: z.string(),
   SMTP_PASS: z.string(),
-  SMTP_FROM: z.string().email(),
+  SMTP_FROM: z.string().min(1, "SMTP_FROM is required"),
   APP_URL: z.string().url(),
 
 
