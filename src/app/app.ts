@@ -4,9 +4,13 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
 import { authRoutes } from "./container.js";
+import { startPendingRegistrationCleanupJob } from "../jobs/pending-registration-cleanup/pending-registration-cleanup.job.js";
 
 export function createApp() {
   const app = express();
+
+
+  startPendingRegistrationCleanupJob();
 
   app.set("trust proxy", true);
 

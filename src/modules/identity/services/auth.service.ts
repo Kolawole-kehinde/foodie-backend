@@ -68,16 +68,19 @@ export const createAuthService = ({
     const verificationTokenExpiresAt = new Date(
       Date.now() + 1000 * 60 * 30
     );
+    const expiresAt = new Date(
+  Date.now() + 1000 * 60 * 60 * 24
+);
 
     await prisma.$transaction(async (tx) => {
-      const pendingRegistrationRepositoryTx =
-        createPendingRegistrationRepository(tx);
+      const pendingRegistrationRepositoryTx = createPendingRegistrationRepository(tx);
 
       await pendingRegistrationRepositoryTx.create({
         email,
         passwordHash,
         verificationTokenHash,
         verificationTokenExpiresAt,
+        expiresAt,
         ipAddress: context?.ipAddress,
         userAgent: context?.userAgent,
       });
