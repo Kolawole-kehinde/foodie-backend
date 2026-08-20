@@ -165,6 +165,8 @@ model PendingRegistration {
 
   verificationTokenExpiresAt DateTime
 
+  expiresAt                 DateTime
+
   ipAddress String?
 
   userAgent String?
