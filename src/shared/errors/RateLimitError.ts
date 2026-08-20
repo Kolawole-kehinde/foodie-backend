@@ -1,11 +1,10 @@
-import { ERROR_CODES } from "../constants/error-codes.js";
-import { AppError } from "./AppError.js";
+export class RateLimitError extends Error {
+  statusCode = 429;
+  code = "RATE_LIMIT_EXCEEDED";
 
-export class RateLimitError extends AppError {
   constructor(message = "Too many requests") {
-    super(message, {
-      statusCode: 429,
-      code: ERROR_CODES.RATE_LIMITED,
-    });
+    super(message);
+
+    this.name = "RateLimitError";
   }
 }

@@ -14,9 +14,8 @@ type PendingRegistrationUpdateData =
     DatabaseClient["pendingRegistration"]["update"]
   >[0]["data"];
 
-export const createPendingRegistrationRepository = (
-  db: DatabaseClient
-) => {
+export const createPendingRegistrationRepository = (db: DatabaseClient) => {
+
   const findByEmail = async (email: string) => {
     return db.pendingRegistration.findUnique({
       where: { email },
@@ -31,9 +30,7 @@ export const createPendingRegistrationRepository = (
     });
   };
 
-  const create = async (
-    data: CreatePendingRegistrationData
-  ) => {
+  const create = async (data: CreatePendingRegistrationData) => {
     return db.pendingRegistration.create({
       data: {
         email: data.email,
