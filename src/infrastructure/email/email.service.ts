@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 
 const transporter = nodemailer.createTransport({
   host: env.mail.HOST,
@@ -19,6 +20,14 @@ export const createEmailService = () => {
     const verificationUrl =
       `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
 
+   logger.info(
+    {
+      email,
+      verificationToken,
+      verificationUrl,
+    },
+    "Verification email generated"
+  );
     await transporter.sendMail({
       from: env.mail.FROM,
       to: email,

@@ -5,6 +5,7 @@ import { registerSchema } from "../validators/register.validator.js";
 import { rateLimit } from "../../../shared/rate-limit/rate-limit.middleware.js";
 import { registrationRateLimitPolicy } from "../middleware/registration-rate-limit.policy.js";
 import { validate } from "../../../shared/rate-limit/middleware/validate.middleware.js";
+import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 
 
 type CreateAuthRoutesDependencies = {
@@ -16,35 +17,21 @@ export const createAuthRoutes = ({
 }: CreateAuthRoutesDependencies) => {
   const router = Router();
 
-//  router.post(
-//   "/register",
-
-//   // Protect the endpoint itself
-//   rateLimit({
-//     policy: registrationIpAbusePolicy,
-//   }),
-
-//   // Validate the request
-//   validate(registerSchema),
-
-//   // Apply registration-specific limits
-//   rateLimit({
-//     policy: registrationRateLimitPolicy,
-//   }),
-
-//   authController.register
-// );
-
 router.post(
   "/register",
   validate(registerSchema),
-
   rateLimit({
     rules: registrationRateLimitPolicy,
   }),
-
   authController.register
 );
+
+router.post(
+  "/verify-email",
+  validate(verifyEmailSchema),
+  authController.verifyEmail
+);
+
   return router;
 };
 

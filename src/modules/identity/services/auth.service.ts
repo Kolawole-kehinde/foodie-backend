@@ -1,25 +1,16 @@
-import {
-  UserStatus,
-  type PrismaClient,
-} from "@prisma/client";
-
-import {
-  createPendingRegistrationRepository,
-  type PendingRegistrationRepository,
+import {UserStatus, type PrismaClient,} from "@prisma/client";
+import {createPendingRegistrationRepository,type PendingRegistrationRepository,
 } from "../repositories/pending-registration.repository.js";
-
 import { createUserRepository, type UserRepository } from "../repositories/user.repository.js";
-
 import type { PasswordService } from "./password.service.js";
 import type { TokenService } from "./token.service.js";
 import type { AuditService } from "./audit.service.js";
-
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { AuditActions } from "../constants/audit-action.constants.js";
-
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { RegisterResponseDto } from "../dto/register-response.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
+import { type EmailQueueService } from "../../../queues/email/email.service.js";
 
 type CreateAuthServiceDependencies = {
   prisma: PrismaClient;
@@ -28,9 +19,10 @@ type CreateAuthServiceDependencies = {
   passwordService: PasswordService;
   tokenService: TokenService;
   auditService: AuditService;
+   emailQueueService: EmailQueueService;
 };
 
-type RegisterContext = {
+type AuthContext = {
   ipAddress?: string;
   userAgent?: string;
 };
@@ -42,10 +34,12 @@ export const createAuthService = ({
   passwordService,
   tokenService,
   auditService,
+  emailQueueService
+  
 }: CreateAuthServiceDependencies) => {
   const register = async (
     dto: RegisterRequestDto,
-    context?: RegisterContext
+    context?: AuthContext
   ): Promise<RegisterResponseDto> => {
     const { email, password } = dto;
 
@@ -65,14 +59,11 @@ export const createAuthService = ({
       );
     }
 
-    const passwordHash =
-      await passwordService.hash(password);
+    const passwordHash = await passwordService.hash(password);
 
-    const verificationToken =
-      tokenService.generateRandomToken();
+    const verificationToken = tokenService.generateRandomToken();
 
-    const verificationTokenHash =
-      tokenService.hashToken(verificationToken);
+    const verificationTokenHash = tokenService.hashToken(verificationToken);
 
     const verificationTokenExpiresAt = new Date(
       Date.now() + 1000 * 60 * 30
@@ -101,7 +92,11 @@ export const createAuthService = ({
       },
     });
 
-    // Email queue will be added here.
+    // Email queue 
+  await emailQueueService.sendVerificationEmail(
+  email,
+  verificationToken
+);
 
     return {
       message:
@@ -109,15 +104,19 @@ export const createAuthService = ({
     };
   };
 
-
-  const verifyEmail = async ( dto: VerifyEmailRequestDto, context?: RegisterContext): Promise<{ message: string }> => {
+  const verifyEmail = async (
+    dto: VerifyEmailRequestDto,
+    context?: AuthContext
+  ): Promise<{ message: string }> => {
     const { token } = dto;
 
     // Hash the raw token.
-    const tokenHash = tokenService.hashToken(token);
+    const tokenHash =
+      tokenService.hashToken(token);
 
     // Find the pending registration.
-    const pendingRegistration = await pendingRegistrationRepository.findByTokenHash(
+    const pendingRegistration =
+      await pendingRegistrationRepository.findByTokenHash(
         tokenHash
       );
 
@@ -128,21 +127,28 @@ export const createAuthService = ({
     }
 
     // Check expiration.
-    if (pendingRegistration.verificationTokenExpiresAt <=new Date()) {
+    if (
+      pendingRegistration.verificationTokenExpiresAt <=
+      new Date()
+    ) {
       throw new ConflictError(
         "Invalid or expired verification token"
       );
     }
 
     // Convert PendingRegistration -> User atomically.
-    const user = await prisma.$transaction(async (tx) => {
-        const userRepositoryTx =createUserRepository(tx);
+    const user = await prisma.$transaction(
+      async (tx) => {
+        const userRepositoryTx =
+          createUserRepository(tx);
 
-        const pendingRegistrationRepositoryTx = createPendingRegistrationRepository(tx);
+        const pendingRegistrationRepositoryTx =
+          createPendingRegistrationRepository(tx);
 
-        const createdUser = await userRepositoryTx.create({
+        const createdUser =  await userRepositoryTx.create({
             email: pendingRegistration.email,
-            passwordHash: pendingRegistration.passwordHash,
+            passwordHash:
+              pendingRegistration.passwordHash,
             status: UserStatus.ACTIVE,
             emailVerifiedAt: new Date(),
           });
