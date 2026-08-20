@@ -1,19 +1,25 @@
-import type { PrismaClient } from "@prisma/client";
+import {
+  UserStatus,
+  type PrismaClient,
+} from "@prisma/client";
+
 import {
   createPendingRegistrationRepository,
   type PendingRegistrationRepository,
 } from "../repositories/pending-registration.repository.js";
-import type { UserRepository } from "../repositories/user.repository.js";
+
+import { createUserRepository, type UserRepository } from "../repositories/user.repository.js";
+
 import type { PasswordService } from "./password.service.js";
 import type { TokenService } from "./token.service.js";
 import type { AuditService } from "./audit.service.js";
+
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { AuditActions } from "../constants/audit-action.constants.js";
+
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { RegisterResponseDto } from "../dto/register-response.dto.js";
-import type { EmailQueueService } from "../../../queues/email/email.service.js";
-
-
+import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 
 type CreateAuthServiceDependencies = {
   prisma: PrismaClient;
@@ -22,7 +28,6 @@ type CreateAuthServiceDependencies = {
   passwordService: PasswordService;
   tokenService: TokenService;
   auditService: AuditService;
-  emailQueueService: EmailQueueService;
 };
 
 type RegisterContext = {
@@ -37,7 +42,6 @@ export const createAuthService = ({
   passwordService,
   tokenService,
   auditService,
-   emailQueueService,
 }: CreateAuthServiceDependencies) => {
   const register = async (
     dto: RegisterRequestDto,
@@ -45,7 +49,8 @@ export const createAuthService = ({
   ): Promise<RegisterResponseDto> => {
     const { email, password } = dto;
 
-    const existingUser = await userRepository.findByEmail(email);
+    const existingUser =
+      await userRepository.findByEmail(email);
 
     if (existingUser) {
       throw new ConflictError("Email already exists");
@@ -60,9 +65,11 @@ export const createAuthService = ({
       );
     }
 
-    const passwordHash = await passwordService.hash(password);
+    const passwordHash =
+      await passwordService.hash(password);
 
-    const verificationToken = tokenService.generateRandomToken();
+    const verificationToken =
+      tokenService.generateRandomToken();
 
     const verificationTokenHash =
       tokenService.hashToken(verificationToken);
@@ -70,25 +77,6 @@ export const createAuthService = ({
     const verificationTokenExpiresAt = new Date(
       Date.now() + 1000 * 60 * 30
     );
-
-    /**
-     * Build the optional request context once.
-     *
-     * With `exactOptionalPropertyTypes: true`, we must not
-     * explicitly pass:
-     *
-     *   ipAddress: undefined
-     *
-     * Instead, the property is omitted completely when undefined.
-     */
-    const registrationContext: RegisterContext = {
-      ...(context?.ipAddress !== undefined
-        ? { ipAddress: context.ipAddress }
-        : {}),
-      ...(context?.userAgent !== undefined
-        ? { userAgent: context.userAgent }
-        : {}),
-    };
 
     await prisma.$transaction(async (tx) => {
       const pendingRegistrationRepositoryTx =
@@ -99,23 +87,21 @@ export const createAuthService = ({
         passwordHash,
         verificationTokenHash,
         verificationTokenExpiresAt,
-        ...registrationContext,
+        ipAddress: context?.ipAddress,
+        userAgent: context?.userAgent,
       });
     });
 
     await auditService.log({
       action: AuditActions.REGISTRATION_INITIATED,
-      ...registrationContext,
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
       metadata: {
         email,
       },
     });
 
-    // Email queue 
-  await emailQueueService.sendVerificationEmail(
-  email,
-  verificationToken
-);
+    // Email queue will be added here.
 
     return {
       message:
@@ -123,8 +109,68 @@ export const createAuthService = ({
     };
   };
 
+
+  const verifyEmail = async ( dto: VerifyEmailRequestDto, context?: RegisterContext): Promise<{ message: string }> => {
+    const { token } = dto;
+
+    // Hash the raw token.
+    const tokenHash = tokenService.hashToken(token);
+
+    // Find the pending registration.
+    const pendingRegistration = await pendingRegistrationRepository.findByTokenHash(
+        tokenHash
+      );
+
+    if (!pendingRegistration) {
+      throw new ConflictError(
+        "Invalid or expired verification token"
+      );
+    }
+
+    // Check expiration.
+    if (pendingRegistration.verificationTokenExpiresAt <=new Date()) {
+      throw new ConflictError(
+        "Invalid or expired verification token"
+      );
+    }
+
+    // Convert PendingRegistration -> User atomically.
+    const user = await prisma.$transaction(async (tx) => {
+        const userRepositoryTx =createUserRepository(tx);
+
+        const pendingRegistrationRepositoryTx = createPendingRegistrationRepository(tx);
+
+        const createdUser = await userRepositoryTx.create({
+            email: pendingRegistration.email,
+            passwordHash: pendingRegistration.passwordHash,
+            status: UserStatus.ACTIVE,
+            emailVerifiedAt: new Date(),
+          });
+
+        await pendingRegistrationRepositoryTx.deleteById(
+          pendingRegistration.id
+        );
+
+        return createdUser;
+      }
+    );
+
+    // Record successful verification.
+    await auditService.log({
+      action: AuditActions.EMAIL_VERIFIED,
+      userId: user.id,
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+    });
+
+    return {
+      message: "Email verified successfully.",
+    };
+  };
+
   return {
     register,
+    verifyEmail,
   };
 };
 
