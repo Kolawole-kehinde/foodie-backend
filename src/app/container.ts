@@ -5,9 +5,9 @@ import { createPendingRegistrationRepository } from "../modules/identity/reposit
 import { createUserRepository } from "../modules/identity/repositories/user.repository.js";
 import { createAuthRoutes } from "../modules/identity/routes/auth.routes.js";
 import { createAuditService } from "../modules/identity/services/audit.service.js";
-import { createAuthService } from "../modules/identity/services/auth.service.js";
-import { createPasswordService } from "../modules/identity/services/password.service.js";
-import { createTokenService } from "../modules/identity/services/token.service.js";
+import { createAuthService } from "../modules/identity/services/services/auth.service.js";
+import { createPasswordService } from "../modules/identity/infrastructure/password.service.js";
+import { createTokenService } from "../modules/identity/infrastructure/token.service.js";
 import { createEmailQueueService } from "../queues/email/email.service.js";
 
 

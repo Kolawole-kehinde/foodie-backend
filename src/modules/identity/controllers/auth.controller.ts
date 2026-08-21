@@ -1,7 +1,7 @@
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
-import type { AuthService } from "../services/auth.service.js";
+import type { AuthService } from "../services/services/auth.service.js";
 
 type CreateAuthControllerDependencies = {
   authService: AuthService;
