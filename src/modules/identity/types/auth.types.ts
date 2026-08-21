@@ -4,9 +4,9 @@ import type {PendingRegistrationRepository} from "../repositories/pending-regist
 
 
 import type { EmailQueueService } from "../../../queues/email/email.service.js";
-import type { PasswordService } from "../infrastructure/password.service.js";
-import type { TokenService } from "../infrastructure/token.service.js";
-import type { AuditService } from "../infrastructure/audit.service.js";
+import type { PasswordService } from "../services/password.service.js";
+import type { TokenService } from "../services/token.service.js";
+import type { AuditService } from "../services/audit.service.js";
 
 export type AuthContext = {
   ipAddress?: string;
