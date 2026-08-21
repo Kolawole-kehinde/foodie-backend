@@ -16,31 +16,46 @@ const userRepository = createUserRepository(prisma);
 const pendingRegistrationRepository = createPendingRegistrationRepository(prisma);
 const auditRepository = createAuditRepository(prisma);
 
-// Services
+
+// Infrastructure services
 const passwordService = createPasswordService();
 const tokenService = createTokenService();
 const auditService = createAuditService(auditRepository);
 const emailQueueService = createEmailQueueService();
 
-
-
+// --------------------------------------------------
 // Auth service
+// --------------------------------------------------
+
 const authService = createAuthService({
   prisma,
-  userRepository,
-  pendingRegistrationRepository,
-  passwordService,
-  tokenService,
-  auditService,
-  emailQueueService,
+
+  repositories: {
+    user: userRepository,
+    pendingRegistration: pendingRegistrationRepository,
+  },
+
+  services: {
+    password: passwordService,
+    token: tokenService,
+    audit: auditService,
+  },
+
+  queues: {
+    email: emailQueueService,
+  },
 });
 
-//Controllers
-const authController = createAuthController({
-  authService,
-});
+
+// Controller
+const authController =
+  createAuthController({
+    authService,
+  });
+
 
 // Routes
-export const authRoutes = createAuthRoutes({
-  authController,
-});
+export const authRoutes =
+  createAuthRoutes({
+    authController,
+  });
