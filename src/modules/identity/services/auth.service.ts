@@ -1,12 +1,7 @@
-import { UserStatus, type PrismaClient } from "@prisma/client";
-import {
-  createPendingRegistrationRepository,
-  type PendingRegistrationRepository,
+import {UserStatus, type PrismaClient,} from "@prisma/client";
+import {createPendingRegistrationRepository,type PendingRegistrationRepository,
 } from "../repositories/pending-registration.repository.js";
-import {
-  createUserRepository,
-  type UserRepository,
-} from "../repositories/user.repository.js";
+import { createUserRepository, type UserRepository } from "../repositories/user.repository.js";
 import type { PasswordService } from "./password.service.js";
 import type { TokenService } from "./token.service.js";
 import type { AuditService } from "./audit.service.js";
@@ -16,6 +11,7 @@ import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { RegisterResponseDto } from "../dto/register-response.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import { type EmailQueueService } from "../../../queues/email/email.service.js";
+import { AUTH_EXPIRATION } from "../constants/auth.constants.js";
 
 type CreateAuthServiceDependencies = {
   prisma: PrismaClient;
@@ -24,7 +20,7 @@ type CreateAuthServiceDependencies = {
   passwordService: PasswordService;
   tokenService: TokenService;
   auditService: AuditService;
-  emailQueueService: EmailQueueService;
+   emailQueueService: EmailQueueService;
 };
 
 type AuthContext = {
@@ -39,35 +35,34 @@ export const createAuthService = ({
   passwordService,
   tokenService,
   auditService,
-  emailQueueService,
+  emailQueueService
+  
 }: CreateAuthServiceDependencies) => {
-  const register = async (
-    dto: RegisterRequestDto,
-    context?: AuthContext,
-  ): Promise<RegisterResponseDto> => {
+  const register = async (  dto: RegisterRequestDto,context?: AuthContext): Promise<RegisterResponseDto> => {
     const { email, password } = dto;
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
       throw new ConflictError("Email already exists");
     }
 
-    const existingPendingRegistration =
-      await pendingRegistrationRepository.findByEmail(email);
+    const existingPendingRegistration = await pendingRegistrationRepository.findByEmail(email);
     if (existingPendingRegistration) {
       throw new ConflictError(
-        "A registration for this email is already pending verification",
+        "A registration for this email is already pending verification"
       );
     }
 
     const passwordHash = await passwordService.hash(password);
     const verificationToken = tokenService.generateRandomToken();
     const verificationTokenHash = tokenService.hashToken(verificationToken);
-    const verificationTokenExpiresAt = new Date(Date.now() + 1000 * 60 * 30);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
 
+const verificationTokenExpiresAt = new Date(Date.now() + AUTH_EXPIRATION.VERIFICATION_TOKEN_MS
+);
+
+const expiresAt = new Date( Date.now() + AUTH_EXPIRATION.PENDING_REGISTRATION_MS
+);
     await prisma.$transaction(async (tx) => {
-      const pendingRegistrationRepositoryTx =
-        createPendingRegistrationRepository(tx);
+    const pendingRegistrationRepositoryTx = createPendingRegistrationRepository(tx);
       await pendingRegistrationRepositoryTx.create({
         email,
         passwordHash,
@@ -88,52 +83,68 @@ export const createAuthService = ({
       },
     });
 
-    // Email queue
-    await emailQueueService.sendVerificationEmail(email, verificationToken);
+    // Email queue 
+  await emailQueueService.sendVerificationEmail(
+  email,
+  verificationToken
+);
 
     return {
-      message: "Registration successful. Please verify your email.",
+      message:
+        "Registration successful. Please verify your email.",
     };
   };
 
   const verifyEmail = async (
     dto: VerifyEmailRequestDto,
-    context?: AuthContext,
+    context?: AuthContext
   ): Promise<{ message: string }> => {
     const { token } = dto;
 
     // Hash the raw token.
-    const tokenHash = tokenService.hashToken(token);
+    const tokenHash =
+      tokenService.hashToken(token);
 
     // Find the pending registration.
-    const pendingRegistration =
-      await pendingRegistrationRepository.findByTokenHash(tokenHash);
+    const pendingRegistration = await pendingRegistrationRepository.findByTokenHash(
+        tokenHash
+      );
 
     if (!pendingRegistration) {
-      throw new ConflictError("Invalid or expired verification token");
+      throw new ConflictError(
+        "Invalid or expired verification token"
+      );
     }
 
     // Check expiration.
-    if (pendingRegistration.verificationTokenExpiresAt <= new Date()) {
-      throw new ConflictError("Invalid or expired verification token");
+    if (
+      pendingRegistration.verificationTokenExpiresAt <=
+      new Date()
+    ) {
+      throw new ConflictError(
+        "Invalid or expired verification token"
+      );
     }
 
     // Convert PendingRegistration -> User atomically.
     const user = await prisma.$transaction(async (tx) => {
-      const userRepositoryTx = createUserRepository(tx);
-      const pendingRegistrationRepositoryTx =
-        createPendingRegistrationRepository(tx);
-      const createdUser = await userRepositoryTx.create({
-        email: pendingRegistration.email,
-        passwordHash: pendingRegistration.passwordHash,
-        status: UserStatus.ACTIVE,
-        emailVerifiedAt: new Date(),
-      });
+        const userRepositoryTx = createUserRepository(tx);
+        const pendingRegistrationRepositoryTx =  createPendingRegistrationRepository(tx);
+        const createdUser =  await userRepositoryTx.create({
+            email: pendingRegistration.email,
+            passwordHash:
+              pendingRegistration.passwordHash,
+            status: UserStatus.ACTIVE,
+            emailVerifiedAt: new Date(),
+          });
 
-      await pendingRegistrationRepositoryTx.deleteById(pendingRegistration.id);
+        await pendingRegistrationRepositoryTx.deleteById(
+          pendingRegistration.id
+        );
 
-      return createdUser;
-    });
+        return createdUser;
+      }
+    );
 
     // Record successful verification.
     await auditService.log({
