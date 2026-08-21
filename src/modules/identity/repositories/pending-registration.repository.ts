@@ -10,17 +10,23 @@ export type CreatePendingRegistrationData = {
   userAgent?: string;
 };
 
-type PendingRegistrationUpdateData = Parameters< DatabaseClient["pendingRegistration"]["update"]>[0]["data"];
+type PendingRegistrationUpdateData =
+  Parameters<
+    DatabaseClient["pendingRegistration"]["update"]
+  >[0]["data"];
 
-export const createPendingRegistrationRepository = (db: DatabaseClient) => {
-
+export const createPendingRegistrationRepository = (
+  db: DatabaseClient
+) => {
   const findByEmail = async (email: string) => {
     return db.pendingRegistration.findUnique({
       where: { email },
     });
   };
 
-  const findByTokenHash = async (verificationTokenHash: string) => {
+  const findByTokenHash = async (
+    verificationTokenHash: string
+  ) => {
     return db.pendingRegistration.findUnique({
       where: {
         verificationTokenHash,
@@ -28,25 +34,14 @@ export const createPendingRegistrationRepository = (db: DatabaseClient) => {
     });
   };
 
- const create = async (data: CreatePendingRegistrationData) => {
-  return db.pendingRegistration.create({
-    data: {
-      email: data.email,
-      passwordHash: data.passwordHash,
-      verificationTokenHash: data.verificationTokenHash,
-      verificationTokenExpiresAt: data.verificationTokenExpiresAt,
-      expiresAt: data.expiresAt,
+  const create = async (
+    data: CreatePendingRegistrationData
+  ) => {
+    return db.pendingRegistration.create({
+      data,
+    });
+  };
 
-      ...(data.ipAddress !== undefined
-        ? { ipAddress: data.ipAddress }
-        : {}),
-
-      ...(data.userAgent !== undefined
-        ? { userAgent: data.userAgent }
-        : {}),
-    },
-  });
-};
   const deleteById = async (id: string) => {
     return db.pendingRegistration.delete({
       where: { id },
@@ -79,4 +74,4 @@ export const createPendingRegistrationRepository = (db: DatabaseClient) => {
   };
 };
 
-export type PendingRegistrationRepository = ReturnType<typeof createPendingRegistrationRepository>;
+export type PendingRegistrationRepository =  ReturnType< typeof createPendingRegistrationRepository>;

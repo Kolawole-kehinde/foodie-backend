@@ -13,14 +13,14 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
 
 
     const findByTokenHash = async (tokenHash: string) =>{
-         db.refreshToken.findUnique ({
+         return db.refreshToken.findUnique ({
             where: {tokenHash}
          })
     };
 
 
     const revoke = async (id: string) => {
-       db.refreshToken.update({
+       return db.refreshToken.update({
         where: {id},
         data: {
             revokedAt: new Date()
@@ -29,7 +29,7 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
     };
 
     const markAsReplaced = async (id: string, replacedByTokenId: string) => {
-     db.refreshToken.update ({
+      return db.refreshToken.update ({
         where: {id},
         data: {
           revokedAt: new Date(),
@@ -39,7 +39,7 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
     };
 
     const deleteExpired = async() => {
-        db.refreshToken.deleteMany({
+         return db.refreshToken.deleteMany({
             where: {
                 expiresAt: {
                   lt: new Date(),

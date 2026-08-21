@@ -12,13 +12,13 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     };
 
     const findById = async (id: string) => {
-     db.userSession.findUnique({
+      return db.userSession.findUnique({
         where :{id}
      })
     }
 
     const findUserById = async (userId: string) => {
-        db.userSession.findMany({
+        return db.userSession.findMany({
             where: {userId},
             orderBy: {
                 createdAt: "desc"
@@ -27,7 +27,7 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     };
 
     const updateLastActivity = async (id: string) => {
-        db.userSession.update({
+       return db.userSession.update({
             where: {id},
             data: {
                 lastActivityAt: new Date(),
@@ -36,7 +36,7 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     };
 
     const revoke = async (id: string, reason?: Prisma.UserSessionUpdateInput["revokeReason"]) => {
-        db.userSession.update({
+         return db.userSession.update({
             where: {id},
             data:{
                 revokedAt: new Date(),
@@ -47,7 +47,7 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     };
 
     const revokeAllForUser = async (userId: string, reason?: Prisma.UserSessionUpdateInput["revokeReason"]) => {
-       db.userSession.updateMany ({
+       return db.userSession.updateMany ({
         where: {
             userId,
             revokedAt: null
@@ -70,6 +70,6 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     }
 
 
-}
+};
 
 export type createUserSessionRepository = ReturnType < typeof createUserSessionRepository>
