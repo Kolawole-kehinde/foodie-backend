@@ -12,10 +12,12 @@ export const createPasswordService = () => {
   ): Promise<boolean> => {
     return bcrypt.compare(password, hash);
   };
+  const DUMMY_PASSWORD_HASH = "$2b$12$LQv3c1yqBW9s5QnZ7JQZ4u5H1W8QY5H5L6YQ5vV6FQ8J6L5Q9YQ6";
 
   return {
     hash,
     verify,
+    DUMMY_PASSWORD_HASH
   };
 };
 

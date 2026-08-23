@@ -18,6 +18,4 @@ export const createTokenService = () => {
   };
 };
 
-export type TokenService = ReturnType<
-  typeof createTokenService
->;
+export type TokenService = ReturnType<typeof createTokenService>;

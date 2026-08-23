@@ -1,8 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type {UserRepository,} from "../repositories/user.repository.js";
 import type {PendingRegistrationRepository} from "../repositories/pending-registration.repository.js";
-
-
 import type { EmailQueueService } from "../../../queues/email/email.service.js";
 import type { PasswordService } from "../services/password.service.js";
 import type { TokenService } from "../services/token.service.js";
