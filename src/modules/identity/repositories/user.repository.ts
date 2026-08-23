@@ -9,6 +9,38 @@ export const createUserRepository = (db: DatabaseClient) => {
     });
   };
 
+
+  const findByEmailWithRoles = async (email: string) => {
+  return db.user.findUnique({
+    where: { email },
+    include: {
+      roles: {
+        select: {
+          role: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+
+    const findByIdWithRoles = async (id: string) => {
+    return db.user.findUnique({
+      where: { id },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+  };
+
   const findByEmail = async (email: string) => {
     return db.user.findUnique({
       where: { email },
@@ -30,6 +62,8 @@ export const createUserRepository = (db: DatabaseClient) => {
 
   return {
     findById,
+    findByIdWithRoles,
+    findByEmailWithRoles,
     findByEmail,
     create,
     update,
