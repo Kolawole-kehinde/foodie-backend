@@ -72,4 +72,4 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
 
 };
 
-export type createUserSessionRepository = ReturnType < typeof createUserSessionRepository>
+export type UserSessionRepository = ReturnType < typeof createUserSessionRepository>

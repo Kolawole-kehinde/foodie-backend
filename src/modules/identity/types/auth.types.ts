@@ -7,6 +7,8 @@ import type { EmailQueueService } from "../../../queues/email/email.service.js";
 import type { PasswordService } from "../services/password.service.js";
 import type { TokenService } from "../services/token.service.js";
 import type { AuditService } from "../services/audit.service.js";
+import type { UserSessionRepository } from "../repositories/user-session.repository.js";
+import type { RefreshTokenRepository } from "../repositories/refresh-token.repository.js";
 
 export type AuthContext = {
   ipAddress?: string;
@@ -17,6 +19,8 @@ export type AuthContext = {
 export type AuthRepositories = {
   user: UserRepository;
   pendingRegistration: PendingRegistrationRepository;
+  session: UserSessionRepository;
+  refreshToken: RefreshTokenRepository;
 };
 
 export type AuthServices = {
