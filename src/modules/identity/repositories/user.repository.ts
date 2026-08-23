@@ -10,6 +10,13 @@ export const createUserRepository = (db: DatabaseClient) => {
     });
   };
 
+   const findByEmail = async (email: string) => {
+    return db.user.findUnique({
+      where: { email },
+    });
+  };
+
+
   
   const incrementFailedLoginAttempts = async (id: string) => {
    return db.user.update({
@@ -25,6 +32,15 @@ export const createUserRepository = (db: DatabaseClient) => {
    })
   };
 
+  const lockAccount = async (id:string, lockedUntil: Date) =>{
+      return db.user.update({
+         where: {id},
+         data: {
+          lockedUntil
+         }
+      })
+  }
+
   const resetFailedLoginAttempts = async (id: string) => {
       return db.user.update({
         where: {id},
@@ -34,12 +50,6 @@ export const createUserRepository = (db: DatabaseClient) => {
         }
       })
   }
-
-  const findByEmail = async (email: string) => {
-    return db.user.findUnique({
-      where: { email },
-    });
-  };
 
   const create = async (data: CreateUserData) => {
     return db.user.create({
@@ -56,9 +66,10 @@ export const createUserRepository = (db: DatabaseClient) => {
 
   return {
     findById,
+    findByEmail,
     incrementFailedLoginAttempts,
     resetFailedLoginAttempts,
-    findByEmail,
+    lockAccount,
     create,
     update,
   };
