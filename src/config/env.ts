@@ -39,6 +39,18 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
+  MAX_LOGIN_ATTEMPTS: z.coerce
+  .number()
+  .int()
+  .positive()
+  .default(5),
+
+LOGIN_LOCK_DURATION_MINUTES: z.coerce
+  .number()
+  .int()
+  .positive()
+  .default(15),
+
 
   // Redis 
 // REDIS_URL: z.string().min(1, "REDIS_URL is required"),
@@ -138,8 +150,10 @@ export const env = {
 
   },
 
-  auth: {
-  BCRYPT: config.BCRYPT_ROUNDS
+auth: {
+  BCRYPT: config.BCRYPT_ROUNDS,
+  MAX_LOGIN_ATTEMPTS: config.MAX_LOGIN_ATTEMPTS,
+  LOGIN_LOCK_DURATION_MINUTES: config.LOGIN_LOCK_DURATION_MINUTES,
 },
 
 jwt: {
