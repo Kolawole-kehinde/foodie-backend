@@ -57,6 +57,13 @@ BCRYPT_ROUNDS: z.coerce.number().default(12),
   //   .string()
   //   .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
 
+  JWT_ACCESS_SECRET: z
+  .string()
+  .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+
+JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+
   // JWT_REFRESH_SECRET: z
   //   .string()
   //   .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
@@ -135,12 +142,11 @@ export const env = {
   BCRYPT: config.BCRYPT_ROUNDS
 },
 
-  // jwt: {
-  //   ACCESS_SECRET: config.JWT_ACCESS_SECRET,
-  //   REFRESH_SECRET: config.JWT_REFRESH_SECRET,
-  //   ACCESS_EXPIRES_IN: config.JWT_ACCESS_EXPIRES_IN,
-  //   REFRESH_EXPIRES_IN: config.JWT_REFRESH_EXPIRES_IN,
-  // },
+jwt: {
+  ACCESS_SECRET: config.JWT_ACCESS_SECRET,
+  ACCESS_EXPIRES_IN: config.JWT_ACCESS_EXPIRES_IN,
+  REFRESH_EXPIRES_IN: config.JWT_REFRESH_EXPIRES_IN,
+},
 
   // cookie: {
   //   SECRET: config.COOKIE_SECRET,
