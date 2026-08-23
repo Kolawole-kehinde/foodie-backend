@@ -6,11 +6,7 @@ import type { RegisterResponseDto } from "../dto/register-response.dto.js";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 
 
-export const createRegistrationService = ({
-  repositories,
-  services,
-  queues,
-}: AuthDependencies) => {
+export const createRegistrationService = ({repositories,services,queues,}: AuthDependencies) => {
   const register = async (
     dto: RegisterRequestDto,
     context?: AuthContext
