@@ -5,5 +5,10 @@ export const AUTH_EXPIRATION = {
 
 export const AUTH_SECURITY = {
   MAX_FAILED_LOGIN_ATTEMPTS: 5,
+
   LOGIN_LOCKOUT_MS: 15 * 60 * 1000,
+
+  SESSION_DURATION_MS: 7 * 24 * 60 * 60 * 1000,
+
+  REFRESH_TOKEN_DURATION_MS: 7 * 24 * 60 * 60 * 1000,
 } as const;

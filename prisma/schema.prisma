@@ -34,14 +34,12 @@ model User {
 }
 
 
-model Role {
+ model Role {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        RoleName @unique
   description String?
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   users       UserRole[]
   permissions RolePermission[]
 }
@@ -110,6 +108,7 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
 }
+
 
 
 model RefreshToken {
@@ -335,4 +334,12 @@ enum SessionRevocationReason {
   ADMIN_REVOKED
   TOKEN_REUSE_DETECTED
   EXPIRED
+}
+
+enum RoleName {
+  ADMIN
+  USER
+  CUSTOMER_SUPPORT
+  EDITOR
+  MODERATOR
 }

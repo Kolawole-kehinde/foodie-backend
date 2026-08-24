@@ -21,10 +21,17 @@ export const createUserRepository = (
   };
 
   const findByEmail = async (email: string) => {
-    return db.user.findUnique({
-      where: { email },
-    });
-  };
+  return db.user.findUnique({
+    where: { email },
+    include: {
+      roles: {
+        include: {
+          role: true,
+        },
+      },
+    },
+  });
+};
 
   /**
    * Atomically increments failed login attempts.

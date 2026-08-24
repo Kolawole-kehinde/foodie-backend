@@ -2,12 +2,12 @@ import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { StringValue } from "ms";
 import { env } from "../../../config/env.js";
-import type { UserRole } from "../types/role.types.js";
+import type { RoleName } from "@prisma/client";
 
 type AccessTokenPayload = {
   userId: string;
   sessionId: string;
-  role:  UserRole;
+  roles: RoleName[];
 };
 
 export const createTokenService = () => {
@@ -26,11 +26,11 @@ const generateJwtId = (): string => {
       .digest("hex");
   };
 
-  const createAccessToken = ({userId,sessionId,role}: AccessTokenPayload) => {
+  const createAccessToken = ({userId,sessionId,roles}: AccessTokenPayload) => {
     return jwt.sign({
         sub: userId,
         sessionId,
-        role
+        roles
       },
       env.jwt.ACCESS_SECRET,
       {
