@@ -7,6 +7,7 @@ import type { TokenService } from "../services/token.service.js";
 import type { AuditService } from "../services/audit.service.js";
 import type { UserSessionRepository } from "../repositories/user-session.repository.js";
 import type { RefreshTokenRepository } from "../repositories/refresh-token.repository.js";
+import type { LoginAttemptRepository } from "../repositories/login-attempt.repository.js";
 
 export type AuthContext = {
   ipAddress?: string;
@@ -19,6 +20,7 @@ export type AuthRepositories = {
   pendingRegistration: PendingRegistrationRepository;
   session: UserSessionRepository;
   refreshToken: RefreshTokenRepository;
+  loginAttempt: LoginAttemptRepository
 };
 
 export type AuthServices = {

@@ -1,6 +1,7 @@
 import { prisma } from "../database/prisma/client.js";
 import { createAuthController } from "../modules/identity/controllers/auth.controller.js";
 import { createAuditRepository } from "../modules/identity/repositories/audit.repository.js";
+import { createLoginAttemptRepository } from "../modules/identity/repositories/login-attempt.repository.js";
 import { createPendingRegistrationRepository } from "../modules/identity/repositories/pending-registration.repository.js";
 import { createRefreshTokenRepository } from "../modules/identity/repositories/refresh-token.repository.js";
 import { createUserSessionRepository } from "../modules/identity/repositories/user-session.repository.js";
@@ -19,6 +20,7 @@ const pendingRegistrationRepository = createPendingRegistrationRepository(prisma
 const auditRepository = createAuditRepository(prisma);
 const userSessionRepository = createUserSessionRepository(prisma);
 const refreshTokenRepository = createRefreshTokenRepository(prisma);
+const loginAttemptRepository = createLoginAttemptRepository(prisma)
 
 
 // Infrastructure services
@@ -36,7 +38,8 @@ const authService = createAuthService({
     user: userRepository,
     pendingRegistration: pendingRegistrationRepository,
     session: userSessionRepository,
-    refreshToken: refreshTokenRepository
+    refreshToken: refreshTokenRepository,
+    loginAttempt: loginAttemptRepository
   },
 
   services: {
