@@ -1,4 +1,5 @@
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
+import type { LoginRequestDto } from "../dto/login-request.dto.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import type { AuthService } from "../services/auth.service.js";
@@ -31,9 +32,25 @@ export const createAuthController = ({authService,}: CreateAuthControllerDepende
     return res.status(200).json(result);
   });
 
+
+  const login = asyncHandler( async (req, res,) => {
+    const dto: LoginRequestDto = req.body
+
+    const result = await authService.login(dto,{
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent")
+    });
+
+    return res.status(200).json(result);
+
+  });
+
+  
+
   return {
     register,
     verifyEmail,
+    login
   };
 };
 
