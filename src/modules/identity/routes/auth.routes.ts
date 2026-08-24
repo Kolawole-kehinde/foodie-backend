@@ -6,6 +6,7 @@ import { rateLimit } from "../../../shared/rate-limit/rate-limit.middleware.js";
 import { registrationRateLimitPolicy } from "../middleware/registration-rate-limit.policy.js";
 import { validate } from "../../../shared/rate-limit/middleware/validate.middleware.js";
 import { verifyEmailSchema } from "../validators/verify-email.validator.js";
+import { loginSchema } from "../validators/login.validator.js";
 
 
 type CreateAuthRoutesDependencies = {
@@ -31,6 +32,12 @@ router.post(
   validate(verifyEmailSchema),
   authController.verifyEmail
 );
+
+router.post(
+  "/login",
+  validate(loginSchema),
+  authController.login
+)
 
   return router;
 };

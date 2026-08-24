@@ -1,18 +1,13 @@
 import { LoginFailureReason } from "@prisma/client";
 import type { LoginRequestDto } from "../dto/login-request.dto.js";
-
 import type {AuthContext,AuthDependencies,} from "../types/auth.types.js";
-
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import type { LoginResult } from "../dto/login-response.dto.js";
-
 export const createLoginService = ({repositories,services,}: AuthDependencies) => {
 
   const login = async (dto: LoginRequestDto, context: AuthContext): Promise<LoginResult> => {
 
-
     const { email, password } = dto;
-
 
     // 1. Find user
       const user = await repositories.user.findByEmail(email);
@@ -20,7 +15,7 @@ export const createLoginService = ({repositories,services,}: AuthDependencies) =
 
     // 2. Check account lock
     if (user?.lockedUntil) {
-    const now = new Date();
+       const now = new Date();
 
       // Account is currently locked
       if (user.lockedUntil > now) {
@@ -50,8 +45,7 @@ export const createLoginService = ({repositories,services,}: AuthDependencies) =
     const passwordHash = user?.passwordHash ?? services.password.getDummyHash();
 
     // 4. Always perform password verification
-    const passwordValid =
-      await services.password.verify(
+    const passwordValid = await services.password.verify(
         password,
         passwordHash
       );
