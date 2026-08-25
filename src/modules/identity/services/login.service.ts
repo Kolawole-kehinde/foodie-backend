@@ -9,14 +9,13 @@ import type {
   AuthContext,
   AuthDependencies,
 } from "../types/auth.types.js";
-
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
-import { ForbiddenError } from "../../../shared/errors/ForbiddenError.js";
-
 import { AUTH_SECURITY } from "../constants/auth.constants.js";
-
 import { createRefreshTokenRepository } from "../repositories/refresh-token.repository.js";
 import { createUserSessionRepository } from "../repositories/user-session.repository.js";
+import { ForbiddenError } from "../../../shared/errors/ForbiddenError.js";
+
+
 
 export const createLoginService = ({
   repositories,
@@ -35,13 +34,10 @@ export const createLoginService = ({
     // 1. Find user
     // --------------------------------------------------
 
-    const user =
-      await repositories.user.findByEmail(email);
+    const user =  await repositories.user.findByEmail(email);
 
-    // --------------------------------------------------
+  
     // 2. User doesn't exist
-    // --------------------------------------------------
-
     if (!user) {
       // Prevent user enumeration through timing differences.
       await services.password.verify(
@@ -63,11 +59,8 @@ export const createLoginService = ({
       );
     }
 
-    // --------------------------------------------------
     // 3. Check account status
-    // --------------------------------------------------
-
-    if (user.status === UserStatus.SUSPENDED) {
+       if (user.status === UserStatus.SUSPENDED) {
       await repositories.loginAttempt.create({
         userId: user.id,
         email,
@@ -83,14 +76,9 @@ export const createLoginService = ({
       );
     }
 
-    // --------------------------------------------------
-    // 4. Check account lock
-    // --------------------------------------------------
 
-    if (
-      user.lockedUntil &&
-      user.lockedUntil > now
-    ) {
+    // 4. Check account lock
+    if (user.lockedUntil &&  user.lockedUntil > now) {
       await repositories.loginAttempt.create({
         userId: user.id,
         email,
@@ -106,36 +94,25 @@ export const createLoginService = ({
       );
     }
 
-    // --------------------------------------------------
-    // 5. Lock expired
-    // --------------------------------------------------
 
-    if (
-      user.lockedUntil &&
-      user.lockedUntil <= now
-    ) {
+    // 5. Lock expired 
+     if ( user.lockedUntil &&  user.lockedUntil <= now) {
       await repositories.user.resetFailedLoginAttempts(
         user.id,
       );
     }
 
-    // --------------------------------------------------
+  
     // 6. Verify password
-    // --------------------------------------------------
-
-    const passwordValid =
-      await services.password.verify(
+    const passwordValid = await services.password.verify(
         password,
         user.passwordHash,
       );
 
-    // --------------------------------------------------
-    // 7. Invalid password
-    // --------------------------------------------------
 
-    if (!passwordValid) {
-      const failedAttempt =
-        await repositories.user.recordFailedLoginAttempt(
+    // 7. Invalid password
+        if (!passwordValid) {
+            const failedAttempt = await repositories.user.recordFailedLoginAttempt(
           user.id,
         );
 
@@ -149,10 +126,7 @@ export const createLoginService = ({
         userAgent: context.userAgent,
       });
 
-      if (
-        failedAttempt.lockedUntil &&
-        failedAttempt.lockedUntil > now
-      ) {
+      if (failedAttempt.lockedUntil && failedAttempt.lockedUntil > now) {
         throw new UnauthorizedError(
           "Account temporarily locked. Please try again later.",
         );
@@ -163,29 +137,19 @@ export const createLoginService = ({
       );
     }
 
-    // --------------------------------------------------
     // 8. Successful authentication
-    // --------------------------------------------------
-
-    await repositories.user.resetFailedLoginAttempts(
+       await repositories.user.resetFailedLoginAttempts(
       user.id,
     );
 
-    // --------------------------------------------------
     // 9. Update last login
-    // --------------------------------------------------
-
-    await repositories.user.update(
-      user.id,
-      {
+    await repositories.user.update( user.id,{
         lastLoginAt: now,
       },
     );
 
-    // --------------------------------------------------
-    // 10. Record successful login
-    // --------------------------------------------------
 
+    // 10. Record successful login
     await repositories.loginAttempt.create({
       userId: user.id,
       email,
@@ -194,74 +158,48 @@ export const createLoginService = ({
       userAgent: context.userAgent,
     });
 
-    // --------------------------------------------------
+
     // 11. Create refresh token
-    // --------------------------------------------------
+    const refreshToken = services.token.generateRandomToken();
 
-    const refreshToken =
-      services.token.generateRandomToken();
-
-    const refreshTokenHash =
-      services.token.hashToken(
+    const refreshTokenHash = services.token.hashToken(
         refreshToken,
       );
 
-    // --------------------------------------------------
-    // 12. Calculate expiration
-    // --------------------------------------------------
 
-    const sessionExpiresAt = new Date(
-      now.getTime() +
+    // 12. Calculate expiration
+
+    const sessionExpiresAt = new Date( now.getTime() +
         AUTH_SECURITY.SESSION_DURATION_MS,
     );
 
-    const refreshTokenExpiresAt = new Date(
-      now.getTime() +
+    const refreshTokenExpiresAt = new Date( now.getTime() +
         AUTH_SECURITY.REFRESH_TOKEN_DURATION_MS,
     );
 
-    // --------------------------------------------------
+   
     // 13. Create session + refresh token atomically
-    // --------------------------------------------------
+  
+    const session = await prisma.$transaction(async (tx) => {
+        const sessionRepository =createUserSessionRepository(tx);
+        const refreshTokenRepository = createRefreshTokenRepository(tx);
 
-    const session =
-      await prisma.$transaction(async (tx) => {
-        const sessionRepository =
-          createUserSessionRepository(tx);
-
-        const refreshTokenRepository =
-          createRefreshTokenRepository(tx);
-
-        const session =
-          await sessionRepository.create({
+        const session = await sessionRepository.create({
             user: {
               connect: {
                 id: user.id,
               },
             },
-
-            deviceName:
-              context.deviceName,
-
-            userAgent:
-              context.userAgent,
-
-            ipAddress:
-              context.ipAddress,
-
+            deviceName: context.deviceName,
+            userAgent:context.userAgent,
+            ipAddress:context.ipAddress,
             lastActivityAt: now,
-
-            expiresAt:
-              sessionExpiresAt,
+            expiresAt: sessionExpiresAt,
           });
 
         await refreshTokenRepository.create({
-          tokenHash:
-            refreshTokenHash,
-
-          expiresAt:
-            refreshTokenExpiresAt,
-
+          tokenHash: refreshTokenHash,
+          expiresAt: refreshTokenExpiresAt,
           session: {
             connect: {
               id: session.id,
@@ -272,27 +210,20 @@ export const createLoginService = ({
         return session;
       });
 
-    // --------------------------------------------------
+   
     // 14. Create access token
-    // --------------------------------------------------
-
-    const roles =
-      user.roles.map(
-        (userRole) =>
-          userRole.role.name,
+      const roles = user.roles.map(
+        (userRole) => userRole.role.name,
       );
 
-    const accessToken =
-      services.token.createAccessToken({
+    const accessToken = services.token.createAccessToken({
         userId: user.id,
         sessionId: session.id,
         roles,
       });
 
-    // --------------------------------------------------
+   
     // 15. Return authentication result
-    // --------------------------------------------------
-
     return {
       accessToken,
       refreshToken,
