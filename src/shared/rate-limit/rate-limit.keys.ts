@@ -1,5 +1,3 @@
-
-
 import { createHash } from "node:crypto";
 
 const hash = (value: string): string => {
@@ -9,11 +7,11 @@ const hash = (value: string): string => {
 };
 
 export const rateLimitKeys = {
-  email: (email: string) =>
-    `rate-limit:register:email:${hash(
+  email: (scope: string, email: string) =>
+    `rate-limit:${scope}:email:${hash(
       email.trim().toLowerCase()
     )}`,
 
-  ip: (ip: string) =>
-    `rate-limit:register:ip:${hash(ip)}`,
+  ip: (scope: string, ip: string) =>
+    `rate-limit:${scope}:ip:${hash(ip)}`,
 };
