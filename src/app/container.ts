@@ -7,6 +7,8 @@ import { createRefreshTokenRepository } from "../modules/identity/repositories/r
 import { createUserSessionRepository } from "../modules/identity/repositories/user-session.repository.js";
 import { createUserRepository } from "../modules/identity/repositories/user.repository.js";
 import { createAuthRoutes } from "../modules/identity/routes/auth.routes.js";
+import { createGeoLocationService } from "../modules/identity/security/geo-location.service.js";
+import { createImpossibleTravelService } from "../modules/identity/security/impossible-travel.service.js";
 import { createAuditService } from "../modules/identity/services/audit.service.js";
 import { createAuthService } from "../modules/identity/services/auth.service.js";
 import { createPasswordService } from "../modules/identity/services/password.service.js";
@@ -28,6 +30,8 @@ const passwordService = createPasswordService();
 const tokenService = createTokenService();
 const auditService = createAuditService(auditRepository);
 const emailQueueService = createEmailQueueService();
+const impossibleTravel = createImpossibleTravelService();
+const geoLocation = createGeoLocationService();
 
 
 // Auth service
@@ -46,6 +50,8 @@ const authService = createAuthService({
     password: passwordService,
     token: tokenService,
     audit: auditService,
+    impossibleTravel: impossibleTravel,
+    geoLocation: geoLocation
   },
 
   queues: {

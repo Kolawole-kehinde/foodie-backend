@@ -6,8 +6,7 @@ const hash = (value: string): string => {
     .digest("hex");
 };
 
-export const rateLimitKeys = {
-  email: (scope: string, email: string) =>
+export const rateLimitKeys = {email: (scope: string, email: string) =>
     `rate-limit:${scope}:email:${hash(
       email.trim().toLowerCase()
     )}`,

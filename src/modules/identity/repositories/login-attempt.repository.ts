@@ -8,22 +8,25 @@ type CreateLoginAttemptData = {
   failureReason?: LoginFailureReason;
   ipAddress?: string;
   userAgent?: string;
+  country?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 
+export const createLoginAttemptRepository = (db: DatabaseClient) => {
 
-export const createLoginAttemptRepository = (db: DatabaseClient) =>{
-
-    const create = async(data: CreateLoginAttemptData) =>{
+    const create = async (data: CreateLoginAttemptData) => {
         return db.loginAttempt.create({
             data
         })
 
     };
-    return{
+    return {
         create
     }
 
 }
 
-export type LoginAttemptRepository = ReturnType <typeof createLoginAttemptRepository>
+export type LoginAttemptRepository = ReturnType<typeof createLoginAttemptRepository>

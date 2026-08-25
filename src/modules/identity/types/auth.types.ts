@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
-import type {UserRepository,} from "../repositories/user.repository.js";
-import type {PendingRegistrationRepository} from "../repositories/pending-registration.repository.js";
+import type { UserRepository } from "../repositories/user.repository.js";
+import type { PendingRegistrationRepository } from "../repositories/pending-registration.repository.js";
 import type { EmailQueueService } from "../../../queues/email/email.service.js";
 import type { PasswordService } from "../services/password.service.js";
 import type { TokenService } from "../services/token.service.js";
@@ -8,6 +8,8 @@ import type { AuditService } from "../services/audit.service.js";
 import type { UserSessionRepository } from "../repositories/user-session.repository.js";
 import type { RefreshTokenRepository } from "../repositories/refresh-token.repository.js";
 import type { LoginAttemptRepository } from "../repositories/login-attempt.repository.js";
+import type { ImpossibleTravelService } from "../security/impossible-travel.service.js";
+import type { GeoLocationService } from "../security/geo-location.service.js";
 
 export type AuthContext = {
   ipAddress?: string;
@@ -20,13 +22,15 @@ export type AuthRepositories = {
   pendingRegistration: PendingRegistrationRepository;
   session: UserSessionRepository;
   refreshToken: RefreshTokenRepository;
-  loginAttempt: LoginAttemptRepository
+  loginAttempt: LoginAttemptRepository;
 };
 
 export type AuthServices = {
   password: PasswordService;
   token: TokenService;
   audit: AuditService;
+  impossibleTravel: ImpossibleTravelService;
+  geoLocation: GeoLocationService;
 };
 
 export type AuthQueues = {

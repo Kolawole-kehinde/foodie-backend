@@ -220,8 +220,7 @@ model LoginAttempt {
   id String @id @default(cuid())
 
   userId String?
-  email  String?
-
+  email String?
   success Boolean
 
   failureReason LoginFailureReason?
@@ -229,9 +228,14 @@ model LoginAttempt {
   ipAddress String?
   userAgent String?
 
+  country String?
+  city String?
+  latitude Float?
+  longitude Float?
+
   createdAt DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId],references: [id],onDelete: SetNull)
 
   @@index([userId])
   @@index([email])
@@ -268,6 +272,10 @@ model SecurityEvent {
   @@index([severity])
   @@index([createdAt])
 }
+
+
+
+
 
 
 enum SecurityEventType {

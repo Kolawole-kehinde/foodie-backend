@@ -1,31 +1,19 @@
-import type {
-  Request,
-  Response,
-  NextFunction,
-} from "express";
-
+import type {Request, Response,NextFunction,} from "express";
 import { createRateLimitService } from "./rate-limit.service.js";
 import { RateLimitError } from "../errors/RateLimitError.js";
+import type { RateLimitRule,} from "./rate-limit.types.js";
 
-import type {
-  RateLimitRule,
-} from "./rate-limit.types.js";
 
-const rateLimitService =
-  createRateLimitService();
+
+const rateLimitService = createRateLimitService();
 
 type RateLimitMiddlewareOptions = {
   rules: (req: Request) => RateLimitRule[];
 };
 
-export const rateLimit = ({
-  rules,
-}: RateLimitMiddlewareOptions) => {
-  return async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
+export const rateLimit = ({rules,}: RateLimitMiddlewareOptions) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    
     try {
       const rateLimitRules = rules(req);
 
