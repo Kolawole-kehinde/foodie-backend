@@ -1,5 +1,4 @@
 import { Router } from "express";
-
 import type { AuthController } from "../controllers/auth.controller.js";
 import { registerSchema } from "../validators/register.validator.js";
 import { rateLimit } from "../../../shared/rate-limit/rate-limit.middleware.js";
@@ -7,6 +6,7 @@ import { registrationRateLimitPolicy } from "../middleware/registration-rate-lim
 import { validate } from "../../../shared/rate-limit/middleware/validate.middleware.js";
 import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
+import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 
 
 type CreateAuthRoutesDependencies = {
@@ -36,6 +36,9 @@ router.post(
 router.post(
   "/login",
   validate(loginSchema),
+  rateLimit({
+    rules: loginRateLimitPolicy
+  }),
   authController.login
 )
 
