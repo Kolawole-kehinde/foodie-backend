@@ -7,6 +7,7 @@ import { validate } from "../../../shared/rate-limit/middleware/validate.middlew
 import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
+import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
 
 
 type CreateAuthRoutesDependencies = {
@@ -30,6 +31,10 @@ router.post(
 router.post(
   "/verify-email",
   validate(verifyEmailSchema),
+    rateLimit({
+    rules: verifyEmailRateLimitPolicy,
+  }),
+
   authController.verifyEmail
 );
 
