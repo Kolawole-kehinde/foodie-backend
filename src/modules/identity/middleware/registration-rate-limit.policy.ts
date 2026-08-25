@@ -7,9 +7,9 @@ import type {RateLimitRule,} from "../../../shared/rate-limit/rate-limit.types.j
 const ONE_HOUR = 60 * 60;
 
 export const registrationRateLimitPolicy = (req: Request): RateLimitRule[] => {
-  const email = String(req.body.email)
-    .trim()
-    .toLowerCase();
+
+  
+  const email = String(req.body.email).trim().toLowerCase();
 
   const ip = req.ip ?? "unknown";
 

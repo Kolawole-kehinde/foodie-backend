@@ -1,10 +1,13 @@
-export class RateLimitError extends Error {
-  statusCode = 429;
-  code = "RATE_LIMIT_EXCEEDED";
+import { ERROR_CODES } from "../constants/error-codes.js";
+import { AppError } from "./AppError.js";
 
-  constructor(message = "Too many requests") {
-    super(message);
-
-    this.name = "RateLimitError";
+export class RateLimitError extends AppError {
+  constructor(
+    message = "Too many requests. Please try again later.",
+  ) {
+    super(message, {
+      statusCode: 429,
+      code: ERROR_CODES.RATE_LIMITED,
+    });
   }
 }
