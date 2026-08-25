@@ -1,6 +1,5 @@
 import type { ErrorCode } from "../constants/error-codes.js";
 
-
 export interface AppErrorOptions {
   statusCode: number;
   code: ErrorCode;

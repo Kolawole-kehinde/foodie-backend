@@ -12,10 +12,13 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     };
 
     const findById = async (id: string) => {
-      return db.userSession.findUnique({
-        where :{id}
-     })
-    }
+  return db.userSession.findUnique({
+    where: { id },
+    include: {
+      user: true,
+    },
+  });
+};
 
     const findUserById = async (userId: string) => {
         return db.userSession.findMany({
@@ -35,16 +38,21 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
         })
     };
 
-    const revoke = async (id: string, reason?: Prisma.UserSessionUpdateInput["revokeReason"]) => {
-         return db.userSession.update({
-            where: {id},
-            data:{
-                revokedAt: new Date(),
-                revokeReason: reason,
-            }
-        })
-        
-    };
+  const revoke = async (
+  id: string,
+  reason?: Prisma.UserSessionUpdateInput["revokeReason"],
+) => {
+  return db.userSession.updateMany({
+    where: {
+      id,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+      revokeReason: reason,
+    },
+  });
+};
 
     const revokeAllForUser = async (userId: string, reason?: Prisma.UserSessionUpdateInput["revokeReason"]) => {
        return db.userSession.updateMany ({

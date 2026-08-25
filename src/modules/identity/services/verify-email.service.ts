@@ -1,4 +1,4 @@
-import { UserStatus } from "@prisma/client";
+import { RoleName, UserStatus } from "@prisma/client";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import { createPendingRegistrationRepository } from "../repositories/pending-registration.repository.js";
@@ -18,8 +18,7 @@ export const createVerifyEmailService = ({
     const tokenHash =
       services.token.hashToken(dto.token);
 
-    const pendingRegistration =
-      await repositories.pendingRegistration.findByTokenHash(
+    const pendingRegistration = await repositories.pendingRegistration.findByTokenHash(
         tokenHash
       );
 
@@ -29,34 +28,41 @@ export const createVerifyEmailService = ({
       );
     }
 
-    if (
-      pendingRegistration.verificationTokenExpiresAt <=
-      new Date()
-    ) {
+    if (pendingRegistration.verificationTokenExpiresAt <=new Date()) {
       throw new ConflictError(
         "Invalid or expired verification token"
       );
     }
 
-    const user = await prisma.$transaction(async (tx) => {
-      const userRepository =  createUserRepository(tx);
+   const user = await prisma.$transaction(async (tx) => {
+  const userRepository = createUserRepository(tx);
 
-      const pendingRegistrationRepository = createPendingRegistrationRepository(tx);
+  const pendingRegistrationRepository =
+    createPendingRegistrationRepository(tx);
 
-      const createdUser = await userRepository.create({
-          email: pendingRegistration.email,
-          passwordHash:
-            pendingRegistration.passwordHash,
-          status: UserStatus.ACTIVE,
-          emailVerifiedAt: new Date(),
-        });
+  const createdUser = await userRepository.create({
+    email: pendingRegistration.email,
+    passwordHash: pendingRegistration.passwordHash,
+    status: UserStatus.ACTIVE,
+    emailVerifiedAt: new Date(),
 
-      await pendingRegistrationRepository.deleteById(
-        pendingRegistration.id
-      );
+    roles: {
+      create: {
+        role: {
+          connect: {
+            name: RoleName.USER,
+          },
+        },
+      },
+    },
+  });
 
-      return createdUser;
-    });
+  await pendingRegistrationRepository.deleteById(
+    pendingRegistration.id
+  );
+
+  return createdUser;
+});
 
     await services.audit.log({
       action: AuditActions.EMAIL_VERIFIED,

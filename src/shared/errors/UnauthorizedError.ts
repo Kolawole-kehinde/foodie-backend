@@ -1,17 +1,11 @@
+import { ERROR_CODES } from "../constants/error-codes.js";
+import { AppError } from "./AppError.js";
 
-
-export class UnauthorizedError extends Error {
-  statusCode: number;
-
+export class UnauthorizedError extends AppError {
   constructor(message = "Unauthorized") {
-    super(message);
-
-    this.name = "UnauthorizedError";
-    this.statusCode = 401;
-
-    Object.setPrototypeOf(
-      this,
-      UnauthorizedError.prototype
-    );
+    super(message, {
+      statusCode: 401,
+      code: ERROR_CODES.UNAUTHORIZED,
+    });
   }
 }

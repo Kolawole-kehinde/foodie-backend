@@ -1,11 +1,22 @@
-import { LoginFailureReason } from "@prisma/client";
+import {
+  LoginFailureReason,
+  UserStatus,
+} from "@prisma/client";
+
 import type { LoginRequestDto } from "../dto/login-request.dto.js";
-import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
+import type { LoginResponseDto } from "../dto/login-response.dto.js";
+import type {
+  AuthContext,
+  AuthDependencies,
+} from "../types/auth.types.js";
+
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
+import { ForbiddenError } from "../../../shared/errors/ForbiddenError.js";
+
 import { AUTH_SECURITY } from "../constants/auth.constants.js";
+
 import { createRefreshTokenRepository } from "../repositories/refresh-token.repository.js";
 import { createUserSessionRepository } from "../repositories/user-session.repository.js";
-import type { LoginResponseDto } from "../dto/login-response.dto.js";
 
 export const createLoginService = ({
   repositories,
@@ -20,81 +31,161 @@ export const createLoginService = ({
 
     const { email, password } = dto;
 
+    // --------------------------------------------------
     // 1. Find user
+    // --------------------------------------------------
 
-    const user = await repositories.user.findByEmail(email);
+    const user =
+      await repositories.user.findByEmail(email);
 
-    // Always use a real or dummy hash
-    const passwordHash = user?.passwordHash ?? services.password.getDummyHash();
+    // --------------------------------------------------
+    // 2. User doesn't exist
+    // --------------------------------------------------
 
-    // Always perform password verification
-    const passwordValid = await services.password.verify(
-      password,
-      passwordHash,
-    );
-
-    // User doesn't exist
     if (!user) {
+      // Prevent user enumeration through timing differences.
+      await services.password.verify(
+        password,
+        services.password.getDummyHash(),
+      );
+
       await repositories.loginAttempt.create({
         email,
         success: false,
-        failureReason: LoginFailureReason.USER_NOT_FOUND,
+        failureReason:
+          LoginFailureReason.USER_NOT_FOUND,
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
       });
 
-      throw new UnauthorizedError("Invalid email or password");
+      throw new UnauthorizedError(
+        "Invalid email or password",
+      );
     }
 
-    // Check account lock AFTER password verification
-    if (user.lockedUntil) {
-      if (user.lockedUntil > now) {
-        await repositories.loginAttempt.create({
-          userId: user.id,
-          email,
-          success: false,
-          failureReason: LoginFailureReason.ACCOUNT_LOCKED,
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent,
-        });
+    // --------------------------------------------------
+    // 3. Check account status
+    // --------------------------------------------------
 
-        throw new UnauthorizedError("Invalid email or password");
-      }
+    if (user.status === UserStatus.SUSPENDED) {
+      await repositories.loginAttempt.create({
+        userId: user.id,
+        email,
+        success: false,
+        failureReason:
+          LoginFailureReason.ACCOUNT_SUSPENDED,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      });
 
-      // Lock expired
-      await repositories.user.resetFailedLoginAttempts(user.id);
+      throw new ForbiddenError(
+        "Your account has been suspended",
+      );
     }
 
-    // Invalid password
-    if (!passwordValid) {
-      const failedAttempt = await repositories.user.recordFailedLoginAttempt(
+    // --------------------------------------------------
+    // 4. Check account lock
+    // --------------------------------------------------
+
+    if (
+      user.lockedUntil &&
+      user.lockedUntil > now
+    ) {
+      await repositories.loginAttempt.create({
+        userId: user.id,
+        email,
+        success: false,
+        failureReason:
+          LoginFailureReason.ACCOUNT_LOCKED,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      });
+
+      throw new UnauthorizedError(
+        "Account temporarily locked. Please try again later.",
+      );
+    }
+
+    // --------------------------------------------------
+    // 5. Lock expired
+    // --------------------------------------------------
+
+    if (
+      user.lockedUntil &&
+      user.lockedUntil <= now
+    ) {
+      await repositories.user.resetFailedLoginAttempts(
         user.id,
       );
+    }
+
+    // --------------------------------------------------
+    // 6. Verify password
+    // --------------------------------------------------
+
+    const passwordValid =
+      await services.password.verify(
+        password,
+        user.passwordHash,
+      );
+
+    // --------------------------------------------------
+    // 7. Invalid password
+    // --------------------------------------------------
+
+    if (!passwordValid) {
+      const failedAttempt =
+        await repositories.user.recordFailedLoginAttempt(
+          user.id,
+        );
 
       await repositories.loginAttempt.create({
         userId: user.id,
         email,
         success: false,
-        failureReason: LoginFailureReason.INVALID_PASSWORD,
+        failureReason:
+          LoginFailureReason.INVALID_PASSWORD,
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
       });
 
-      if (failedAttempt.locked) {
-        // Security event can be added later
+      if (
+        failedAttempt.lockedUntil &&
+        failedAttempt.lockedUntil > now
+      ) {
+        throw new UnauthorizedError(
+          "Account temporarily locked. Please try again later.",
+        );
       }
 
-      throw new UnauthorizedError("Invalid email or password");
+      throw new UnauthorizedError(
+        "Invalid email or password",
+      );
     }
-    // 7. Successful authentication
-    await repositories.user.resetFailedLoginAttempts(user.id);
 
-    // 8. Update last login
-    await repositories.user.update(user.id, {
-      lastLoginAt: now,
-    });
+    // --------------------------------------------------
+    // 8. Successful authentication
+    // --------------------------------------------------
 
-    // 9. Record successful login
+    await repositories.user.resetFailedLoginAttempts(
+      user.id,
+    );
+
+    // --------------------------------------------------
+    // 9. Update last login
+    // --------------------------------------------------
+
+    await repositories.user.update(
+      user.id,
+      {
+        lastLoginAt: now,
+      },
+    );
+
+    // --------------------------------------------------
+    // 10. Record successful login
+    // --------------------------------------------------
+
     await repositories.loginAttempt.create({
       userId: user.id,
       email,
@@ -103,71 +194,114 @@ export const createLoginService = ({
       userAgent: context.userAgent,
     });
 
-    // 10. Generate refresh token
-    const refreshToken = services.token.generateRandomToken();
+    // --------------------------------------------------
+    // 11. Create refresh token
+    // --------------------------------------------------
 
-    const refreshTokenHash = services.token.hashToken(refreshToken);
+    const refreshToken =
+      services.token.generateRandomToken();
 
-    // 11. Calculate expiration
+    const refreshTokenHash =
+      services.token.hashToken(
+        refreshToken,
+      );
+
+    // --------------------------------------------------
+    // 12. Calculate expiration
+    // --------------------------------------------------
+
     const sessionExpiresAt = new Date(
-      now.getTime() + AUTH_SECURITY.SESSION_DURATION_MS,
+      now.getTime() +
+        AUTH_SECURITY.SESSION_DURATION_MS,
     );
 
     const refreshTokenExpiresAt = new Date(
-      now.getTime() + AUTH_SECURITY.REFRESH_TOKEN_DURATION_MS,
+      now.getTime() +
+        AUTH_SECURITY.REFRESH_TOKEN_DURATION_MS,
     );
 
-    // 12. Create session + refresh token atomically
-    const session = await prisma.$transaction(async (tx) => {
-      const sessionRepository = createUserSessionRepository(tx);
+    // --------------------------------------------------
+    // 13. Create session + refresh token atomically
+    // --------------------------------------------------
 
-      const refreshTokenRepository = createRefreshTokenRepository(tx);
+    const session =
+      await prisma.$transaction(async (tx) => {
+        const sessionRepository =
+          createUserSessionRepository(tx);
 
-      const session = await sessionRepository.create({
-        user: {
-          connect: {
-            id: user.id,
+        const refreshTokenRepository =
+          createRefreshTokenRepository(tx);
+
+        const session =
+          await sessionRepository.create({
+            user: {
+              connect: {
+                id: user.id,
+              },
+            },
+
+            deviceName:
+              context.deviceName,
+
+            userAgent:
+              context.userAgent,
+
+            ipAddress:
+              context.ipAddress,
+
+            lastActivityAt: now,
+
+            expiresAt:
+              sessionExpiresAt,
+          });
+
+        await refreshTokenRepository.create({
+          tokenHash:
+            refreshTokenHash,
+
+          expiresAt:
+            refreshTokenExpiresAt,
+
+          session: {
+            connect: {
+              id: session.id,
+            },
           },
-        },
+        });
 
-        deviceName: context.deviceName,
-        userAgent: context.userAgent,
-        ipAddress: context.ipAddress,
-        lastActivityAt: now,
-        expiresAt: sessionExpiresAt,
+        return session;
       });
 
-      await refreshTokenRepository.create({
-        tokenHash: refreshTokenHash,
-        expiresAt: refreshTokenExpiresAt,
-        session: {
-          connect: {
-            id: session.id,
-          },
-        },
+    // --------------------------------------------------
+    // 14. Create access token
+    // --------------------------------------------------
+
+    const roles =
+      user.roles.map(
+        (userRole) =>
+          userRole.role.name,
+      );
+
+    const accessToken =
+      services.token.createAccessToken({
+        userId: user.id,
+        sessionId: session.id,
+        roles,
       });
 
-      return session;
-    });
-
-    // 13. Create access token
-    const roles = user.roles.map((userRole) => userRole.role.name);
-
-    const accessToken = services.token.createAccessToken({
-      userId: user.id,
-      sessionId: session.id,
-      roles,
-    });
-
-    // 14. Return authentication result
+    // --------------------------------------------------
+    // 15. Return authentication result
+    // --------------------------------------------------
 
     return {
       accessToken,
       refreshToken,
       expiresIn: 15 * 60,
+
       user: {
         id: user.id,
         email: user.email,
+        roles,
       },
     };
   };

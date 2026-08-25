@@ -14,22 +14,25 @@ export const createUserRepository = (
     });
   };
 
-  const findById = async (id: string) => {
-    return db.user.findUnique({
-      where: { id },
-    });
-  };
+const userWithRoles = {
+  roles: {
+    include: {
+      role: true,
+    },
+  },
+};
 
-  const findByEmail = async (email: string) => {
+const findById = async (id: string) => {
+  return db.user.findUnique({
+    where: { id },
+    include: userWithRoles,
+  });
+};
+
+const findByEmail = async (email: string) => {
   return db.user.findUnique({
     where: { email },
-    include: {
-      roles: {
-        include: {
-          role: true,
-        },
-      },
-    },
+    include: userWithRoles,
   });
 };
 
@@ -42,63 +45,52 @@ export const createUserRepository = (
    * The existing lock is not extended by subsequent
    * failed attempts while the account is already locked.
    */
-  const recordFailedLoginAttempt = async (
-    id: string
-  ) => {
-    const maxAttempts =
-      AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
+  const recordFailedLoginAttempt = async (id: string) => {
+  const maxAttempts =
+    AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
 
-    const lockDurationMs =
-      AUTH_SECURITY.LOGIN_LOCKOUT_MS;
+  const lockDurationMs =
+    AUTH_SECURITY.LOGIN_LOCKOUT_MS;
 
-    const result = await db.$queryRaw<
-      {
-        failedLoginAttempts: number;
-        lockedUntil: Date | null;
-      }[]
-    >`
-      UPDATE "User"
-      SET
-        "failedLoginAttempts" =
-          "failedLoginAttempts" + 1,
+  const result = await db.$queryRaw<
+    {
+      failedLoginAttempts: number;
+      lockedUntil: Date | null;
+    }[]
+  >`
+    UPDATE "User"
+    SET
+      "failedLoginAttempts" =
+        "failedLoginAttempts" + 1,
 
-        "lockedUntil" =
-          CASE
-            WHEN
-              "lockedUntil" IS NULL
-              AND
-              "failedLoginAttempts" + 1 >= ${maxAttempts}
-            THEN
-              NOW() +
-              (${lockDurationMs} * INTERVAL '1 millisecond')
+      "lockedUntil" =
+        CASE
+          WHEN
+            "lockedUntil" IS NULL
+            AND
+            "failedLoginAttempts" + 1 >= ${maxAttempts}
+          THEN
+            NOW() +
+            (${lockDurationMs} * INTERVAL '1 millisecond')
 
-            ELSE "lockedUntil"
-          END
+          ELSE "lockedUntil"
+        END
 
-      WHERE "id" = ${id}
+    WHERE "id" = ${id}
 
-      RETURNING
-        "failedLoginAttempts",
-        "lockedUntil";
-    `;
+    RETURNING
+      "failedLoginAttempts",
+      "lockedUntil";
+  `;
 
-    const user = result[0];
+  const user = result[0];
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+  if (!user) {
+    throw new Error("User not found");
+  }
 
-    return {
-      failedLoginAttempts:
-        user.failedLoginAttempts,
-
-      locked:
-        user.lockedUntil !== null,
-
-      lockedUntil:
-        user.lockedUntil,
-    };
-  };
+  return user;
+};
 
   const resetFailedLoginAttempts = async (
     id: string
