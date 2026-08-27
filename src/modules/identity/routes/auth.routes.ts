@@ -8,7 +8,9 @@ import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
-import { refreshTokenSchema } from "../validators/refresh-token-validator.js";
+import { refreshTokenCookieSchema } from "../validators/refresh-token-validator.js";
+import { validateCookies } from "../../../shared/middleware/validate-cookies.js";
+
 
 
 type CreateAuthRoutesDependencies = {
@@ -50,7 +52,7 @@ router.post(
 
 router.post(
   "/refresh",
-  validate(refreshTokenSchema),
+  validateCookies(refreshTokenCookieSchema),
   authController.refresh,
 );
 

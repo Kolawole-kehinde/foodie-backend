@@ -1,4 +1,6 @@
 import type { RoleName } from "@prisma/client";
+import type z from "zod";
+import type { loginSchema } from "../validators/login.validator.js";
 
 export type LoginResponseDto = {
   accessToken: string;
@@ -11,3 +13,5 @@ export type LoginResponseDto = {
     roles: RoleName[];
   };
 };
+
+export type LoginRequestDto = z.infer<typeof loginSchema>;

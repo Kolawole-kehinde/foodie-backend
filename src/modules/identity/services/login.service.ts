@@ -1,6 +1,5 @@
 import { LoginFailureReason, UserStatus } from "@prisma/client";
-import type { LoginRequestDto } from "../dto/login-request.dto.js";
-import type { LoginResponseDto } from "../dto/login-response.dto.js";
+import type { LoginRequestDto, LoginResponseDto } from "../dto/login-dto.js";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import { AUTH_SECURITY } from "../constants/auth.constants.js";

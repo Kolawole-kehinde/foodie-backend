@@ -5,6 +5,7 @@ import { swaggerSpec } from "../docs/swagger.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
 import { authRoutes } from "./container.js";
 import { startPendingRegistrationCleanupJob } from "../jobs/pending-registration-cleanup/pending-registration-cleanup.job.js";
+import cookieParser from "cookie-parser";
 
 export function createApp() {
   const app = express();
@@ -13,8 +14,10 @@ export function createApp() {
   startPendingRegistrationCleanupJob();
 
   app.set("trust proxy", true);
+  
 
   app.use(express.json());
+  app.use(cookieParser());
   app.use(express.urlencoded({ extended: true }));
 
   app.use(
