@@ -62,28 +62,29 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
    * If another request has already rotated the token,
    * no row will be updated and `rotated` will be false.
    */
-  const rotate = async ({
-    oldTokenId,
-    sessionId,
-    newTokenHash,
-    newTokenExpiresAt,
-  }: {
-    oldTokenId: string;
-    sessionId: string;
-    newTokenHash: string;
-    newTokenExpiresAt: Date;
-  }) => {
-    const newRefreshToken = await db.refreshToken.create({
-      data: {
-        tokenHash: newTokenHash,
-        expiresAt: newTokenExpiresAt,
-        session: {
-          connect: {
-            id: sessionId,
-          },
+const rotate = async ({
+  oldTokenId,
+  sessionId,
+  newTokenHash,
+  newTokenExpiresAt,
+}: {
+  oldTokenId: string;
+  sessionId: string;
+  newTokenHash: string;
+  newTokenExpiresAt: Date;
+}) => {
+ const newRefreshToken =
+  await db.refreshToken.create({
+    data: {
+      tokenHash: newTokenHash,
+      expiresAt: newTokenExpiresAt,
+      session: {
+        connect: {
+          id: sessionId,
         },
       },
-    });
+    },
+  });
 
     const result = await db.refreshToken.updateMany({
       where: {
