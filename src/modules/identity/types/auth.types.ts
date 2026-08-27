@@ -16,8 +16,8 @@ export type AuthContext = {
   ipAddress?: string;
   userAgent?: string;
   deviceName?: string;
-  latitude?: string;
-  longtitude?: string
+  // latitude?: string;
+  // longtitude?: string
 };
 
 export type AuthRepositories = {
@@ -35,6 +35,7 @@ export type AuthServices = {
   impossibleTravel: ImpossibleTravelService;
   geoLocation: GeoLocationService;
   securityEvent: SecurityEventService;
+  
 };
 
 export type AuthQueues = {

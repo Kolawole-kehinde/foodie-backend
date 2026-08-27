@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
+import { RefreshTokenAlreadyRotatedError } from "../../../shared/errors/RefreshTokenAlreadyRotatedError.js";
 
 export const createRefreshTokenRepository = (db: DatabaseClient) => {
   const create = async (data: Prisma.RefreshTokenCreateInput) => {
@@ -41,19 +42,6 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
       },
     });
   };
-
-  const markAsReplaced = async (id: string, replacedByTokenId: string) => {
-    return db.refreshToken.update({
-      where: {
-        id,
-      },
-      data: {
-        revokedAt: new Date(),
-        replacedByTokenId,
-      },
-    });
-  };
-
   /**
    * Atomically rotates a refresh token.
    *
@@ -62,55 +50,69 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
    * If another request has already rotated the token,
    * no row will be updated and `rotated` will be false.
    */
-const rotate = async ({
-  oldTokenId,
-  sessionId,
-  newTokenHash,
-  newTokenExpiresAt,
-}: {
-  oldTokenId: string;
-  sessionId: string;
-  newTokenHash: string;
-  newTokenExpiresAt: Date;
-}) => {
- const newRefreshToken =
-  await db.refreshToken.create({
-    data: {
-      tokenHash: newTokenHash,
-      expiresAt: newTokenExpiresAt,
-      session: {
-        connect: {
-          id: sessionId,
-        },
-      },
-    },
-  });
+  const rotate = async ({
+    oldTokenId,
+    sessionId,
+    newTokenHash,
+    newTokenExpiresAt,
+  }: {
+    oldTokenId: string;
+    sessionId: string;
+    newTokenHash: string;
+    newTokenExpiresAt: Date;
+  }) => {
+    const now = new Date();
 
+    // 1. Atomically claim the old refresh token.
     const result = await db.refreshToken.updateMany({
       where: {
         id: oldTokenId,
         sessionId,
         revokedAt: null,
         expiresAt: {
-          gt: new Date(),
+          gt: now,
         },
       },
       data: {
-        revokedAt: new Date(),
+        revokedAt: now,
+      },
+    });
+
+    // Another request already rotated this token.
+    if (result.count !== 1) {
+      throw new RefreshTokenAlreadyRotatedError();
+    }
+
+    // 2. Create the replacement token.
+    const newRefreshToken = await db.refreshToken.create({
+      data: {
+        tokenHash: newTokenHash,
+        expiresAt: newTokenExpiresAt,
+        session: {
+          connect: {
+            id: sessionId,
+          },
+        },
+      },
+    });
+
+    // 3. Link the old token to the replacement.
+    await db.refreshToken.update({
+      where: {
+        id: oldTokenId,
+      },
+      data: {
         replacedByTokenId: newRefreshToken.id,
       },
     });
 
-    if (result.count !== 1) {
-      throw new Error("REFRESH_TOKEN_ALREADY_ROTATED");
-    }
-
+    // 4. Update session activity.
     await db.userSession.update({
       where: {
         id: sessionId,
       },
       data: {
-        lastActivityAt: new Date(),
+        lastActivityAt: now,
       },
     });
 
@@ -131,7 +133,6 @@ const rotate = async ({
     create,
     findByTokenHash,
     revoke,
-    markAsReplaced,
     rotate,
     deleteExpired,
   };
