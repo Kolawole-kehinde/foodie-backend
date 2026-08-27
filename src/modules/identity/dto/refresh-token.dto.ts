@@ -8,3 +8,8 @@ export type RefreshResponseDto = {
     roles: string[];
   };
 };
+
+
+export type RefreshRequestDto = {
+  refreshToken: string;
+};

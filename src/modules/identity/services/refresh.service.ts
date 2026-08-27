@@ -1,6 +1,6 @@
 import { SecurityEventSeverity, SecurityEventType, SessionRevocationReason, UserStatus } from "@prisma/client";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
-import type { RefreshResponseDto } from "../dto/refresh-response.dto.js";
+import type { RefreshResponseDto } from "../dto/refresh-token.dto.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import { ForbiddenError } from "../../../shared/errors/ForbiddenError.js";
 import { AUTH_SECURITY } from "../constants/auth.constants.js";

@@ -8,6 +8,7 @@ import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
+import { refreshTokenSchema } from "../validators/refresh-token-validator.js";
 
 
 type CreateAuthRoutesDependencies = {
@@ -45,7 +46,13 @@ router.post(
     rules: loginRateLimitPolicy
   }),
   authController.login
-)
+);
+
+router.post(
+  "/refresh",
+  validate(refreshTokenSchema),
+  authController.refresh,
+);
 
   return router;
 };
