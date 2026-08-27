@@ -1,5 +1,6 @@
 export type RefreshResponseDto = {
   accessToken: string;
+  refreshToken: string;
   expiresIn: number;
 
   user: {

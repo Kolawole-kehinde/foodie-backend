@@ -143,15 +143,16 @@ export const createRefreshService = ({
 
     // 14. Return new authentication result
     return {
-      accessToken,
-      expiresIn: 15 * 60,
+  accessToken,
+  refreshToken: newRefreshToken,
+  expiresIn: 15 * 60,
 
-      user: {
-        id: user.id,
-        email: user.email,
-        roles,
-      },
-    };
+  user: {
+    id: user.id,
+    email: user.email,
+    roles,
+  },
+};
   };
 
   return {

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../../../docs/zod-openapi.js";
 
 export const refreshTokenSchema = z.object({
   refreshToken: z

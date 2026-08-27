@@ -1,61 +1,55 @@
-import { z } from "zod";
-
+import { z } from "./zod-openapi.js";
 import {
   OpenAPIRegistry,
   OpenApiGeneratorV3,
-  extendZodWithOpenApi,
 } from "@asteasolutions/zod-to-openapi";
-
 import { registerSchema } from "../modules/identity/validators/register.validator.js";
-
-extendZodWithOpenApi(z);
+import { verifyEmailSchema } from "../modules/identity/validators/verify-email.validator.js";
+import { loginSchema } from "../modules/identity/validators/login.validator.js";
+import { refreshTokenSchema } from "../modules/identity/validators/refresh-token-validator.js";
+import type { OpenAPIObject } from "openapi3-ts/oas30";
 
 const registry = new OpenAPIRegistry();
 
-/**
- * Register Response
- */
+/*
+|--------------------------------------------------------------------------
+| Register
+|--------------------------------------------------------------------------
+*/
+
+const RegisterRequest = registry.register("RegisterRequest", registerSchema);
+
 const RegisterResponse = registry.register(
   "RegisterResponse",
   z.object({
     message: z.string().openapi({
-      example:
-        "Registration successful. Please verify your email.",
+      example: "Registration successful. Please verify your email.",
     }),
-  })
+  }),
 );
 
-/**
- * POST /auth/register
- */
 registry.registerPath({
   method: "post",
-
   path: "/auth/register",
 
   tags: ["Auth"],
 
   summary: "Register a new user",
 
-  description:
-    "Creates a pending registration and sends a verification email.",
+  description: "Creates a pending registration and sends a verification email.",
 
   request: {
     body: {
       required: true,
-
       content: {
         "application/json": {
-          schema: registerSchema,
+          schema: RegisterRequest,
         },
       },
     },
   },
 
   responses: {
-    /**
-     * 201 - Registration successful
-     */
     201: {
       description: "Registration successful",
 
@@ -66,101 +60,287 @@ registry.registerPath({
       },
     },
 
-    /**
-     * 400 - Validation error
-     */
     400: {
       description: "Validation error",
     },
 
-    /**
-     * 409 - Conflict
-     */
     409: {
-      description:
-        "Email already exists or registration is already pending",
+      description: "Email already exists or registration is already pending",
     },
 
-    /**
-     * 429 - Rate limit exceeded
-     */
     429: {
-      description:
-        "Too many registration attempts. Please try again later.",
-
-      headers: {
-        "X-RateLimit-Limit": {
-          description:
-            "Maximum number of requests allowed in the current rate-limit window.",
-
-          schema: {
-            type: "integer",
-            example: 5,
-          },
-        },
-
-        "X-RateLimit-Remaining": {
-          description:
-            "Number of requests remaining in the current rate-limit window.",
-
-          schema: {
-            type: "integer",
-            example: 0,
-          },
-        },
-
-        "X-RateLimit-Reset": {
-          description:
-            "Unix timestamp indicating when the rate-limit window resets.",
-
-          schema: {
-            type: "integer",
-            example: 1755648000,
-          },
-        },
-
-        "Retry-After": {
-          description:
-            "Number of seconds the client should wait before retrying.",
-
-          schema: {
-            type: "integer",
-            example: 3600,
-          },
-        },
-      },
-
-      content: {
-        "application/json": {
-          schema: z.object({
-            message: z.string().openapi({
-              example:
-                "Too many registration attempts. Please try again later.",
-            }),
-          }),
-        },
-      },
+      description: "Too many registration attempts. Please try again later.",
     },
   },
 });
 
-/**
- * Generate OpenAPI document
- */
-const generator = new OpenApiGeneratorV3(
-  registry.definitions
+/*
+|--------------------------------------------------------------------------
+| Verify Email
+|--------------------------------------------------------------------------
+*/
+
+const VerifyEmailRequest = registry.register(
+  "VerifyEmailRequest",
+  verifyEmailSchema,
 );
+
+const VerifyEmailResponse = registry.register(
+  "VerifyEmailResponse",
+  z.object({
+    message: z.string().openapi({
+      example: "Email verified successfully.",
+    }),
+  }),
+);
+
+registry.registerPath({
+  method: "post",
+
+  path: "/auth/verify-email",
+
+  tags: ["Auth"],
+
+  summary: "Verify user email",
+
+  description:
+    "Verifies a user's email address using the verification token sent during registration.",
+
+  request: {
+    body: {
+      required: true,
+
+      content: {
+        "application/json": {
+          schema: VerifyEmailRequest,
+        },
+      },
+    },
+  },
+
+  responses: {
+    200: {
+      description: "Email verified successfully",
+
+      content: {
+        "application/json": {
+          schema: VerifyEmailResponse,
+        },
+      },
+    },
+
+    400: {
+      description: "Validation error",
+    },
+
+    409: {
+      description: "Invalid or expired verification token",
+    },
+
+    429: {
+      description: "Too many verification attempts. Please try again later.",
+    },
+  },
+});
+
+/*
+|--------------------------------------------------------------------------
+| Login
+|--------------------------------------------------------------------------
+*/
+
+const LoginRequest = registry.register("LoginRequest", loginSchema);
+
+const LoginResponse = registry.register(
+  "LoginResponse",
+  z.object({
+    accessToken: z.string().openapi({
+      example: "eyJhbGciOiJIUzI1NiIs...",
+    }),
+
+    refreshToken: z.string().openapi({
+      example: "9b8f1c7e...",
+    }),
+
+    expiresIn: z.number().openapi({
+      example: 900,
+      description: "Access token lifetime in seconds.",
+    }),
+
+    user: z.object({
+      id: z.string().openapi({
+        example: "cmt7ircy60006vc5cms59z9ck",
+      }),
+
+      email: z.string().email().openapi({
+        example: "user@example.com",
+      }),
+
+      roles: z.array(z.string()).openapi({
+        example: ["USER"],
+      }),
+    }),
+  }),
+);
+
+registry.registerPath({
+  method: "post",
+
+  path: "/auth/login",
+
+  tags: ["Auth"],
+
+  summary: "Authenticate user",
+
+  description:
+    "Authenticates a user using email and password and creates an authenticated session.",
+
+  request: {
+    body: {
+      required: true,
+
+      content: {
+        "application/json": {
+          schema: LoginRequest,
+        },
+      },
+    },
+  },
+
+  responses: {
+    200: {
+      description: "Login successful",
+
+      content: {
+        "application/json": {
+          schema: LoginResponse,
+        },
+      },
+    },
+
+    400: {
+      description: "Validation error",
+    },
+
+    401: {
+      description: "Invalid email or password, or account temporarily locked",
+    },
+
+    403: {
+      description: "Account suspended",
+    },
+
+    429: {
+      description: "Too many login attempts. Please try again later.",
+    },
+  },
+});
+
+/*
+|--------------------------------------------------------------------------
+| Refresh Token
+|--------------------------------------------------------------------------
+*/
+
+const RefreshRequest = registry.register("RefreshRequest", refreshTokenSchema);
+
+const RefreshResponse = registry.register(
+  "RefreshResponse",
+  z.object({
+    accessToken: z.string().openapi({
+      example: "eyJhbGciOiJIUzI1NiIs...",
+    }),
+
+    refreshToken: z.string().openapi({
+      example: "9b8f1c7e...",
+      description: "New refresh token issued after token rotation.",
+    }),
+
+    expiresIn: z.number().openapi({
+      example: 900,
+      description: "Access token lifetime in seconds.",
+    }),
+
+    user: z.object({
+      id: z.string().openapi({
+        example: "cmt7ircy60006vc5cms59z9ck",
+      }),
+
+      email: z.string().email().openapi({
+        example: "user@example.com",
+      }),
+
+      roles: z.array(z.string()).openapi({
+        example: ["USER"],
+      }),
+    }),
+  }),
+);
+
+registry.registerPath({
+  method: "post",
+
+  path: "/auth/refresh",
+
+  tags: ["Auth"],
+
+  summary: "Refresh access token",
+
+  description:
+    "Uses a valid refresh token to issue a new access token. The refresh token is rotated after successful use. Reuse of a previously rotated refresh token causes the associated session to be revoked.",
+
+  request: {
+    body: {
+      required: true,
+
+      content: {
+        "application/json": {
+          schema: RefreshRequest,
+        },
+      },
+    },
+  },
+
+  responses: {
+    200: {
+      description: "Access token refreshed successfully",
+
+      content: {
+        "application/json": {
+          schema: RefreshResponse,
+        },
+      },
+    },
+
+    400: {
+      description: "Validation error",
+    },
+
+    401: {
+      description: "Invalid, expired, revoked, or reused refresh token",
+    },
+
+    403: {
+      description: "Account suspended",
+    },
+  },
+});
+
+/*
+|--------------------------------------------------------------------------
+| Generate OpenAPI document
+|--------------------------------------------------------------------------
+*/
+
+const generator = new OpenApiGeneratorV3(registry.definitions);
 
 export const swaggerSpec = generator.generateDocument({
   openapi: "3.0.0",
 
   info: {
     title: "E-Commerce API",
-
     version: "1.0.0",
-
-    description:
-      "E-Commerce backend API",
+    description: "E-Commerce backend API",
   },
 
   servers: [
@@ -172,9 +352,7 @@ export const swaggerSpec = generator.generateDocument({
   tags: [
     {
       name: "Auth",
-
-      description:
-        "Authentication and identity endpoints",
+      description: "Authentication and identity endpoints",
     },
   ],
 });

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../../../docs/zod-openapi.js";
 
 export const loginSchema = z.object({
   email: z
