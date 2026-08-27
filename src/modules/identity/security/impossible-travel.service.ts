@@ -12,6 +12,8 @@ export type ImpossibleTravelResult = {
 };
 
 const EARTH_RADIUS_KM = 6371;
+const MAX_REASONABLE_TRAVEL_SPEED_KMH = 1000;
+const MIN_TRAVEL_DISTANCE_KM = 500;
 
 const toRadians = (degrees: number) => degrees * (Math.PI / 180);
 
@@ -51,10 +53,9 @@ export const createImpossibleTravelService = () => {
     const requiredSpeedKmh =
       timeDifferenceHours > 0 ? distanceKm / timeDifferenceHours : Infinity;
 
-    // We'll tune this threshold later.
-    const MAX_REASONABLE_TRAVEL_SPEED_KMH = 1000;
-
-    const suspicious =  distanceKm > 500 && requiredSpeedKmh > MAX_REASONABLE_TRAVEL_SPEED_KMH;
+    const suspicious =
+      distanceKm > MIN_TRAVEL_DISTANCE_KM &&
+      requiredSpeedKmh > MAX_REASONABLE_TRAVEL_SPEED_KMH;
 
     return {
       suspicious,
@@ -69,4 +70,6 @@ export const createImpossibleTravelService = () => {
   };
 };
 
-export type ImpossibleTravelService = ReturnType< typeof createImpossibleTravelService>;
+export type ImpossibleTravelService = ReturnType<
+  typeof createImpossibleTravelService
+>;

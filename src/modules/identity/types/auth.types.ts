@@ -10,11 +10,14 @@ import type { RefreshTokenRepository } from "../repositories/refresh-token.repos
 import type { LoginAttemptRepository } from "../repositories/login-attempt.repository.js";
 import type { ImpossibleTravelService } from "../security/impossible-travel.service.js";
 import type { GeoLocationService } from "../security/geo-location.service.js";
+import type { SecurityEventService } from "../security/security-event.service.js";
 
 export type AuthContext = {
   ipAddress?: string;
   userAgent?: string;
   deviceName?: string;
+  latitude?: string;
+  longtitude?: string
 };
 
 export type AuthRepositories = {
@@ -31,6 +34,7 @@ export type AuthServices = {
   audit: AuditService;
   impossibleTravel: ImpossibleTravelService;
   geoLocation: GeoLocationService;
+  securityEvent: SecurityEventService;
 };
 
 export type AuthQueues = {

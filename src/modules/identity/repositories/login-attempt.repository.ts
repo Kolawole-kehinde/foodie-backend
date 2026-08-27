@@ -14,19 +14,29 @@ type CreateLoginAttemptData = {
   longitude?: number;
 };
 
-
 export const createLoginAttemptRepository = (db: DatabaseClient) => {
+  const create = async (data: CreateLoginAttemptData) => {
+    return db.loginAttempt.create({
+      data,
+    });
+  };
 
-    const create = async (data: CreateLoginAttemptData) => {
-        return db.loginAttempt.create({
-            data
-        })
+  const findLatestSuccessfulByUserId = async (userId: string) => {
+    return db.loginAttempt.findFirst({
+      where: {
+        userId,
+        success: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  };
 
-    };
-    return {
-        create
-    }
+  return {
+    create,
+    findLatestSuccessfulByUserId,
+  };
+};
 
-}
-
-export type LoginAttemptRepository = ReturnType<typeof createLoginAttemptRepository>
+export type LoginAttemptRepository = ReturnType <typeof createLoginAttemptRepository>;

@@ -84,32 +84,26 @@ export const createLoginService = ({repositories,services,prisma,}: AuthDependen
     );
 
     // 7. Invalid password
-  if (!passwordValid) {
-  const failedAttempt =
-    await repositories.user.recordFailedLoginAttempt(user.id);
+ // 7. Invalid password
+if (!passwordValid) {
+       await repositories.user.recordFailedLoginAttempt(
+      user.id
+    );
 
   await repositories.loginAttempt.create({
     userId: user.id,
     email,
     success: false,
-    failureReason: LoginFailureReason.INVALID_PASSWORD,
+    failureReason:
+      LoginFailureReason.INVALID_PASSWORD,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
   });
 
-  if (
-    failedAttempt.lockedUntil &&
-    failedAttempt.lockedUntil > now
-  ) {
-    throw new UnauthorizedError(
-      "Invalid email or password",
-    );
-  }
-
   throw new UnauthorizedError(
-    "Invalid email or password",
+    "Invalid email or password"
   );
-} 
+}
    
     // 8. Successful authentication
     await repositories.user.resetFailedLoginAttempts(user.id);
