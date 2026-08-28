@@ -10,12 +10,14 @@ export const createAuthService = ( dependencies: AuthDependencies) => {
   const verifyEmail = createVerifyEmailService(dependencies);
   const login = createLoginService(dependencies)
     const refresh = createRefreshService(dependencies);
+    const logout = createLoginService(dependencies)
 
   return {
     register: registration.register,
     verifyEmail: verifyEmail.verifyEmail,
     login: login.login,
     refresh: refresh.refresh,
+    logout: logout.logout
   };
 };
 
