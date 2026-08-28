@@ -88,11 +88,35 @@ export const createAuthController = ({
     user: result.user,
   });
 });
+
+
+const logout = asyncHandler (async(req, res) => {
+     const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE]
+
+      if (refreshToken) {
+    await authService.logout(refreshToken, {
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+  };
+
+    res.clearCookie(
+      REFRESH_TOKEN_COOKIE,
+      REFRESH_TOKEN_COOKIE_OPTIONS
+    )
+
+    return res.status(200).json({
+      message: "Logout successfully"
+    })
+
+});
+
   return {
     register,
     verifyEmail,
     login,
     refresh,
+    logout
   };
 };
 
