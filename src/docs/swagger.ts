@@ -6,8 +6,9 @@ import {
 import { registerSchema } from "../modules/identity/validators/register.validator.js";
 import { verifyEmailSchema } from "../modules/identity/validators/verify-email.validator.js";
 import { loginSchema } from "../modules/identity/validators/login.validator.js";
-import { refreshTokenSchema } from "../modules/identity/validators/refresh-token-validator.js";
+
 import type { OpenAPIObject } from "openapi3-ts/oas30";
+import { refreshTokenCookieSchema } from "../modules/identity/validators/refresh-token-validator.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -242,18 +243,11 @@ registry.registerPath({
 |--------------------------------------------------------------------------
 */
 
-const RefreshRequest = registry.register("RefreshRequest", refreshTokenSchema);
-
 const RefreshResponse = registry.register(
   "RefreshResponse",
   z.object({
     accessToken: z.string().openapi({
       example: "eyJhbGciOiJIUzI1NiIs...",
-    }),
-
-    refreshToken: z.string().openapi({
-      example: "9b8f1c7e...",
-      description: "New refresh token issued after token rotation.",
     }),
 
     expiresIn: z.number().openapi({
@@ -287,19 +281,7 @@ registry.registerPath({
   summary: "Refresh access token",
 
   description:
-    "Uses a valid refresh token to issue a new access token. The refresh token is rotated after successful use. Reuse of a previously rotated refresh token causes the associated session to be revoked.",
-
-  request: {
-    body: {
-      required: true,
-
-      content: {
-        "application/json": {
-          schema: RefreshRequest,
-        },
-      },
-    },
-  },
+    "Uses the refresh token stored in an HttpOnly cookie to issue a new access token. The refresh token is rotated after successful use. Reuse of a previously rotated refresh token causes the associated session to be revoked.",
 
   responses: {
     200: {
@@ -312,12 +294,9 @@ registry.registerPath({
       },
     },
 
-    400: {
-      description: "Validation error",
-    },
-
     401: {
-      description: "Invalid, expired, revoked, or reused refresh token",
+      description:
+        "Invalid, expired, revoked, or reused refresh token",
     },
 
     403: {
@@ -326,6 +305,51 @@ registry.registerPath({
   },
 });
 
+
+/*
+|--------------------------------------------------------------------------
+| Logout
+|--------------------------------------------------------------------------
+*/
+
+const LogoutResponse = registry.register(
+  "LogoutResponse",
+  z.object({
+    message: z.string().openapi({
+      example: "Logged out successfully.",
+    }),
+  }),
+);
+
+registry.registerPath({
+  method: "post",
+
+  path: "/auth/logout",
+
+  tags: ["Auth"],
+
+  summary: "Log out current session",
+
+  description:
+    "Logs out the current user by revoking the refresh token and associated session, then clearing the refresh token cookie.",
+
+  responses: {
+    200: {
+      description: "Logout successful",
+
+      content: {
+        "application/json": {
+          schema: LogoutResponse,
+        },
+      },
+    },
+
+    401: {
+      description:
+        "Invalid or missing refresh token",
+    },
+  },
+});
 /*
 |--------------------------------------------------------------------------
 | Generate OpenAPI document

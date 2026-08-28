@@ -8,8 +8,7 @@ import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
-import { refreshTokenCookieSchema } from "../validators/refresh-token-validator.js";
-import { validateCookies } from "../../../shared/middleware/validate-cookies.js";
+
 
 
 
@@ -52,9 +51,13 @@ router.post(
 
 router.post(
   "/refresh",
-  validateCookies(refreshTokenCookieSchema),
   authController.refresh,
 );
+
+router.post(
+  "/logout",
+  authController.logout
+)
 
   return router;
 };
