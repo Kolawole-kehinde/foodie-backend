@@ -32,6 +32,20 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
     });
   };
 
+  const revokeAllByUserId = async (userId: string) => {
+       return db.refreshToken.updateMany({
+        where: {
+          session: {
+            userId
+          },
+            revokedAt: null
+        },
+        data: {
+          revokeAt: new Date()
+        }
+       })
+  }
+
   const revoke = async (id: string) => {
     return db.refreshToken.update({
       where: {
@@ -132,12 +146,11 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
   return {
     create,
     findByTokenHash,
+    revokeAllByUserId ,
     revoke,
     rotate,
     deleteExpired,
   };
 };
 
-export type RefreshTokenRepository = ReturnType<
-  typeof createRefreshTokenRepository
->;
+export type RefreshTokenRepository = ReturnType<typeof createRefreshTokenRepository>;

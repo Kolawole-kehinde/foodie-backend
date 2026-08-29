@@ -1,22 +1,16 @@
 import { z } from "./zod-openapi.js";
-import {
-  OpenAPIRegistry,
-  OpenApiGeneratorV3,
-} from "@asteasolutions/zod-to-openapi";
+import { OpenAPIRegistry, OpenApiGeneratorV3} from "@asteasolutions/zod-to-openapi";
 import { registerSchema } from "../modules/identity/validators/register.validator.js";
 import { verifyEmailSchema } from "../modules/identity/validators/verify-email.validator.js";
 import { loginSchema } from "../modules/identity/validators/login.validator.js";
-
 import type { OpenAPIObject } from "openapi3-ts/oas30";
 import { refreshTokenCookieSchema } from "../modules/identity/validators/refresh-token-validator.js";
 
 const registry = new OpenAPIRegistry();
 
-/*
-|--------------------------------------------------------------------------
-| Register
-|--------------------------------------------------------------------------
-*/
+
+//Register
+
 
 const RegisterRequest = registry.register("RegisterRequest", registerSchema);
 
@@ -75,11 +69,8 @@ registry.registerPath({
   },
 });
 
-/*
-|--------------------------------------------------------------------------
-| Verify Email
-|--------------------------------------------------------------------------
-*/
+
+  // Verify Email
 
 const VerifyEmailRequest = registry.register(
   "VerifyEmailRequest",
@@ -144,11 +135,8 @@ registry.registerPath({
   },
 });
 
-/*
-|--------------------------------------------------------------------------
-| Login
-|--------------------------------------------------------------------------
-*/
+
+  // Login
 
 const LoginRequest = registry.register("LoginRequest", loginSchema);
 
@@ -237,11 +225,8 @@ registry.registerPath({
   },
 });
 
-/*
-|--------------------------------------------------------------------------
-| Refresh Token
-|--------------------------------------------------------------------------
-*/
+
+//Refresh Token
 
 const RefreshResponse = registry.register(
   "RefreshResponse",
@@ -295,8 +280,7 @@ registry.registerPath({
     },
 
     401: {
-      description:
-        "Invalid, expired, revoked, or reused refresh token",
+      description: "Invalid, expired, revoked, or reused refresh token",
     },
 
     403: {
@@ -306,11 +290,7 @@ registry.registerPath({
 });
 
 
-/*
-|--------------------------------------------------------------------------
-| Logout
-|--------------------------------------------------------------------------
-*/
+  // Logout
 
 const LogoutResponse = registry.register(
   "LogoutResponse",
@@ -345,16 +325,12 @@ registry.registerPath({
     },
 
     401: {
-      description:
-        "Invalid or missing refresh token",
+      description: "Invalid or missing refresh token",
     },
   },
 });
-/*
-|--------------------------------------------------------------------------
-| Generate OpenAPI document
-|--------------------------------------------------------------------------
-*/
+
+// Generate OpenAPI document
 
 const generator = new OpenApiGeneratorV3(registry.definitions);
 

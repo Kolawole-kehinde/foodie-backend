@@ -1,3 +1,4 @@
+import { SessionRevocationReason } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { AUTH_SECURITY } from "../constants/auth.constants.js";
 import type {
@@ -5,36 +6,56 @@ import type {
   UpdateUserData,
 } from "./types.js";
 
-export const createUserRepository = (
-  db: DatabaseClient
-) => {
+export const createUserRepository = (db: DatabaseClient) => {
   const create = async (data: CreateUserData) => {
     return db.user.create({
       data,
     });
   };
 
-const userWithRoles = {
-  roles: {
-    include: {
-      role: true,
+  const userWithRoles = {
+    roles: {
+      include: {
+        role: true,
+      },
     },
-  },
-};
+  };
 
-const findById = async (id: string) => {
-  return db.user.findUnique({
-    where: { id },
-    include: userWithRoles,
-  });
-};
+  const findById = async (id: string) => {
+    return db.user.findUnique({
+      where: { id },
+      include: userWithRoles,
+    });
+  };
 
-const findByEmail = async (email: string) => {
-  return db.user.findUnique({
-    where: { email },
-    include: userWithRoles,
-  });
-};
+  const findByEmail = async (email: string) => {
+    return db.user.findUnique({
+      where: { email },
+      include: userWithRoles,
+    });
+  };
+
+
+   // Revoke every active session belonging to this user.
+  // revokedAt: null means the session is still active.
+  // Once revoked, the session can no longer be used to
+  // refresh access tokens.
+
+  const revokeAllByUserId = async (userId: string) =>{
+    return db.userSession.updateMany({
+      where: {
+        userId,
+       revokedAt: null
+      },
+      data: {
+        revokedAt: new Date(),
+        revokeReason: SessionRevocationReason.LOGOUT_ALL_DEVICES
+      }
+    })
+  }
+
+
+
 
   /**
    * Atomically increments failed login attempts.
@@ -46,18 +67,18 @@ const findByEmail = async (email: string) => {
    * failed attempts while the account is already locked.
    */
   const recordFailedLoginAttempt = async (id: string) => {
-  const maxAttempts =
-    AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
+    const maxAttempts =
+      AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
 
-  const lockDurationMs =
-    AUTH_SECURITY.LOGIN_LOCKOUT_MS;
+    const lockDurationMs =
+      AUTH_SECURITY.LOGIN_LOCKOUT_MS;
 
-  const result = await db.$queryRaw<
-    {
-      failedLoginAttempts: number;
-      lockedUntil: Date | null;
-    }[]
-  >`
+    const result = await db.$queryRaw<
+      {
+        failedLoginAttempts: number;
+        lockedUntil: Date | null;
+      }[]
+    >`
     UPDATE "User"
     SET
       "failedLoginAttempts" =
@@ -83,14 +104,14 @@ const findByEmail = async (email: string) => {
       "lockedUntil";
   `;
 
-  const user = result[0];
+    const user = result[0];
 
-  if (!user) {
-    throw new Error("User not found");
-  }
+    if (!user) {
+      throw new Error("User not found");
+    }
 
-  return user;
-};
+    return user;
+  };
 
   const resetFailedLoginAttempts = async (
     id: string
@@ -119,6 +140,7 @@ const findByEmail = async (email: string) => {
     create,
     findById,
     findByEmail,
+    revokeAllByUserId,
     recordFailedLoginAttempt,
     resetFailedLoginAttempts,
     update,
