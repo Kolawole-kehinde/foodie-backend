@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import type { AuthController } from "../controllers/auth.controller.js";
 import { registerSchema } from "../validators/register.validator.js";
 import { rateLimit } from "../../../shared/rate-limit/rate-limit.middleware.js";
@@ -8,18 +8,19 @@ import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
-import { authenticate } from "../middleware/authentication.js";
+
+
 
 
 
 
 type CreateAuthRoutesDependencies = {
   authController: AuthController;
+  authenticate: RequestHandler;
 };
 
-export const createAuthRoutes = ({
-  authController,
-}: CreateAuthRoutesDependencies) => {
+export const createAuthRoutes = ({ authController, authenticate}: CreateAuthRoutesDependencies) => {
+
   const router = Router();
 
 router.post(

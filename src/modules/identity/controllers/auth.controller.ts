@@ -97,7 +97,7 @@ export const createAuthController = ({
     );
 
     return res.status(200).json({
-      message: "Logout successfully",
+      message: "Logged out successfully",
     });
   });
 
@@ -108,24 +108,21 @@ export const createAuthController = ({
   // user's ID to the request.
 
   const logoutAllDevices = asyncHandler(async (req, res) => {
-    const userId = req.user.id;
+  const userId = req.user.id;
 
-    // Revoke every active session and refresh token belonging
-    // to this user.
-    const result = await authService.logoutAllDevices(userId);
+  const result = await authService.logoutAllDevices(userId);
 
-    // Clear the refresh-token cookie on the current browser/device.
-    res.clearCookie(
-      REFRESH_TOKEN_COOKIE, 
-      REFRESH_TOKEN_COOKIE_OPTIONS
-    );
+  // Clear the refresh-token cookie on the current browser/device.
+  res.clearCookie(
+    REFRESH_TOKEN_COOKIE,
+    REFRESH_TOKEN_COOKIE_OPTIONS
+  );
 
-    return res.status(200).json({
-      message: "Logged out from all devices successfully",
-      ...result,
-    });
+  return res.status(200).json({
+    message: "Logged out from all devices successfully",
+    ...result,
   });
-
+});
   return {
     register,
     verifyEmail,

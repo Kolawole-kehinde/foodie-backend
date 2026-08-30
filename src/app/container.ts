@@ -17,6 +17,8 @@ import { createAuthService } from "../modules/identity/services/auth.service.js"
 import { createPasswordService } from "../modules/identity/services/password.service.js";
 import { createTokenService } from "../modules/identity/services/token.service.js";
 import { createEmailQueueService } from "../queues/email/email.service.js";
+import { createSessionService } from "../modules/identity/services/session.service.js";
+import { createAuthenticate } from "../middlewares/authentication.js";
 
 // Repositories
 const userRepository = createUserRepository(prisma);
@@ -36,6 +38,13 @@ const auditService = createAuditService(auditRepository);
 const emailQueueService = createEmailQueueService();
 const impossibleTravel = createImpossibleTravelService();
 const geoLocation = createGeoLocationService();
+const sessionService = createSessionService({
+  sessionRepository: userSessionRepository,
+});
+const authenticate = createAuthenticate({
+  tokenService,
+  sessionService,
+});
 
 // Auth service
 const authService = createAuthService({
@@ -71,4 +80,8 @@ const authController = createAuthController({
 // Routes
 export const authRoutes: Router = createAuthRoutes({
   authController,
+  authenticate
 });
+
+export { sessionService };
+
