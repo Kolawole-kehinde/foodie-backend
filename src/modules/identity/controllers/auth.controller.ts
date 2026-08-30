@@ -102,7 +102,7 @@ export const createAuthController = ({
   });
 
 
-  
+
 
   // The authentication middleware should attach the authenticated
   // user's ID to the request.
@@ -115,7 +115,10 @@ export const createAuthController = ({
     const result = await authService.logoutAllDevices(userId);
 
     // Clear the refresh-token cookie on the current browser/device.
-    res.clearCookie(REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS);
+    res.clearCookie(
+      REFRESH_TOKEN_COOKIE, 
+      REFRESH_TOKEN_COOKIE_OPTIONS
+    );
 
     return res.status(200).json({
       message: "Logged out from all devices successfully",

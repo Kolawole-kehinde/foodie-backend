@@ -57,7 +57,8 @@ router.post(
 
 router.post(
   "/logout",
-  authController.logout
+  authenticate,
+  authController.logout,
 );
 
 router.post(
