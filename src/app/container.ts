@@ -1,3 +1,4 @@
+import type { Router } from "express";
 import { prisma } from "../database/prisma/client.js";
 import { createAuthController } from "../modules/identity/controllers/auth.controller.js";
 import { createAuditRepository } from "../modules/identity/repositories/audit.repository.js";
@@ -17,17 +18,16 @@ import { createPasswordService } from "../modules/identity/services/password.ser
 import { createTokenService } from "../modules/identity/services/token.service.js";
 import { createEmailQueueService } from "../queues/email/email.service.js";
 
-
 // Repositories
 const userRepository = createUserRepository(prisma);
 const pendingRegistrationRepository = createPendingRegistrationRepository(prisma);
 const auditRepository = createAuditRepository(prisma);
 const userSessionRepository = createUserSessionRepository(prisma);
 const refreshTokenRepository = createRefreshTokenRepository(prisma);
-const loginAttemptRepository = createLoginAttemptRepository(prisma)
+const loginAttemptRepository = createLoginAttemptRepository(prisma);
 const securityEventRepository = createSecurityEventRepository(prisma);
-const securityEventService = createSecurityEventService(securityEventRepository);
-
+const securityEventService =
+  createSecurityEventService(securityEventRepository);
 
 // Infrastructure services
 const passwordService = createPasswordService();
@@ -36,8 +36,6 @@ const auditService = createAuditService(auditRepository);
 const emailQueueService = createEmailQueueService();
 const impossibleTravel = createImpossibleTravelService();
 const geoLocation = createGeoLocationService();
-
-
 
 // Auth service
 const authService = createAuthService({
@@ -48,33 +46,29 @@ const authService = createAuthService({
     pendingRegistration: pendingRegistrationRepository,
     session: userSessionRepository,
     refreshToken: refreshTokenRepository,
-    loginAttempt: loginAttemptRepository
+    loginAttempt: loginAttemptRepository,
   },
 
- services: {
-  password: passwordService,
-  token: tokenService,
-  audit: auditService,
-  impossibleTravel,
-  geoLocation,
-  securityEvent: securityEventService,
-},
+  services: {
+    password: passwordService,
+    token: tokenService,
+    audit: auditService,
+    impossibleTravel,
+    geoLocation,
+    securityEvent: securityEventService,
+  },
 
   queues: {
     email: emailQueueService,
   },
 });
 
-
 // Controller
-const authController =
-  createAuthController({
-    authService,
-  });
-
+const authController = createAuthController({
+  authService,
+});
 
 // Routes
-export const authRoutes =
-  createAuthRoutes({
-    authController,
-  });
+export const authRoutes: Router = createAuthRoutes({
+  authController,
+});

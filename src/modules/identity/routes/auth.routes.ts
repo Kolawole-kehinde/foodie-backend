@@ -8,6 +8,7 @@ import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
+import { authenticate } from "../middleware/authentication.js";
 
 
 
@@ -57,7 +58,13 @@ router.post(
 router.post(
   "/logout",
   authController.logout
-)
+);
+
+router.post(
+  "/logout-all-devices",
+  authenticate,
+  authController.logoutAllDevices,
+);
 
   return router;
 };

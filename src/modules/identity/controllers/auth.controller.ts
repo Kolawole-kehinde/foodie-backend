@@ -1,7 +1,6 @@
-
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
-import { REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS } from "../constants/auth-cookie.js";
+import {REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS,} from "../constants/auth-cookie.js";
 import type { LoginRequestDto } from "../dto/login-dto.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
@@ -25,8 +24,6 @@ export const createAuthController = ({
     return res.status(201).json(result);
   });
 
-
-
   const verifyEmail = asyncHandler(async (req, res) => {
     const dto: VerifyEmailRequestDto = req.body;
 
@@ -38,85 +35,101 @@ export const createAuthController = ({
     return res.status(200).json(result);
   });
 
+  const login = asyncHandler(async (req, res) => {
+    const dto: LoginRequestDto = req.body;
 
-
-
- const login = asyncHandler(async (req, res) => {
-  const dto: LoginRequestDto = req.body;
-
-  const result = await authService.login(dto, {
-    ipAddress: req.ip,
-    userAgent: req.get("user-agent"),
-  });
-
-  res.cookie(
-    REFRESH_TOKEN_COOKIE,
-    result.refreshToken,
-    REFRESH_TOKEN_COOKIE_OPTIONS,
-  );
-
-  return res.status(200).json({
-    accessToken: result.accessToken,
-    expiresIn: result.expiresIn,
-    user: result.user,
-  });
-});
-
-
-
-  const refresh = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE];
-
-  if (!refreshToken) {
-    throw new UnauthorizedError("Invalid refresh token");
-  }
-
-  const result = await authService.refresh(refreshToken, {
-    ipAddress: req.ip,
-    userAgent: req.get("user-agent"),
-  });
-
-  res.cookie(
-    REFRESH_TOKEN_COOKIE,
-    result.refreshToken,
-    REFRESH_TOKEN_COOKIE_OPTIONS,
-  );
-
-  return res.status(200).json({
-    accessToken: result.accessToken,
-    expiresIn: result.expiresIn,
-    user: result.user,
-  });
-});
-
-
-const logout = asyncHandler (async(req, res) => {
-     const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE]
-
-      if (refreshToken) {
-    await authService.logout(refreshToken, {
+    const result = await authService.login(dto, {
       ipAddress: req.ip,
       userAgent: req.get("user-agent"),
     });
-  };
+
+    res.cookie(
+      REFRESH_TOKEN_COOKIE,
+      result.refreshToken,
+      REFRESH_TOKEN_COOKIE_OPTIONS,
+    );
+
+    return res.status(200).json({
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      user: result.user,
+    });
+  });
+
+  const refresh = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE];
+
+    if (!refreshToken) {
+      throw new UnauthorizedError("Invalid refresh token");
+    }
+
+    const result = await authService.refresh(refreshToken, {
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+
+    res.cookie(
+      REFRESH_TOKEN_COOKIE,
+      result.refreshToken,
+      REFRESH_TOKEN_COOKIE_OPTIONS,
+    );
+
+    return res.status(200).json({
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      user: result.user,
+    });
+  });
+
+  const logout = asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE];
+
+    if (refreshToken) {
+      await authService.logout(refreshToken, {
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+    }
 
     res.clearCookie(
       REFRESH_TOKEN_COOKIE,
       REFRESH_TOKEN_COOKIE_OPTIONS
-    )
+    );
 
     return res.status(200).json({
-      message: "Logout successfully"
-    })
+      message: "Logout successfully",
+    });
+  });
 
-});
+
+  
+
+  // The authentication middleware should attach the authenticated
+  // user's ID to the request.
+
+  const logoutAllDevices = asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+
+    // Revoke every active session and refresh token belonging
+    // to this user.
+    const result = await authService.logoutAllDevices(userId);
+
+    // Clear the refresh-token cookie on the current browser/device.
+    res.clearCookie(REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS);
+
+    return res.status(200).json({
+      message: "Logged out from all devices successfully",
+      ...result,
+    });
+  });
 
   return {
     register,
     verifyEmail,
     login,
     refresh,
-    logout
+    logout,
+    logoutAllDevices
   };
 };
 

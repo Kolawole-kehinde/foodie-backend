@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Express } from "express";
 import { notFound } from "../middlewares/notFound.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
@@ -7,14 +7,12 @@ import { authRoutes } from "./container.js";
 import { startPendingRegistrationCleanupJob } from "../jobs/pending-registration-cleanup/pending-registration-cleanup.job.js";
 import cookieParser from "cookie-parser";
 
-export function createApp() {
+export function createApp(): Express {
   const app = express();
-
 
   startPendingRegistrationCleanupJob();
 
   app.set("trust proxy", true);
-  
 
   app.use(express.json());
   app.use(cookieParser());

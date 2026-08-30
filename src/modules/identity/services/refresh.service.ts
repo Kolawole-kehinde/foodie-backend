@@ -1,4 +1,9 @@
-import { SecurityEventSeverity, SecurityEventType, SessionRevocationReason, UserStatus } from "@prisma/client";
+import {
+  SecurityEventSeverity,
+  SecurityEventType,
+  SessionRevocationReason,
+  UserStatus,
+} from "@prisma/client";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 import type { RefreshResponseDto } from "../dto/refresh-token.dto.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
@@ -6,7 +11,6 @@ import { ForbiddenError } from "../../../shared/errors/ForbiddenError.js";
 import { AUTH_SECURITY } from "../constants/auth.constants.js";
 import { createRefreshTokenRepository } from "../repositories/refresh-token.repository.js";
 import { RefreshTokenAlreadyRotatedError } from "../../../shared/errors/RefreshTokenAlreadyRotatedError.js";
-
 
 export const createRefreshService = ({
   repositories,
@@ -35,27 +39,27 @@ export const createRefreshService = ({
 
     // 4. Detect refresh-token reuse
     if (storedToken.revokedAt) {
-  if (storedToken.replacedByTokenId) {
-    await repositories.session.revoke(
-      session.id,
-      SessionRevocationReason.TOKEN_REUSE_DETECTED,
-    );
+      if (storedToken.replacedByTokenId) {
+        await repositories.session.revoke(
+          session.id,
+          SessionRevocationReason.TOKEN_REUSE_DETECTED,
+        );
 
-    await services.securityEvent.record({
-      userId: session.user.id,
-      type: SecurityEventType.REFRESH_TOKEN_REUSED,
-      severity: SecurityEventSeverity.CRITICAL,
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
-      metadata: {
-        sessionId: session.id,
-        refreshTokenId: storedToken.id,
-      },
-    });
-  }
+        await services.securityEvent.record({
+          userId: session.user.id,
+          type: SecurityEventType.REFRESH_TOKEN_REUSED,
+          severity: SecurityEventSeverity.CRITICAL,
+          ipAddress: context.ipAddress,
+          userAgent: context.userAgent,
+          metadata: {
+            sessionId: session.id,
+            refreshTokenId: storedToken.id,
+          },
+        });
+      }
 
-  throw new UnauthorizedError("Invalid refresh token");
-}
+      throw new UnauthorizedError("Invalid refresh token");
+    }
 
     // 5. Check refresh token expiration
     if (storedToken.expiresAt <= now) {
@@ -95,45 +99,44 @@ export const createRefreshService = ({
     );
 
     // 12. Atomically rotate refresh token
-   try {
-  await prisma.$transaction(async (tx) => {
-    const refreshTokenRepository =
-      createRefreshTokenRepository(tx);
+    try {
+      await prisma.$transaction(async (tx) => {
+        const refreshTokenRepository = createRefreshTokenRepository(tx);
 
-    return refreshTokenRepository.rotate({
-      oldTokenId: storedToken.id,
-      sessionId: session.id,
-      newTokenHash: newRefreshTokenHash,
-      newTokenExpiresAt: newRefreshTokenExpiresAt,
-    });
-  });
-} catch (error) {
-  if (error instanceof RefreshTokenAlreadyRotatedError) {
-    // Another request already rotated this token.
-    // Treat this as a potential refresh-token replay.
+        return refreshTokenRepository.rotate({
+          oldTokenId: storedToken.id,
+          sessionId: session.id,
+          newTokenHash: newRefreshTokenHash,
+          newTokenExpiresAt: newRefreshTokenExpiresAt,
+        });
+      });
+    } catch (error) {
+      if (error instanceof RefreshTokenAlreadyRotatedError) {
+        // Another request already rotated this token.
+        // Treat this as a potential refresh-token replay.
 
-    await repositories.session.revoke(
-      session.id,
-      SessionRevocationReason.TOKEN_REUSE_DETECTED,
-    );
+        await repositories.session.revoke(
+          session.id,
+          SessionRevocationReason.TOKEN_REUSE_DETECTED,
+        );
 
-    await services.securityEvent.record({
-      userId: user.id,
-      type: SecurityEventType.REFRESH_TOKEN_REUSED,
-      severity: SecurityEventSeverity.CRITICAL,
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
-      metadata: {
-        sessionId: session.id,
-        refreshTokenId: storedToken.id,
-      },
-    });
+        await services.securityEvent.record({
+          userId: user.id,
+          type: SecurityEventType.REFRESH_TOKEN_REUSED,
+          severity: SecurityEventSeverity.CRITICAL,
+          ipAddress: context.ipAddress,
+          userAgent: context.userAgent,
+          metadata: {
+            sessionId: session.id,
+            refreshTokenId: storedToken.id,
+          },
+        });
 
-    throw new UnauthorizedError("Invalid refresh token");
-  }
+        throw new UnauthorizedError("Invalid refresh token");
+      }
 
-  throw error;
-}
+      throw error;
+    }
     // 13. Create new access token
     const accessToken = services.token.createAccessToken({
       userId: user.id,
@@ -143,16 +146,16 @@ export const createRefreshService = ({
 
     // 14. Return new authentication result
     return {
-  accessToken,
-  refreshToken: newRefreshToken,
-  expiresIn: 15 * 60,
+      accessToken,
+      refreshToken: newRefreshToken,
+      expiresIn: 15 * 60,
 
-  user: {
-    id: user.id,
-    email: user.email,
-    roles,
-  },
-};
+      user: {
+        id: user.id,
+        email: user.email,
+        roles,
+      },
+    };
   };
 
   return {
