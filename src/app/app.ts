@@ -18,6 +18,7 @@ export function createApp(): Express {
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: true }));
 
+  
   app.use(
     "/docs",
     swaggerUi.serve,

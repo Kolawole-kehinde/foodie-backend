@@ -9,6 +9,8 @@ import { refreshTokenCookieSchema } from "../modules/identity/validators/refresh
 const registry = new OpenAPIRegistry();
 
 
+
+
 //Register
 
 
@@ -330,29 +332,110 @@ registry.registerPath({
   },
 });
 
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Logout All Devices
+|--------------------------------------------------------------------------
+*/
+
+const LogoutAllDevicesResponse = registry.register(
+  "LogoutAllDevicesResponse",
+  z.object({
+    message: z.string().openapi({
+      example: "Logged out from all devices successfully",
+    }),
+
+    sessionsRevoked: z.number().openapi({
+      example: 3,
+      description:
+        "Number of active sessions that were revoked.",
+    }),
+
+    refreshTokensRevoked: z.number().openapi({
+      example: 3,
+      description:
+        "Number of active refresh tokens that were revoked.",
+    }),
+  }),
+);
+
+registry.registerPath({
+  method: "post",
+
+  path: "/auth/logout-all-devices",
+
+  tags: ["Auth"],
+
+  summary: "Log out from all devices",
+
+  description:
+    "Revokes all active sessions and refresh tokens belonging to the authenticated user. Any existing access tokens associated with those sessions become invalid immediately because the authentication middleware validates session status.",
+
+  security: [
+    {
+      bearerAuth: [],
+    },
+  ],
+
+  responses: {
+    200: {
+      description:
+        "Successfully logged out from all devices",
+
+      content: {
+        "application/json": {
+          schema: LogoutAllDevicesResponse,
+        },
+      },
+    },
+
+    401: {
+      description:
+        "Authentication required or the current session is no longer active",
+    },
+  },
+});
+
 // Generate OpenAPI document
 
 const generator = new OpenApiGeneratorV3(registry.definitions);
 
-export const swaggerSpec = generator.generateDocument({
-  openapi: "3.0.0",
 
-  info: {
-    title: "E-Commerce API",
-    version: "1.0.0",
-    description: "E-Commerce backend API",
+export const swaggerSpec: OpenAPIObject =
+  generator.generateDocument({
+    openapi: "3.0.0",
+
+    info: {
+      title: "E-Commerce API",
+      version: "1.0.0",
+      description: "E-Commerce backend API",
+    },
+
+    servers: [
+      {
+        url: "http://localhost:4000/api/v1",
+      },
+    ],
+
+    tags: [
+      {
+        name: "Auth",
+        description: "Authentication and identity endpoints",
+      },
+    ],
+  });
+
+  swaggerSpec.components = {
+  ...swaggerSpec.components,
+
+  securitySchemes: {
+    bearerAuth: {
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT",
+    },
   },
-
-  servers: [
-    {
-      url: "http://localhost:4000/api/v1",
-    },
-  ],
-
-  tags: [
-    {
-      name: "Auth",
-      description: "Authentication and identity endpoints",
-    },
-  ],
-});
+};
