@@ -3,7 +3,7 @@ import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import type { ForgotPasswordDto, ForgotPasswordResponseDto, ResetPasswordDto,} from "../dto/forgot-password-dto.js";
 import type { AuthContext, AuthDependencies,} from "../types/auth.types.js";
 
-export const createPasswordResetService = ({ repositories, services, prisma,}: AuthDependencies) => {
+export const createPasswordResetService = ({ repositories, services, prisma, queues}: AuthDependencies) => {
 
   // Request a password reset link for a user
   const passwordReset = async ( dto: ForgotPasswordDto, _context: AuthContext,): Promise<ForgotPasswordResponseDto> => {
@@ -51,6 +51,11 @@ export const createPasswordResetService = ({ repositories, services, prisma,}: A
     const resetUrl = `${env.frontend}/reset-password?token=${encodeURIComponent(token)}`;
 
     // console.log(resetUrl);
+
+ await queues.email.sendPasswordResetEmail(
+  user.email,
+  resetUrl,
+);
 
     // Return the same generic response used when the user does not exist
     return genericResponse;

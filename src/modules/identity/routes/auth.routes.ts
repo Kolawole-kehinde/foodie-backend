@@ -1,5 +1,4 @@
 import { Router, type RequestHandler } from "express";
-import type { AuthController } from "../controllers/auth.controller.js";
 import { registerSchema } from "../validators/register.validator.js";
 import { rateLimit } from "../../../shared/rate-limit/rate-limit.middleware.js";
 import { registrationRateLimitPolicy } from "../middleware/registration-rate-limit.policy.js";
@@ -8,6 +7,9 @@ import { verifyEmailSchema } from "../validators/verify-email.validator.js";
 import { loginSchema } from "../validators/login.validator.js";
 import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { verifyEmailRateLimitPolicy } from "../middleware/verify-email-rate-limit.policy.js";
+import { forgotPasswordSchema } from "../validators/forgot-password.validator.js";
+import { resetPasswordSchema } from "../validators/reset-password.validator.js";
+import type { AuthController } from "../controllers/auth.controller.js";
 
 
 
@@ -52,6 +54,18 @@ router.post(
 );
 
 router.post(
+  "/forgot-password",
+  validate(forgotPasswordSchema),
+  authController.forgotPassword,
+);
+
+router.post(
+  "/reset-password",
+  validate(resetPasswordSchema),
+  authController.resetPassword,
+);
+
+router.post(
   "/refresh",
   authController.refresh,
 );
@@ -79,8 +93,6 @@ router.delete(
   authenticate,
   authController.revokeSession
 );
-
-
 
 
 

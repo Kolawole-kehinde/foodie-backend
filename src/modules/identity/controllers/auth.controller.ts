@@ -7,9 +7,10 @@ import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import type { AuthService } from "../services/auth.service.js";
 import type { RequestHandler } from "express";
+import type { ForgotPasswordDto, ResetPasswordDto } from "../dto/forgot-password-dto.js";
 
 
-type AuthController = {
+export type AuthController = {
   register: RequestHandler;
   verifyEmail: RequestHandler;
   login: RequestHandler;
@@ -18,6 +19,8 @@ type AuthController = {
   logoutAllDevices: RequestHandler;
   getSessions: RequestHandler;
   revokeSession: RequestHandler;
+  forgotPassword: RequestHandler;
+resetPassword: RequestHandler;
 };
 
 type CreateAuthControllerDependencies = {
@@ -167,6 +170,25 @@ const revokeSession = asyncHandler(async (req, res) => {
   return res.status(200).json(result);
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+  const dto: ForgotPasswordDto = req.body;
+
+  const result = await authService.passwordReset(dto, {
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+  });
+
+  return res.status(200).json(result);
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const dto: ResetPasswordDto = req.body;
+
+  const result = await authService.resetPassword(dto);
+
+  return res.status(200).json(result);
+});
+
 
 
   return {
@@ -177,7 +199,9 @@ const revokeSession = asyncHandler(async (req, res) => {
     logout,
     logoutAllDevices,
     getSessions,
-    revokeSession
+    revokeSession,
+    forgotPassword,
+    resetPassword,
   };
 };
 
