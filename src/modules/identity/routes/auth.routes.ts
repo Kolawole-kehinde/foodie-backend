@@ -74,6 +74,17 @@ router.get(
   authController.getSessions
 );
 
+router.delete(
+  "/sessions/:sessionId",
+  authenticate,
+  authController.revokeSession
+);
+
+
+
+
+
+
   return router;
 };
 

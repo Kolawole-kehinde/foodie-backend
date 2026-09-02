@@ -1,3 +1,4 @@
+import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 import {REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS,} from "../constants/auth-cookie.js";
@@ -135,7 +136,25 @@ const getSessions = asyncHandler (async(req, res) => {
     );
 
   return res.status(200).json(result);
-})
+});
+
+const revokeSession = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const sessionId = req.params.sessionId;
+
+  if (typeof sessionId !== "string" || !sessionId) {
+    throw new BadRequestError("Session ID is required");
+  }
+
+  const result = await authService.revokeSession(
+    userId,
+    sessionId,
+  );
+
+  return res.status(200).json(result);
+});
+
+
 
   return {
     register,
@@ -144,7 +163,8 @@ const getSessions = asyncHandler (async(req, res) => {
     refresh,
     logout,
     logoutAllDevices,
-    getSessions
+    getSessions,
+    revokeSession
   };
 };
 

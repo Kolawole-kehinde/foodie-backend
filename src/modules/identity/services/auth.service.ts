@@ -1,7 +1,7 @@
 import type { AuthDependencies } from "../types/auth.types.js";
 import { createLoginService } from "./login.service.js";
 import { createLogoutAllDevicesService } from "./logout-all.service.js";
-import { createLogoutService } from "./logout-service.js";
+import { createLogoutService } from "./logout.service.js";
 import { createRefreshService } from "./refresh.service.js";
 import { createRegistrationService } from "./registration.service.js";
 import { createVerifyEmailService } from "./verify-email.service.js";
@@ -24,6 +24,7 @@ export const createAuthService = (dependencies: AuthDependencies) => {
 
     // Session management
     getActiveSessions: dependencies.services.session.getActiveSessions,
+    revokeSession: dependencies.services.session.revokeSession,
   };
 };
 
