@@ -1,10 +1,7 @@
 import { SessionRevocationReason } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { AUTH_SECURITY } from "../constants/auth.constants.js";
-import type {
-  CreateUserData,
-  UpdateUserData,
-} from "./types.js";
+import type { CreateUserData, UpdateUserData,} from "./types.js";
 
 export const createUserRepository = (db: DatabaseClient) => {
   const create = async (data: CreateUserData) => {
@@ -67,12 +64,9 @@ export const createUserRepository = (db: DatabaseClient) => {
    * failed attempts while the account is already locked.
    */
   const recordFailedLoginAttempt = async (id: string) => {
-    const maxAttempts =
-      AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
+    const maxAttempts = AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
 
-    const lockDurationMs =
-      AUTH_SECURITY.LOGIN_LOCKOUT_MS;
-
+    const lockDurationMs = AUTH_SECURITY.LOGIN_LOCKOUT_MS;
     const result = await db.$queryRaw<
       {
         failedLoginAttempts: number;
