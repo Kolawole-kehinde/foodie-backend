@@ -4,7 +4,7 @@ import { registerSchema } from "../modules/identity/validators/register.validato
 import { verifyEmailSchema } from "../modules/identity/validators/verify-email.validator.js";
 import { loginSchema } from "../modules/identity/validators/login.validator.js";
 import type { OpenAPIObject } from "openapi3-ts/oas30";
-import { refreshTokenCookieSchema } from "../modules/identity/validators/refresh-token-validator.js";
+
 
 const registry = new OpenAPIRegistry();
 
@@ -12,7 +12,6 @@ const registry = new OpenAPIRegistry();
 
 
 //Register
-
 
 const RegisterRequest = registry.register("RegisterRequest", registerSchema);
 
@@ -335,11 +334,7 @@ registry.registerPath({
 
 
 
-/*
-|--------------------------------------------------------------------------
-| Logout All Devices
-|--------------------------------------------------------------------------
-*/
+  //Logout All Devices
 
 const LogoutAllDevicesResponse = registry.register(
   "LogoutAllDevicesResponse",
@@ -402,8 +397,6 @@ registry.registerPath({
 // Generate OpenAPI document
 
 const generator = new OpenApiGeneratorV3(registry.definitions);
-
-
 export const swaggerSpec: OpenAPIObject =
   generator.generateDocument({
     openapi: "3.0.0",

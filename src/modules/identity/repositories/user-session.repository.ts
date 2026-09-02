@@ -26,7 +26,7 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     });
   };
 
-  const findActiveById = async (id: string) => {
+const findActiveById = async (id: string) => {
   return db.userSession.findFirst({
     where: {
       id,
@@ -41,6 +41,21 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
   });
 };
 
+const findActiveByUserId = async (userId: string) => {
+  return db.userSession.findMany({
+    where: {
+      userId,
+      revokedAt: null,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
+    orderBy: {
+      lastActivityAt: "desc",
+    },
+  });
+};
+
   const updateLastActivity = async (id: string) => {
     return db.userSession.update({
       where: { id },
@@ -50,7 +65,10 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     });
   };
 
-  const revoke = async (id: string,reason?: Prisma.UserSessionUpdateInput["revokeReason"],) => {
+  const revoke = async (
+    id: string,
+    reason?: Prisma.UserSessionUpdateInput["revokeReason"],
+  ) => {
     return db.userSession.updateMany({
       where: {
         id,
@@ -83,6 +101,7 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     create,
     findById,
     findUserById,
+    findActiveByUserId,
     updateLastActivity,
     revoke,
     revokeAllForUser,

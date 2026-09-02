@@ -275,9 +275,6 @@ model SecurityEvent {
 
 
 
-
-
-
 enum SecurityEventType {
   LOGIN_FAILED
   ACCOUNT_LOCKED
