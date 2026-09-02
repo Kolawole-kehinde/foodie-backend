@@ -1,3 +1,4 @@
+import { env } from "../../../config/env.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import type { ForgotPasswordDto, ForgotPasswordResponseDto, ResetPasswordDto,} from "../dto/forgot-password-dto.js";
 import type { AuthContext, AuthDependencies,} from "../types/auth.types.js";
@@ -31,7 +32,10 @@ export const createPasswordResetService = ({ repositories, services, prisma,}: A
     const tokenHash = services.token.hashToken(token);
 
     // Reset tokens are valid for 30 minutes
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const expiresAt = new Date(
+  Date.now() +
+    env.auth.PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES * 60 * 1000,
+);
 
     // Store the hashed token and its expiration time
     await repositories.passwordResetToken.create({
@@ -44,14 +48,16 @@ export const createPasswordResetService = ({ repositories, services, prisma,}: A
       expiresAt,
     });
 
+    const resetUrl = `${env.frontend}/reset-password?token=${encodeURIComponent(token)}`;
+
+    // console.log(resetUrl);
+
     // Return the same generic response used when the user does not exist
     return genericResponse;
   };
 
   // Reset the user's password using a valid password reset token
-  const resetPassword = async (
-    dto: ResetPasswordDto,
-  ): Promise<{ message: string }> => {
+  const resetPassword = async (dto: ResetPasswordDto,): Promise<{ message: string }> => {
     const { token, newPassword } = dto;
 
     // Hash the raw token so we can safely look it up in the database

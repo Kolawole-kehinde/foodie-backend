@@ -6,6 +6,19 @@ import type { LoginRequestDto } from "../dto/login-dto.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import type { AuthService } from "../services/auth.service.js";
+import type { RequestHandler } from "express";
+
+
+type AuthController = {
+  register: RequestHandler;
+  verifyEmail: RequestHandler;
+  login: RequestHandler;
+  refresh: RequestHandler;
+  logout: RequestHandler;
+  logoutAllDevices: RequestHandler;
+  getSessions: RequestHandler;
+  revokeSession: RequestHandler;
+};
 
 type CreateAuthControllerDependencies = {
   authService: AuthService;
@@ -13,7 +26,7 @@ type CreateAuthControllerDependencies = {
 
 export const createAuthController = ({
   authService,
-}: CreateAuthControllerDependencies) => {
+}: CreateAuthControllerDependencies): AuthController => {
   const register = asyncHandler(async (req, res) => {
     const dto: RegisterRequestDto = req.body;
 
@@ -168,4 +181,4 @@ const revokeSession = asyncHandler(async (req, res) => {
   };
 };
 
-export type AuthController = ReturnType<typeof createAuthController>;
+

@@ -19,6 +19,7 @@ import { createTokenService } from "../modules/identity/services/token.service.j
 import { createEmailQueueService } from "../queues/email/email.service.js";
 import { createSessionService } from "../modules/identity/services/session.service.js";
 import { createAuthenticate } from "../middlewares/authentication.js";
+import { createPasswordResetTokenRepository } from "../modules/identity/repositories/password-reset-token.repository.js";
 
 // Repositories
 const userRepository = createUserRepository(prisma);
@@ -29,6 +30,7 @@ const refreshTokenRepository = createRefreshTokenRepository(prisma);
 const loginAttemptRepository = createLoginAttemptRepository(prisma);
 const securityEventRepository = createSecurityEventRepository(prisma);
 const securityEventService = createSecurityEventService(securityEventRepository);
+const passwordResetToken = createPasswordResetTokenRepository(prisma)
 
 // Infrastructure services
 const passwordService = createPasswordService();
@@ -55,6 +57,7 @@ const authService = createAuthService({
     session: userSessionRepository,
     refreshToken: refreshTokenRepository,
     loginAttempt: loginAttemptRepository,
+    passwordResetToken: passwordResetToken,
   },
 
   services: {

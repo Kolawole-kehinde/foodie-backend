@@ -77,6 +77,7 @@ JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
 JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
 
 MAX_SESSIONS_PER_USER: z.coerce.number().int().positive().default(5),
+PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: z.coerce.number().int().positive().default(30),
 
   // JWT_REFRESH_SECRET: z
   //   .string()
@@ -94,7 +95,7 @@ MAX_SESSIONS_PER_USER: z.coerce.number().int().positive().default(5),
 
  
   // Frontend
-  // CLIENT_URL: z.string().url(),
+  FRONTEND_URL: z.string().url(),
 
 
   // Email
@@ -156,6 +157,7 @@ auth: {
   MAX_LOGIN_ATTEMPTS: config.MAX_LOGIN_ATTEMPTS,
   LOGIN_LOCK_DURATION_MINUTES: config.LOGIN_LOCK_DURATION_MINUTES,
   MAX_SESSIONS_PER_USER: config.MAX_SESSIONS_PER_USER,
+  PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: config.PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES
 },
 
 jwt: {
@@ -170,9 +172,9 @@ jwt: {
   //   SECURE: config.COOKIE_SECURE,
   // },
 
-  // client: {
-  //   URL: config.CLIENT_URL,
-  // },
+  frontend: {
+    URL: config.FRONTEND_URL,
+  },
 
   mail: {
     HOST: config.SMTP_HOST,
