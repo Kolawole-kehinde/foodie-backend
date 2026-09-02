@@ -123,13 +123,28 @@ export const createAuthController = ({
     ...result,
   });
 });
+
+
+const getSessions = asyncHandler (async(req, res) => {
+    const userId = req.user.id
+    const currentSessionId = req.user.sessionId;
+
+    const result = await authService.getActiveSessions(
+      userId,
+      currentSessionId
+    );
+
+  return res.status(200).json(result);
+})
+
   return {
     register,
     verifyEmail,
     login,
     refresh,
     logout,
-    logoutAllDevices
+    logoutAllDevices,
+    getSessions
   };
 };
 

@@ -28,8 +28,7 @@ const userSessionRepository = createUserSessionRepository(prisma);
 const refreshTokenRepository = createRefreshTokenRepository(prisma);
 const loginAttemptRepository = createLoginAttemptRepository(prisma);
 const securityEventRepository = createSecurityEventRepository(prisma);
-const securityEventService =
-  createSecurityEventService(securityEventRepository);
+const securityEventService = createSecurityEventService(securityEventRepository);
 
 // Infrastructure services
 const passwordService = createPasswordService();
@@ -65,6 +64,7 @@ const authService = createAuthService({
     impossibleTravel,
     geoLocation,
     securityEvent: securityEventService,
+    session: sessionService
   },
 
   queues: {

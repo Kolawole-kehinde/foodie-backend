@@ -11,8 +11,8 @@ export const createAuthService = (dependencies: AuthDependencies) => {
   const verifyEmail = createVerifyEmailService(dependencies);
   const login = createLoginService(dependencies);
   const refresh = createRefreshService(dependencies);
-  const logout = createLogoutService(dependencies)
-  const logoutAllDevices = createLogoutAllDevicesService(dependencies)
+  const logout = createLogoutService(dependencies);
+  const logoutAllDevices = createLogoutAllDevicesService(dependencies);
 
   return {
     register: registration.register,
@@ -22,6 +22,8 @@ export const createAuthService = (dependencies: AuthDependencies) => {
     logout: logout.logout,
     logoutAllDevices: logoutAllDevices.logoutAllDevices,
 
+    // Session management
+    getActiveSessions: dependencies.services.session.getActiveSessions,
   };
 };
 
