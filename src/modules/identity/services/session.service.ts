@@ -26,8 +26,18 @@ export const createSessionService = ({sessionRepository}: SessionServiceDependen
     return session;
   };
 
+
+  //  Get all active sessions belonging to a user.
+   // The repository already filters out:
+   // -revoked sessions
+   // - expired sessions
+  const getActiveSessions = async (userId: string) => {
+      return sessionRepository.findActiveByUserId(userId);
+  };
+
   return {
     validateSession,
+    getActiveSessions
   };
 };
 
