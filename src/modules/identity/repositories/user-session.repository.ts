@@ -65,10 +65,7 @@ const findActiveByUserId = async (userId: string) => {
     });
   };
 
-  const revoke = async (
-    id: string,
-    reason?: Prisma.UserSessionUpdateInput["revokeReason"],
-  ) => {
+  const revoke = async (id: string,reason?: Prisma.UserSessionUpdateInput["revokeReason"],) => {
     return db.userSession.updateMany({
       where: {
         id,
@@ -81,10 +78,22 @@ const findActiveByUserId = async (userId: string) => {
     });
   };
 
-  const revokeAllForUser = async (
-    userId: string,
-    reason?: Prisma.UserSessionUpdateInput["revokeReason"],
-  ) => {
+  const revokeForUser = async (userId: string, sessionId: string, reason?: Prisma.UserSessionUpdateInput["revokeReason"]) => {
+       return db.userSession.updateMany({
+        where: {
+          id: sessionId,
+          userId,
+          revokedAt: null,
+        },
+        data: {
+           revokedAt: new Date(),
+           revokeReason: reason
+        }
+       })
+  }
+
+
+  const revokeAllForUser = async (userId: string,reason?: Prisma.UserSessionUpdateInput["revokeReason"],) => {
     return db.userSession.updateMany({
       where: {
         userId,
@@ -104,6 +113,7 @@ const findActiveByUserId = async (userId: string) => {
     findActiveByUserId,
     updateLastActivity,
     revoke,
+    revokeForUser,
     revokeAllForUser,
     findActiveById,
   };
