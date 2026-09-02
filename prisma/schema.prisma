@@ -340,6 +340,7 @@ enum SessionRevocationReason {
   TOKEN_REUSE_DETECTED
   EXPIRED
   SESSION_LIMIT_EXCEEDED
+  PASSWORD_RESET
 }
 
 enum RoleName {
