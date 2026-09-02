@@ -56,6 +56,39 @@ const findActiveByUserId = async (userId: string) => {
   });
 };
 
+
+const countActiveByUserId = async (userId: string) => {
+   return db.userSession.count({
+    where: {
+      userId,
+      revokedAt: null,
+      expiresAt:{
+      gt: new Date(),
+    }
+    }
+    
+   })
+};
+
+const findOldestActiveByUserId = async (userId: string) => {
+    return db.userSession.findFirst({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        }
+
+      },
+      orderBy: {
+        createdAt: "asc"
+      }
+    })
+
+}
+
+
+
   const updateLastActivity = async (id: string) => {
     return db.userSession.update({
       where: { id },
@@ -111,6 +144,8 @@ const findActiveByUserId = async (userId: string) => {
     findById,
     findUserById,
     findActiveByUserId,
+    countActiveByUserId,
+    findOldestActiveByUserId,
     updateLastActivity,
     revoke,
     revokeForUser,

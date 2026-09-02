@@ -1,15 +1,14 @@
 import { z } from "./zod-openapi.js";
-import { OpenAPIRegistry, OpenApiGeneratorV3} from "@asteasolutions/zod-to-openapi";
+import {
+  OpenAPIRegistry,
+  OpenApiGeneratorV3,
+} from "@asteasolutions/zod-to-openapi";
 import { registerSchema } from "../modules/identity/validators/register.validator.js";
 import { verifyEmailSchema } from "../modules/identity/validators/verify-email.validator.js";
 import { loginSchema } from "../modules/identity/validators/login.validator.js";
 import type { OpenAPIObject } from "openapi3-ts/oas30";
 
-
 const registry = new OpenAPIRegistry();
-
-
-
 
 //Register
 
@@ -70,8 +69,7 @@ registry.registerPath({
   },
 });
 
-
-  // Verify Email
+// Verify Email
 
 const VerifyEmailRequest = registry.register(
   "VerifyEmailRequest",
@@ -136,8 +134,7 @@ registry.registerPath({
   },
 });
 
-
-  // Login
+// Login
 
 const LoginRequest = registry.register("LoginRequest", loginSchema);
 
@@ -226,7 +223,6 @@ registry.registerPath({
   },
 });
 
-
 //Refresh Token
 
 const RefreshResponse = registry.register(
@@ -290,8 +286,7 @@ registry.registerPath({
   },
 });
 
-
-  // Logout
+// Logout
 
 const LogoutResponse = registry.register(
   "LogoutResponse",
@@ -331,9 +326,6 @@ registry.registerPath({
   },
 });
 
-
-
-
 // Logout All Devices
 
 const LogoutAllDevicesResponse = registry.register(
@@ -345,14 +337,12 @@ const LogoutAllDevicesResponse = registry.register(
 
     sessionsRevoked: z.number().openapi({
       example: 3,
-      description:
-        "Number of active sessions that were revoked.",
+      description: "Number of active sessions that were revoked.",
     }),
 
     refreshTokensRevoked: z.number().openapi({
       example: 3,
-      description:
-        "Number of active refresh tokens that were revoked.",
+      description: "Number of active refresh tokens that were revoked.",
     }),
   }),
 );
@@ -377,8 +367,7 @@ registry.registerPath({
 
   responses: {
     200: {
-      description:
-        "Successfully logged out from all devices",
+      description: "Successfully logged out from all devices",
 
       content: {
         "application/json": {
@@ -393,8 +382,6 @@ registry.registerPath({
     },
   },
 });
-
-
 
 // Get Active Sessions
 
@@ -451,10 +438,6 @@ const GetSessionsResponse = registry.register(
     sessions: z.array(SessionResponse),
   }),
 );
-
-
-
-
 
 registry.registerPath({
   method: "get",
@@ -557,36 +540,33 @@ registry.registerPath({
   },
 });
 
-
-
 // Generate OpenAPI document
 
 const generator = new OpenApiGeneratorV3(registry.definitions);
-export const swaggerSpec: OpenAPIObject =
-  generator.generateDocument({
-    openapi: "3.0.0",
+export const swaggerSpec: OpenAPIObject = generator.generateDocument({
+  openapi: "3.0.0",
 
-    info: {
-      title: "E-Commerce API",
-      version: "1.0.0",
-      description: "E-Commerce backend API",
+  info: {
+    title: "E-Commerce API",
+    version: "1.0.0",
+    description: "E-Commerce backend API",
+  },
+
+  servers: [
+    {
+      url: "http://localhost:4000/api/v1",
     },
+  ],
 
-    servers: [
-      {
-        url: "http://localhost:4000/api/v1",
-      },
-    ],
+  tags: [
+    {
+      name: "Auth",
+      description: "Authentication and identity endpoints",
+    },
+  ],
+});
 
-    tags: [
-      {
-        name: "Auth",
-        description: "Authentication and identity endpoints",
-      },
-    ],
-  });
-
-  swaggerSpec.components = {
+swaggerSpec.components = {
   ...swaggerSpec.components,
 
   securitySchemes: {

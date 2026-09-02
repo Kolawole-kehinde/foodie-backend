@@ -121,12 +121,16 @@ if (!passwordValid) {
       userAgent: context.userAgent,
     });
 
-    // 11. Create refresh token
+
+    // 11. Enforce session limit
+     await services.session.enforceSessionLimit(user.id);
+
+    // 12. Create refresh token
     const refreshToken = services.token.generateRandomToken();
 
     const refreshTokenHash = services.token.hashToken(refreshToken);
 
-    // 12. Calculate expiration
+    // 13. Calculate expiration
 
     const sessionExpiresAt = new Date(
       now.getTime() + AUTH_SECURITY.SESSION_DURATION_MS,
@@ -136,7 +140,7 @@ if (!passwordValid) {
       now.getTime() + AUTH_SECURITY.REFRESH_TOKEN_DURATION_MS,
     );
 
-    // 13. Create session + refresh token atomically
+    // 14. Create session + refresh token atomically
 
     const session = await prisma.$transaction(async (tx) => {
       const sessionRepository = createUserSessionRepository(tx);
@@ -168,7 +172,7 @@ if (!passwordValid) {
       return session;
     });
 
-    // 14. Create access token
+    // 15. Create access token
     const roles = user.roles.map((userRole) => userRole.role.name);
 
     const accessToken = services.token.createAccessToken({
@@ -177,7 +181,7 @@ if (!passwordValid) {
       roles,
     });
 
-    // 15. Return authentication result
+    // 16. Return authentication result
     return {
       accessToken,
       refreshToken,

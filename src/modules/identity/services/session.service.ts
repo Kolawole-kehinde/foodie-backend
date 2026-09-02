@@ -2,39 +2,29 @@ import type { UserSessionRepository } from "../repositories/user-session.reposit
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import type { GetSessionsResponseDto, SessionDto } from "../dto/session.dto.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
+import { env } from "../../../config/env.js";
 
 type SessionServiceDependencies = {
   sessionRepository: UserSessionRepository;
 };
 
-// 1. Find the session only if it is active.
-// The repository checks:
-// - session exists
-// - session has not been revoked
-// - session has not expired
 export const createSessionService = ({
   sessionRepository,
 }: SessionServiceDependencies) => {
+  // Find the session only if it is active.
   const validateSession = async (sessionId: string) => {
     const session = await sessionRepository.findActiveById(sessionId);
 
-    // 2. Reject the request if the session is no longer active.
     if (!session) {
       throw new UnauthorizedError("Session is no longer active");
     }
 
-    // 3. Return the active session.
     return session;
   };
 
-  // revoke a single session
+  // Revoke a single session.
   const revokeSession = async (userId: string, sessionId: string) => {
     const result = await sessionRepository.revokeForUser(userId, sessionId);
-
-    // count === 0 means the session either:
-    // - does not exist
-    // - belongs to another user
-    // - has already been revoked
 
     if (result.count === 0) {
       throw new NotFoundError("Session not found");
@@ -45,15 +35,12 @@ export const createSessionService = ({
     };
   };
 
-
-
-  //  Get all active sessions belonging to a user.
-  // currentSessionId is used to tell the frontend which session is currently making the request.
-  const getActiveSessions = async (userId: string,currentSessionId: string,): Promise<GetSessionsResponseDto> => {
+  // Get all active sessions belonging to a user.
+  const getActiveSessions = async (
+    userId: string,
+    currentSessionId: string,
+  ): Promise<GetSessionsResponseDto> => {
     const sessions = await sessionRepository.findActiveByUserId(userId);
-
-    // Convert the database session into the public SessionDto.
-    //  We deliberately return only the fields that the API is supposed to expose.
     const sessionDtos: SessionDto[] = sessions.map((session) => ({
       id: session.id,
       deviceName: session.deviceName,
@@ -64,8 +51,6 @@ export const createSessionService = ({
       lastActivityAt: session.lastActivityAt,
       expiresAt: session.expiresAt,
       createdAt: session.createdAt,
-
-      // Identify the session being used for this request.
       isCurrent: session.id === currentSessionId,
     }));
 
@@ -74,10 +59,32 @@ export const createSessionService = ({
     };
   };
 
+  // Enforce the maximum number of active sessions.
+  const enforceSessionLimit = async (userId: string) => {
+    const maxSessions = env.auth.MAX_SESSIONS_PER_USER;
+
+    const activeSessionCount =
+      await sessionRepository.countActiveByUserId(userId);
+
+    if (activeSessionCount < maxSessions) {
+      return;
+    }
+
+    const oldestSession =
+      await sessionRepository.findOldestActiveByUserId(userId);
+
+    if (!oldestSession) {
+      return;
+    }
+
+    await sessionRepository.revoke(oldestSession.id, "SESSION_LIMIT_EXCEEDED");
+  };
+
   return {
     validateSession,
     getActiveSessions,
     revokeSession,
+    enforceSessionLimit,
   };
 };
 

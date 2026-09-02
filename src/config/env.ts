@@ -76,6 +76,8 @@ BCRYPT_ROUNDS: z.coerce.number().default(12),
 JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
 JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
 
+MAX_SESSIONS_PER_USER: z.coerce.number().int().positive().default(5),
+
   // JWT_REFRESH_SECRET: z
   //   .string()
   //   .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
@@ -129,7 +131,6 @@ if (!result.success) {
 }
 
 const config = result.data;
-
 export const env = {
   app: {
     NODE_ENV: config.NODE_ENV,
@@ -154,6 +155,7 @@ auth: {
   BCRYPT: config.BCRYPT_ROUNDS,
   MAX_LOGIN_ATTEMPTS: config.MAX_LOGIN_ATTEMPTS,
   LOGIN_LOCK_DURATION_MINUTES: config.LOGIN_LOCK_DURATION_MINUTES,
+  MAX_SESSIONS_PER_USER: config.MAX_SESSIONS_PER_USER,
 },
 
 jwt: {
