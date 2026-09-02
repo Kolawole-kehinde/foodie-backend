@@ -68,7 +68,15 @@ router.post(
   authController.logoutAllDevices,
 );
 
+router.get(
+  "/sessions",
+  authenticate,
+  authController.getSessions
+);
+
   return router;
 };
+
+
 
 export type AuthRoutes = ReturnType<typeof createAuthRoutes>;
