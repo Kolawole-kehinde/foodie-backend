@@ -12,6 +12,7 @@ import type { ImpossibleTravelService } from "../security/impossible-travel.serv
 import type { GeoLocationService } from "../security/geo-location.service.js";
 import type { SecurityEventService } from "../security/security-event.service.js";
 import type { SessionService } from "../services/session.service.js";
+import type { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository.js";
 
 export type AuthContext = {
   ipAddress?: string;
@@ -27,6 +28,7 @@ export type AuthRepositories = {
   session: UserSessionRepository;
   refreshToken: RefreshTokenRepository;
   loginAttempt: LoginAttemptRepository;
+  passwordResetToken: PasswordResetTokenRepository
 };
 
 export type AuthServices = {
