@@ -18,32 +18,32 @@ export const createEmailWorker = () => {
           jobId: job.id,
           type: job.data.type,
         },
-        "Processing email job"
+        "Processing email job",
       );
 
       switch (job.data.type) {
         case "VERIFICATION_EMAIL":
           await emailService.sendVerificationEmail(
             job.data.email,
-            job.data.verificationToken
+            job.data.verificationToken,
           );
           break;
 
         case "PASSWORD_RESET_EMAIL":
-          await emailService.sendPasswordResetEmail(
+          await emailService.sendForgotPasswordEmail(
             job.data.email,
-            job.data.resetUrl
+            job.data.resetUrl,
           );
           break;
 
-        default:
+       default:
          throw new Error("Unsupported email job type");
       }
     },
     {
       connection: redis,
       concurrency: 5,
-    }
+    },
   );
 
   worker.on("ready", () => {
@@ -55,7 +55,7 @@ export const createEmailWorker = () => {
       {
         jobId: job.id,
       },
-      "Email job completed"
+      "Email job completed",
     );
   });
 
@@ -65,7 +65,7 @@ export const createEmailWorker = () => {
         jobId: job?.id,
         err: error,
       },
-      "Email worker failed"
+      "Email worker failed",
     );
   });
 
@@ -74,7 +74,7 @@ export const createEmailWorker = () => {
       {
         err: error,
       },
-      "Email worker error"
+      "Email worker error",
     );
   });
 

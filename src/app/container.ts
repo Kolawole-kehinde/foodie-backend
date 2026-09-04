@@ -16,7 +16,7 @@ import { createAuditService } from "../modules/identity/services/audit.service.j
 import { createAuthService } from "../modules/identity/services/auth.service.js";
 import { createPasswordService } from "../modules/identity/services/password.service.js";
 import { createTokenService } from "../modules/identity/services/token.service.js";
-import { createEmailQueueService } from "../queues/email/email.service.js";
+import { createEmailQueueService } from "../queues/email/email.queue.service.js";
 import { createSessionService } from "../modules/identity/services/session.service.js";
 import { createAuthenticate } from "../middlewares/authentication.js";
 import { createPasswordResetTokenRepository } from "../modules/identity/repositories/password-reset-token.repository.js";

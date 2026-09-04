@@ -53,10 +53,11 @@ export const createPasswordResetService = ({ repositories, services, prisma, que
 
     // console.log(resetUrl);
 
- await queues.email.sendPasswordResetEmail(
+await queues.email.sendForgotPasswordEmail(
   user.email,
   resetUrl,
 );
+
 
     // Return the same generic response used when the user does not exist
     return genericResponse;

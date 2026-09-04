@@ -26,19 +26,17 @@ export const createEmailQueueService = () => {
         // Remove successfully processed jobs from Redis
         removeOnComplete: true,
 
-        // Keep failed jobs so they can be inspected or retried
+        // Keep failed jobs in Redis for inspection or manual retry
         removeOnFail: false,
       },
     );
   };
 
-  // Queue a password reset email for background processing
-  const sendPasswordResetEmail = async (
-    email: string,
-    resetUrl: string,
-  ) => {
+  // Queue a forgot-password email for background processing
+  const sendForgotPasswordEmail = async ( email: string, resetUrl: string,) => {
+    
     await emailQueue.add(
-      "password-reset-email",
+      "forgot-password-email",
       {
         type: "PASSWORD_RESET_EMAIL",
         email,
@@ -57,7 +55,7 @@ export const createEmailQueueService = () => {
         // Remove successfully processed jobs from Redis
         removeOnComplete: true,
 
-        // Keep failed jobs so they can be inspected or retried
+        // Keep failed jobs in Redis for inspection or manual retry
         removeOnFail: false,
       },
     );
@@ -65,9 +63,8 @@ export const createEmailQueueService = () => {
 
   return {
     sendVerificationEmail,
-    sendPasswordResetEmail,
+    sendForgotPasswordEmail,
   };
 };
 
-export type EmailQueueService = ReturnType<typeof createEmailQueueService
->;
+export type EmailQueueService =ReturnType<typeof createEmailQueueService>;

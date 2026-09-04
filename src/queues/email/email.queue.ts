@@ -1,4 +1,4 @@
-import { Queue } from "bullmq/dist/esm/classes/index.js";
+import { Queue } from "bullmq";
 import { redis } from "../../database/redis/client.js";
 
 export const EMAIL_QUEUE_NAME = "email";
@@ -9,17 +9,19 @@ export type VerificationEmailJob = {
   verificationToken: string;
 };
 
-export type PasswordResetEmailJob = {
+export type ForgotPasswordEmailJob = {
   type: "PASSWORD_RESET_EMAIL";
   email: string;
   resetUrl: string;
 };
 
-export type EmailJob = VerificationEmailJob | PasswordResetEmailJob;
+export type EmailJob =
+  | VerificationEmailJob
+  | ForgotPasswordEmailJob;
 
 export const emailQueue = new Queue<EmailJob>(
   EMAIL_QUEUE_NAME,
   {
     connection: redis,
-  }
+  },
 );
