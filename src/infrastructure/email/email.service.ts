@@ -22,7 +22,9 @@ export const createEmailService = () => {
 
     logger.info(
       {
-        email,
+       email,
+      verificationToken,
+      verificationUrl,
       },
       "Sending verification email"
     );
@@ -50,13 +52,11 @@ export const createEmailService = () => {
     });
   };
 
-  const sendPasswordResetEmail = async (
-    email: string,
-    resetUrl: string,
-  ) => {
+  const sendPasswordResetEmail = async ( email: string, resetUrl: string) => {
     logger.info(
       {
         email,
+        
       },
       "Sending password reset email"
     );
