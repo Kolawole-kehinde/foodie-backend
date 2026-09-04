@@ -4,7 +4,11 @@ export const forgotPasswordSchema = z.object({
   email: z
     .string()
     .trim()
-    .email("Invalid email address"),
+    .email("Invalid email address")
+    .meta({
+      description: "The email address associated with the account",
+      example: "user@example.com",
+    }),
 });
 
 export type ForgotPasswordInput = z.infer<
