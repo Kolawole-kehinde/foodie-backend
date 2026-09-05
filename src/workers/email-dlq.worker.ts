@@ -1,5 +1,8 @@
 import { Worker } from "bullmq";
-import { EMAIL_DLQ_NAME, type EmailDlqJob,} from "../queues/email/email.queue.js";
+import {
+  EMAIL_DLQ_NAME,
+  type EmailDlqJob,
+} from "../queues/email/email.queue.js";
 import { redis } from "../database/redis/client.js";
 import { logger } from "../config/logger.js";
 
@@ -19,6 +22,9 @@ export const createEmailDlqWorker = () => {
         },
         "Email DLQ job requires attention",
       );
+
+      // Intentionally throw so the DLQ job remains in the failed state.
+      throw new Error("DLQ job requires manual intervention");
     },
     {
       connection: redis,
@@ -30,22 +36,13 @@ export const createEmailDlqWorker = () => {
     logger.info("Email DLQ worker is ready");
   });
 
-  worker.on("completed", (job) => {
-    logger.info(
-      {
-        jobId: job.id,
-      },
-      "Email DLQ job processed",
-    );
-  });
-
   worker.on("failed", (job, error) => {
     logger.error(
       {
         jobId: job?.id,
         err: error,
       },
-      "Email DLQ worker failed",
+      "Email DLQ job remains available for manual replay",
     );
   });
 

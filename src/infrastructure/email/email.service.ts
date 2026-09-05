@@ -5,7 +5,13 @@ import { verifyEmailTemplate } from "./templates/verify-email.template.js";
 import { forgotPasswordTemplate } from "./templates/forgot-password.template.js";
 
 export const createEmailService = () => {
-  const sendVerificationEmail = async (email: string, verificationToken: string,) => {
+  
+const sendVerificationEmail = async (
+  email: string,
+  verificationToken: string,
+) => {
+  throw new Error("DLQ TEST FAILURE");
+
     const emailContent = verifyEmailTemplate(verificationToken);
 
     logger.info(

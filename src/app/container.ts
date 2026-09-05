@@ -22,6 +22,8 @@ import { createAuthenticate } from "../middlewares/authentication.js";
 import { createPasswordResetTokenRepository } from "../modules/identity/repositories/password-reset-token.repository.js";
 import { createEmailDlqService } from "../workers/services/email-dlq.service.js";
 import { createEmailDlqController } from "../workers/controllers/email-dlq.controller.js";
+import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
+import { authorize } from "../middlewares/authorize.js";
 
 // Repositories
 const userRepository = createUserRepository(prisma);
@@ -52,6 +54,12 @@ const sessionService = createSessionService({
 const authenticate = createAuthenticate({
   tokenService,
   sessionService,
+});
+
+const emailDlqRoutes = createEmailDlqRoutes({
+  emailDlqController,
+  authenticate,
+  authorize,
 });
 
 // Auth service
@@ -94,8 +102,8 @@ export const authRoutes: Router = createAuthRoutes({
 });
 
 export {
-   sessionService,
+  sessionService,
   emailDlqService,
-  emailDlqController
- };
-
+  emailDlqController,
+  emailDlqRoutes,
+};

@@ -12,12 +12,12 @@ type CreateEmailDlqRoutesDependencies = {
 export const createEmailDlqRoutes = ({ emailDlqController, authenticate, authorize,}: CreateEmailDlqRoutesDependencies) => {
   const router = Router();
 
-  router.post(
-    "/:jobId/replay",
-    authenticate,
-    authorize(RoleName.ADMIN),
-    emailDlqController.replayJob,
-  );
+router.post(
+  "/:jobId/replay",
+  authenticate,
+  authorize(RoleName.ADMIN),
+  emailDlqController.replayJob,
+);
 
   return router;
 };

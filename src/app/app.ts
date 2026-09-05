@@ -3,9 +3,10 @@ import { notFound } from "../middlewares/notFound.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
-import { authRoutes } from "./container.js";
+import { authRoutes, emailDlqRoutes } from "./container.js";
 import { startPendingRegistrationCleanupJob } from "../jobs/pending-registration-cleanup/pending-registration-cleanup.job.js";
 import cookieParser from "cookie-parser";
+
 
 export function createApp(): Express {
   const app = express();
@@ -26,6 +27,7 @@ export function createApp(): Express {
   );
 
   app.use("/api/v1/auth", authRoutes);
+  app.use("/api/admin/email-dlq", emailDlqRoutes);
 
   // 404 MUST come after all routes
   app.use(notFound);

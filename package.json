@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/app/server.ts",
     "worker:email": "tsx watch src/workers/email.worker.ts",
+    "worker:email-dlq": "tsx watch src/workers/email-dlq.worker.ts",
     "build": "tsc",
     "start": "node dist/server.ts"
   },
