@@ -1,10 +1,11 @@
 import { createServer } from "node:http";
-
 import { logger } from "../config/logger.js";
 import { env } from "../config/env.js";
 import { createApp } from "./app.js";
 import { prisma } from "../database/prisma/client.js";
 import { connectRedis, redis } from "../database/redis/client.js";
+
+
 
 async function bootstrap() {
   try {
@@ -21,12 +22,11 @@ async function bootstrap() {
 
     // Start server
     server.listen(env.app.PORT, () => {
-      logger.info(
-        {
+      logger.info({
           port: env.app.PORT,
           environment: env.app.NODE_ENV,
         },
-        "Server started successfully"
+        "Server started successfully",
       );
     });
 
@@ -43,10 +43,7 @@ async function bootstrap() {
 
           process.exit(0);
         } catch (error) {
-          logger.error(
-            { err: error },
-            "Error during shutdown"
-          );
+          logger.error({ err: error }, "Error during shutdown");
 
           process.exit(1);
         }
@@ -61,10 +58,7 @@ async function bootstrap() {
       await shutdown("SIGTERM");
     });
   } catch (error) {
-    logger.fatal(
-      { err: error },
-      "Application failed to start"
-    );
+    logger.fatal({ err: error }, "Application failed to start");
 
     process.exit(1);
   }

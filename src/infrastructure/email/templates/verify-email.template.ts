@@ -1,8 +1,8 @@
 import { env } from "../../../config/env.js";
 
 export const verifyEmailTemplate = (verificationToken: string) => {
-  const verificationUrl =
-    `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
+    
+  const verificationUrl = `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
 
   return {
     subject: "Verify your email",

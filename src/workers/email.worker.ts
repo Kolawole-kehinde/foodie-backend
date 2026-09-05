@@ -1,9 +1,6 @@
 import { Worker } from "bullmq";
 import { createEmailService } from "../infrastructure/email/email.service.js";
-import {
-  EMAIL_QUEUE_NAME,
-  type EmailJob,
-} from "../queues/email/email.queue.js";
+import {EMAIL_QUEUE_NAME,emailDlq,type EmailJob,} from "../queues/email/email.queue.js";
 import { redis } from "../database/redis/client.js";
 import { logger } from "../config/logger.js";
 
@@ -46,6 +43,8 @@ export const createEmailWorker = () => {
     },
   );
 
+
+
   worker.on("ready", () => {
     logger.info("Email worker is ready");
   });
@@ -59,15 +58,53 @@ export const createEmailWorker = () => {
     );
   });
 
-  worker.on("failed", (job, error) => {
+worker.on("failed", async (job, error) => {
+  if (!job || !job.id) {
+    logger.error(
+      { err: error },
+      "Email worker failed without job information",
+    );
+    return;
+  }
+
+  const attempts = job.opts.attempts ?? 1;
+  const exhausted = job.attemptsMade >= attempts;
+
+  if (exhausted) {
+    await emailDlq.add("dead-letter-email", {
+      originalJobId: job.id,
+      originalJobName: job.name,
+      payload: job.data,
+      attemptsMade: job.attemptsMade,
+      failedReason: error.message,
+      failedAt: new Date().toISOString(),
+    });
+
     logger.error(
       {
-        jobId: job?.id,
+        jobId: job.id,
+        type: job.data.type,
+        attemptsMade: job.attemptsMade,
+        attempts,
         err: error,
       },
-      "Email worker failed",
+      "Email job moved to DLQ after exhausting all retries",
     );
-  });
+
+    return;
+  }
+
+  logger.warn(
+    {
+      jobId: job.id,
+      type: job.data.type,
+      attemptsMade: job.attemptsMade,
+      attempts,
+      err: error,
+    },
+    "Email job failed, retrying",
+  );
+});
 
   worker.on("error", (error) => {
     logger.error(
@@ -80,7 +117,7 @@ export const createEmailWorker = () => {
 
   return worker;
 };
-
+    // await createEmailWorker();
 const emailWorker = createEmailWorker();
 
 logger.info("Email worker started");

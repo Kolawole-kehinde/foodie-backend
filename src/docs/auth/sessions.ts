@@ -2,7 +2,6 @@ import { z } from "../zod-openapi.js";
 import { registry } from "../registry.js";
 
 // Get Active Sessions
-
 const SessionResponse = registry.register(
   "SessionResponse",
   z.object({

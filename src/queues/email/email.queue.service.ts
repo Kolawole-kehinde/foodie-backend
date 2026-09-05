@@ -2,10 +2,7 @@ import { emailQueue } from "./email.queue.js";
 
 export const createEmailQueueService = () => {
   // Queue a verification email for background processing
-  const sendVerificationEmail = async (
-    email: string,
-    verificationToken: string,
-  ) => {
+  const sendVerificationEmail = async (email: string, verificationToken: string,) => {
     await emailQueue.add(
       "verification-email",
       {
@@ -34,7 +31,7 @@ export const createEmailQueueService = () => {
 
   // Queue a forgot-password email for background processing
   const sendForgotPasswordEmail = async ( email: string, resetUrl: string,) => {
-    
+
     await emailQueue.add(
       "forgot-password-email",
       {
