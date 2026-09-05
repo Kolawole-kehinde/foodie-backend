@@ -10,7 +10,7 @@ const sendVerificationEmail = async (
   email: string,
   verificationToken: string,
 ) => {
-  throw new Error("DLQ TEST FAILURE");
+  // throw new Error("DLQ TEST FAILURE");
 
     const emailContent = verifyEmailTemplate(verificationToken);
 
