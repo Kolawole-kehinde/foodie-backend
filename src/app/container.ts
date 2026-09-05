@@ -96,6 +96,6 @@ export const authRoutes: Router = createAuthRoutes({
 export {
    sessionService,
   emailDlqService,
-  emailDlqController,
+  emailDlqController
  };
 

@@ -1,11 +1,12 @@
-import { Router, type RequestHandler } from "express";
-
+import { Router } from "express";
+import { RoleName } from "@prisma/client";
 import type { EmailDlqController } from "../controllers/email-dlq.controller.js";
+import type { RequestHandler } from "express";
 
 type CreateEmailDlqRoutesDependencies = {
   emailDlqController: EmailDlqController;
   authenticate: RequestHandler;
-  authorize: ReturnType<typeof authorize>;
+  authorize: (requiredRole: RoleName) => RequestHandler;
 };
 
 export const createEmailDlqRoutes = ({
@@ -18,7 +19,7 @@ export const createEmailDlqRoutes = ({
   router.post(
     "/:jobId/replay",
     authenticate,
-    authorize("ADMIN"),
+    authorize(RoleName.ADMIN),
     emailDlqController.replayJob,
   );
 
