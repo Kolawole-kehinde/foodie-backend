@@ -12,7 +12,6 @@
 //    return value
 // }
 
-
 // export const env = {
 //   port: checkRequiredEnvVariables("PORT"),
 //   isProduction: checkRequiredEnvVariables("NODE_ENV") === "production",
@@ -20,13 +19,10 @@
 //   logLevel: checkRequiredEnvVariables("LOG_LEVEL"),
 // } as const
 
-
-
 import "dotenv/config";
 import { z } from "zod";
 
 const envSchema = z.object({
-
   // Application
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -35,68 +31,51 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   API_PREFIX: z.string().default("/api/v1"),
 
-  
   // Database
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-  MAX_LOGIN_ATTEMPTS: z.coerce
-  .number()
-  .int()
-  .positive()
-  .default(5),
+  MAX_LOGIN_ATTEMPTS: z.coerce.number().int().positive().default(5),
 
-LOGIN_LOCK_DURATION_MINUTES: z.coerce
-  .number()
-  .int()
-  .positive()
-  .default(15),
+  LOGIN_LOCK_DURATION_MINUTES: z.coerce.number().int().positive().default(15),
 
+  // Redis
+  // REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+  REDIS_HOST: z.string(),
+  REDIS_PORT: z.coerce.number(),
+  REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.coerce.number().default(0),
 
-  // Redis 
-// REDIS_URL: z.string().min(1, "REDIS_URL is required"),
-REDIS_HOST: z.string(),
-REDIS_PORT: z.coerce.number(),
-REDIS_PASSWORD: z.string().optional(),
-REDIS_DB: z.coerce.number().default(0),
+  //Bccrypt
+  BCRYPT_ROUNDS: z.coerce.number().default(12),
 
-
-//Bccrypt 
-BCRYPT_ROUNDS: z.coerce.number().default(12),
-
- 
   // JWT
   // JWT_ACCESS_SECRET: z
   //   .string()
   //   .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
 
   JWT_ACCESS_SECRET: z
-  .string()
-  .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+    .string()
+    .min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
 
-JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
-JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
 
-MAX_SESSIONS_PER_USER: z.coerce.number().int().positive().default(5),
-PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: z.coerce.number().int().positive().default(30),
+  MAX_SESSIONS_PER_USER: z.coerce.number().int().positive().default(5),
+  PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30),
 
-  // JWT_REFRESH_SECRET: z
-  //   .string()
-  //   .min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
-  // JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
-  // JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  // ASW S3 BUCKET
 
- 
-  // Cookies
-  // COOKIE_SECRET: z
-  //   .string()
-  //   .min(32, "COOKIE_SECRET must be at least 32 characters"),
-  // COOKIE_DOMAIN: z.string(),
-  // COOKIE_SECURE: z.coerce.boolean().default(false),
+  AWS_REGION: z.string().min(1, "AWS region is required"),
+  AWS_ACCESS_KEY_ID: z.string().min(1, "AWS access key ID is required"),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1, "AWS secret access key is required"),
+  AWS_S3_BUCKET_NAME: z.string().min(3, "AWS S3 bucket name is required"),
 
- 
   // Frontend
   FRONTEND_URL: z.string().url(),
-
 
   // Email
   SMTP_HOST: z.string(),
@@ -105,7 +84,6 @@ PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: z.coerce.number().int().positive().defa
   SMTP_PASS: z.string(),
   SMTP_FROM: z.string().min(1, "SMTP_FROM is required"),
   APP_URL: z.string().url(),
-
 
   // Logging
   LOG_LEVEL: z.enum([
@@ -126,8 +104,8 @@ if (!result.success) {
     `Invalid environment variables:\n${JSON.stringify(
       result.error.flatten().fieldErrors,
       null,
-      2
-    )}`
+      2,
+    )}`,
   );
 }
 
@@ -149,21 +127,28 @@ export const env = {
     PORT: config.REDIS_PORT,
     PASSWORD: config.REDIS_PASSWORD,
     DB: config.REDIS_DB,
-
   },
 
-auth: {
-  BCRYPT: config.BCRYPT_ROUNDS,
-  MAX_LOGIN_ATTEMPTS: config.MAX_LOGIN_ATTEMPTS,
-  LOGIN_LOCK_DURATION_MINUTES: config.LOGIN_LOCK_DURATION_MINUTES,
-  MAX_SESSIONS_PER_USER: config.MAX_SESSIONS_PER_USER,
-  PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES: config.PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES
-},
+  auth: {
+    BCRYPT: config.BCRYPT_ROUNDS,
+    MAX_LOGIN_ATTEMPTS: config.MAX_LOGIN_ATTEMPTS,
+    LOGIN_LOCK_DURATION_MINUTES: config.LOGIN_LOCK_DURATION_MINUTES,
+    MAX_SESSIONS_PER_USER: config.MAX_SESSIONS_PER_USER,
+    PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES:
+      config.PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES,
+  },
 
-jwt: {
-  ACCESS_SECRET: config.JWT_ACCESS_SECRET,
-  ACCESS_EXPIRES_IN: config.JWT_ACCESS_EXPIRES_IN,
-  REFRESH_EXPIRES_IN: config.JWT_REFRESH_EXPIRES_IN,
+  jwt: {
+    ACCESS_SECRET: config.JWT_ACCESS_SECRET,
+    ACCESS_EXPIRES_IN: config.JWT_ACCESS_EXPIRES_IN,
+    REFRESH_EXPIRES_IN: config.JWT_REFRESH_EXPIRES_IN,
+  },
+
+  aws: {
+  region: config.AWS_REGION,
+  accessKeyId: config.AWS_ACCESS_KEY_ID,
+  secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
+  bucketName: config.AWS_S3_BUCKET_NAME,
 },
 
   // cookie: {
