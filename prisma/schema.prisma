@@ -32,8 +32,29 @@ model User {
   passwordResetTokens   PasswordResetToken[]
   auditLogs             AuditLog[]
   profile                Profile?
+  mediaUploads           MediaUpload[]
 }
 
+model MediaUpload {
+  id           String            @id @default(cuid())
+  uploadedById String
+  type         MediaType
+  status       MediaUploadStatus @default(PENDING)
+
+  objectKey    String            @unique
+  contentType  String
+  fileSize     Int?
+
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  expiresAt    DateTime?
+
+  uploadedBy   User              @relation(fields: [uploadedById],references: [id],onDelete: Cascade)
+
+  @@index([uploadedById])
+  @@index([status])
+  @@index([expiresAt])
+}
 
 model Profile {
   id        String   @id @default(cuid())
@@ -365,4 +386,16 @@ enum RoleName {
   CUSTOMER_SUPPORT
   EDITOR
   MODERATOR
+}
+
+
+enum MediaUploadStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+enum MediaType {
+  AVATAR
+  PRODUCT_IMAGE
 }
