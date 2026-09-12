@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../../config/env.js";
@@ -11,7 +11,7 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export const createS3Service = () => {
   const createUploadForm = async (key: string, contentType: string) => {
-    
+
     if (!ALLOWED_IMAGE_TYPES.includes(contentType as (typeof ALLOWED_IMAGE_TYPES)[number],)) {
       throw new Error("Unsupported image type");
     }
@@ -57,10 +57,20 @@ export const createS3Service = () => {
     await s3Client.send(command);
   };
 
+  const headObject = async (key: string) => {
+  return s3Client.send(
+    new HeadObjectCommand({
+      Bucket: env.aws.bucketName,
+      Key: key,
+    }),
+  );
+};
+
   return {
     createUploadForm,
     createDownloadUrl,
     deleteObject,
+    headObject
   };
 };
 
