@@ -123,4 +123,5 @@ export {
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,
+  media
 };
