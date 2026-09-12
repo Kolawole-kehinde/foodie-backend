@@ -24,6 +24,8 @@ import { createEmailDlqService } from "../workers/services/email-dlq.service.js"
 import { createEmailDlqController } from "../workers/controllers/email-dlq.controller.js";
 import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
 import { authorize } from "../middlewares/authorize.js";
+import { createS3Service } from "../infrastructure/s3/s3.service.js";
+import { createMediaDependencies } from "../modules/media/media.dependencies.js";
 
 // Repositories
 const userRepository = createUserRepository(prisma);
@@ -36,6 +38,7 @@ const securityEventRepository = createSecurityEventRepository(prisma);
 const securityEventService = createSecurityEventService(securityEventRepository);
 const passwordResetToken = createPasswordResetTokenRepository(prisma)
 
+
 // Infrastructure services
 const passwordService = createPasswordService();
 const tokenService = createTokenService();
@@ -44,17 +47,29 @@ const emailQueueService = createEmailQueueService();
 const impossibleTravel = createImpossibleTravelService();
 const geoLocation = createGeoLocationService();
 const emailDlqService = createEmailDlqService();
+const s3Service = createS3Service();
 
 const emailDlqController = createEmailDlqController({
   emailDlqService,
 });
+
+
+
 const sessionService = createSessionService({
   sessionRepository: userSessionRepository,
 });
+
 const authenticate = createAuthenticate({
   tokenService,
   sessionService,
 });
+
+const media = createMediaDependencies({
+  db: prisma,
+  s3Service,
+  authenticate,
+});
+
 
 const emailDlqRoutes = createEmailDlqRoutes({
   emailDlqController,
@@ -89,6 +104,8 @@ const authService = createAuthService({
     email: emailQueueService
   },
 });
+
+
 
 // Controller
 const authController = createAuthController({
