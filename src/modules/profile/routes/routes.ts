@@ -1,33 +1,31 @@
-import { Router, type RequestHandler } from "express"
-import type { ProfileController } from "../controllers/controller.js"
-import { validate } from "node-cron"
-import { updateProfileSchema } from "../schemas/profile.schema.js"
-
-
+import { Router, type RequestHandler } from "express";
+import { updateProfileSchema } from "../schemas/profile.schema.js";
+import { validate } from "../../../shared/middleware/validate.middleware.js";
+import type { ProfileController } from "../controllers/controller.js";
 
 type CreateProfileRoutesDependencies = {
-    profileController: ProfileController
-    authenticate: RequestHandler
-}
+  profileController: ProfileController;
+  authenticate: RequestHandler;
+};
 
+export const createProfileRoutes = ({
+  profileController,
+  authenticate,
+}: CreateProfileRoutesDependencies) => {
+  const router = Router();
 
-export const createProfileRoutes = ({profileController, authenticate}: CreateProfileRoutesDependencies) => {
-  
-    const router = Router()
+  router.get(
+    "/profile",
+    authenticate,
+    profileController.getProfile,
+  );
 
-     router.get(
-        "/profile",
-        authenticate,
-        profileController.getProfile
-     );
+  router.patch(
+    "/profile",
+    authenticate,
+    validate(updateProfileSchema),
+    profileController.updateProfile,
+  );
 
-     router.patch(
-        "/profile",
-        authenticate,
-        validate(updateProfileSchema),
-        profileController.updateProfile
-     )
-
-
-    return router
-}
+  return router;
+};
