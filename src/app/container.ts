@@ -26,6 +26,7 @@ import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
 import { authorize } from "../middlewares/authorize.js";
 import { createS3Service } from "../infrastructure/s3/s3.service.js";
 import { createMediaDependencies } from "../modules/media/media.dependencies.js";
+import { createProfileDependencies } from "../modules/profile/profile.dependencies.js";
 
 // Repositories
 const userRepository = createUserRepository(prisma);
@@ -67,6 +68,11 @@ const authenticate = createAuthenticate({
 const media = createMediaDependencies({
   db: prisma,
   s3Service,
+  authenticate,
+});
+
+const profile = createProfileDependencies({
+  db: prisma,
   authenticate,
 });
 
@@ -123,5 +129,6 @@ export {
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,
-  media
+  media,
+  profile
 };
