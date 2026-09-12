@@ -73,6 +73,7 @@ const media = createMediaDependencies({
 
 const profile = createProfileDependencies({
   db: prisma,
+  s3Service,
   authenticate,
 });
 
