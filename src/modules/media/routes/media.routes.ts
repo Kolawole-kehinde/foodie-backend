@@ -15,22 +15,21 @@ export const createMediaUploadRoutes = ({ mediaUploadController, authenticate,}:
   const router = Router();
 
  router.post(
-    "/uploads",
-    authenticate,
-    validate({
-      body: createMediaUploadSchema,
-    }),
-    mediaUploadController.createUpload,
-  );
+  "/uploads",
+  authenticate,
+  validate(createMediaUploadSchema),
+  mediaUploadController.createUpload,
+);
 
-  router.post(
-    "/uploads/:uploadId/confirm",
-    authenticate,
-    validate({
-      params: confirmMediaUploadSchema,
-    }),
-    mediaUploadController.confirmUpload,
-  );
+router.post(
+  "/uploads/:uploadId/confirm",
+  authenticate,
+  validate(
+    confirmMediaUploadSchema,
+    "params",
+  ),
+  mediaUploadController.confirmUpload,
+);
 
   return router;
 };

@@ -1,43 +1,24 @@
 import { z } from "zod";
 import type { Request, Response, NextFunction } from "express";
 
-type ValidationSchemas = {
-  body?: z.ZodType;
-  params?: z.ZodType;
-  query?: z.ZodType;
-};
+type ValidationTarget = "body" | "params" | "query";
 
 export const validate =
-  ({ body, params, query }: ValidationSchemas) =>
+  (
+    schema: z.ZodType,
+    target: ValidationTarget = "body",
+  ) =>
   (req: Request, _res: Response, next: NextFunction) => {
-    if (body) {
-      const result = body.safeParse(req.body);
+    const data = req[target];
 
-      if (!result.success) {
-        return next(result.error);
-      }
+    const result = schema.safeParse(data);
 
+    if (!result.success) {
+      return next(result.error);
+    }
+
+    if (target === "body") {
       req.body = result.data;
-    }
-
-    if (params) {
-      const result = params.safeParse(req.params);
-
-      if (!result.success) {
-        return next(result.error);
-      }
-
-      req.params = result.data;
-    }
-
-    if (query) {
-      const result = query.safeParse(req.query);
-
-      if (!result.success) {
-        return next(result.error);
-      }
-
-      req.query = result.data;
     }
 
     next();
