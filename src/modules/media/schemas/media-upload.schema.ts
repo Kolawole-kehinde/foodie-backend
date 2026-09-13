@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../../../docs/zod-openapi.js";
 
 export const createMediaUploadSchema = z.object({
   type: z.enum(["AVATAR", "PRODUCT_IMAGE"]),

@@ -13,6 +13,13 @@ import "./auth/sessions.js";
 import "./auth/forgot-password.js";
 import "./auth/reset-password.js";
 
+
+// User documentation
+import "./user/profile.js";
+
+// Media documentation
+import "./media/uploads.js";
+
 const generator = new OpenApiGeneratorV3(registry.definitions);
 
 export const swaggerSpec = generator.generateDocument({
@@ -30,12 +37,20 @@ export const swaggerSpec = generator.generateDocument({
     },
   ],
 
-  tags: [
-    {
-      name: "Auth",
-      description: "Authentication and identity endpoints",
-    },
-  ],
+ tags: [
+  {
+    name: "Auth",
+    description: "Authentication and identity endpoints",
+  },
+  {
+    name: "User",
+    description: "Authenticated user profile endpoints",
+  },
+  {
+    name: "Media",
+    description: "Media upload and management endpoints",
+  },
+],
 });
 
 swaggerSpec.components = {

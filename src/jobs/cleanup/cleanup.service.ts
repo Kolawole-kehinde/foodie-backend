@@ -34,10 +34,7 @@ export const createCleanupService = () => {
   const cleanupMediaUploads = async () => {
     const now = new Date();
 
-    logger.info(
-      { now },
-      "[Cleanup] Checking for expired media uploads",
-    );
+    logger.info({ now }, "[Cleanup] Checking for expired media uploads");
 
     const uploads = await prisma.mediaUpload.findMany({
       where: {
@@ -54,9 +51,7 @@ export const createCleanupService = () => {
     });
 
     if (uploads.length === 0) {
-      logger.info(
-        "[Cleanup] No expired media uploads found",
-      );
+      logger.info("[Cleanup] No expired media uploads found");
 
       return 0;
     }

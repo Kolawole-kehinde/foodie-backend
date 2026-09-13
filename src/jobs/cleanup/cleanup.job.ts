@@ -14,11 +14,9 @@ export const startCleanupJob = () => {
     );
 
     try {
-      const deletedRegistrations =
-        await cleanupService.cleanupPendingRegistrations();
+      const deletedRegistrations = await cleanupService.cleanupPendingRegistrations();
 
-      const deletedUploads =
-        await cleanupService.cleanupMediaUploads();
+      const deletedUploads =  await cleanupService.cleanupMediaUploads();
 
       logger.info(
         {
