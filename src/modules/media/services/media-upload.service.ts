@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { MediaType } from "@prisma/client";
-import type { MediaUploadRepository } from "../repositories/media-upload.repository.js";
-import type { S3Service } from "../../../infrastructure/s3/s3.service.js";
 
+import type { MediaUploadRepository } from "../repositories/media-upload.repository.js";
+import type { ProfileRepository } from "../../profile/repositories/profile.repository.js";
+import type { S3Service } from "../../../infrastructure/s3/s3.service.js";
 
 type CreateMediaUploadServiceDependencies = {
   mediaUploadRepository: MediaUploadRepository;
+  profileRepository: ProfileRepository;
   s3Service: S3Service;
 };
 
@@ -15,9 +17,16 @@ type CreateUploadInput = {
   contentType: string;
 };
 
-export const createMediaUploadService = ({ mediaUploadRepository, s3Service,}: CreateMediaUploadServiceDependencies) => {
-    
-  const createUpload = async ({userId,type,contentType,}: CreateUploadInput) => {
+export const createMediaUploadService = ({
+  mediaUploadRepository,
+  profileRepository,
+  s3Service,
+}: CreateMediaUploadServiceDependencies) => {
+  const createUpload = async ({
+    userId,
+    type,
+    contentType,
+  }: CreateUploadInput) => {
     const extension = contentType.split("/")[1];
 
     const objectKey =
@@ -86,6 +95,10 @@ export const createMediaUploadService = ({ mediaUploadRepository, s3Service,}: C
 
     if (result.count !== 1) {
       throw new Error("Media upload could not be confirmed");
+    }
+
+    if (mediaUpload.type === "AVATAR") {
+      await profileRepository.updateAvatarKey(userId, mediaUpload.objectKey);
     }
 
     return {

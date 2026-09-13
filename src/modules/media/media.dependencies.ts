@@ -1,10 +1,12 @@
 import type { DatabaseClient } from "../../database/prisma/types.js";
+import type { RequestHandler } from "express";
 import { createMediaUploadRepository } from "./repositories/media-upload.repository.js";
 import { createMediaUploadService } from "./services/media-upload.service.js";
 import { createMediaUploadController } from "./controllers/media-upload.controller.js";
-import type { S3Service } from "../../infrastructure/s3/s3.service.js";
 import { createMediaUploadRoutes } from "./routes/media.routes.js";
-import type { RequestHandler } from "express";
+import { createProfileRepository } from "../profile/repositories/profile.repository.js";
+import type { S3Service } from "../../infrastructure/s3/s3.service.js";
+
 
 
 type CreateMediaDependencies = {
@@ -18,10 +20,14 @@ export const createMediaDependencies = ({
   s3Service,
   authenticate,
 }: CreateMediaDependencies) => {
+    
   const mediaUploadRepository = createMediaUploadRepository(db);
+
+  const profileRepository = createProfileRepository(db);
 
   const mediaUploadService = createMediaUploadService({
     mediaUploadRepository,
+    profileRepository,
     s3Service,
   });
 
@@ -36,6 +42,7 @@ export const createMediaDependencies = ({
 
   return {
     mediaUploadRepository,
+    profileRepository,
     mediaUploadService,
     mediaUploadController,
     mediaUploadRoutes,
