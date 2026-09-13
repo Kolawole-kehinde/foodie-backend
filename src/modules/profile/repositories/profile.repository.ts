@@ -27,12 +27,23 @@ export const createProfileRepository = (db: DatabaseClient) => {
     });
   };
 
+  const updateAvatarKey = async (userId: string, avatarKey: string) => {
+    return db.profile.update({
+      where: {
+        userId,
+      },
+      data: {
+        avatarKey,
+      },
+    });
+  };
+
   return {
     findByUserId,
     create,
     update,
+    updateAvatarKey,
   };
 };
 
-
-export type ProfileRepository = ReturnType <typeof createProfileRepository>
+export type ProfileRepository = ReturnType<typeof createProfileRepository>;
