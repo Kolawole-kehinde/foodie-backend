@@ -1,17 +1,16 @@
 import express, { type Express } from "express";
-import { notFound } from "../middlewares/notFound.js";
+import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
+import { notFound } from "../middlewares/notFound.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
-import { authRoutes, emailDlqRoutes, media, profile} from "./container.js";
-import { startPendingRegistrationCleanupJob } from "../jobs/pending-registration-cleanup/pending-registration-cleanup.job.js";
-import cookieParser from "cookie-parser";
-
+import { authRoutes, emailDlqRoutes, media, profile } from "./container.js";
+import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
 
 export function createApp(): Express {
   const app = express();
 
-  startPendingRegistrationCleanupJob();
+  startCleanupJob();
 
   app.set("trust proxy", true);
 
@@ -19,23 +18,17 @@ export function createApp(): Express {
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: true }));
 
-  
   app.use(
     "/docs",
     swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec)
+    swaggerUi.setup(swaggerSpec),
   );
 
   app.use("/api/v1/auth", authRoutes);
   app.use("/api/admin/email-dlq", emailDlqRoutes);
-  
-   app.use("/api/v1/media", (req, _res, next) => {
-  console.log("BODY:", req.body);
-  console.log("CONTENT TYPE:", req.headers["content-type"]);
-  next();
-});
+
   app.use("/api/v1/media", media.mediaUploadRoutes);
- app.use("/api/v1", profile.profileRoutes);
+  app.use("/api/v1", profile.profileRoutes);
 
   // 404 MUST come after all routes
   app.use(notFound);
