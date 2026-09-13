@@ -28,7 +28,13 @@ export function createApp(): Express {
 
   app.use("/api/v1/auth", authRoutes);
   app.use("/api/admin/email-dlq", emailDlqRoutes);
-  app.use("/api/v1/", media.mediaUploadRoutes);
+  
+   app.use("/api/v1/media", (req, _res, next) => {
+  console.log("BODY:", req.body);
+  console.log("CONTENT TYPE:", req.headers["content-type"]);
+  next();
+});
+  app.use("/api/v1/media", media.mediaUploadRoutes);
  app.use("/api/v1", profile.profileRoutes);
 
   // 404 MUST come after all routes
