@@ -13,6 +13,4 @@ export const createAuditRepository = (db: DatabaseClient) => {
   };
 };
 
-export type AuditRepository = ReturnType<
-  typeof createAuditRepository
->;
+export type AuditRepository = ReturnType<typeof createAuditRepository>;
