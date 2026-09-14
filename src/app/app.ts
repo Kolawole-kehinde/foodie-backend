@@ -25,8 +25,7 @@ export function createApp(): Express {
   );
 
   app.use("/api/v1/auth", authRoutes);
-  app.use("/api/admin/email-dlq", emailDlqRoutes);
-
+  app.use("/api/v1/admin/email-dlq", emailDlqRoutes);
   app.use("/api/v1/media", media.mediaUploadRoutes);
   app.use("/api/v1", profile.profileRoutes);
 

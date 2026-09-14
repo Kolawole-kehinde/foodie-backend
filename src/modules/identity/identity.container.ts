@@ -23,6 +23,7 @@ import { createTokenService } from "./services/token.service.js";
 import { createPermissionCache } from "./cache/permission.cache.js";
 import { createEmailQueueService } from "../../queues/email/email.queue.service.js";
 import { createAuthenticate } from "../../middlewares/authentication.js";
+import { createAuthorizePermission } from "../../middlewares/authorize-permission.js";
 
 
 // Repositories
@@ -56,11 +57,14 @@ const permissionCache = createPermissionCache({
   redis,
 });
 
-const authorizationService =
-  createAuthorizationService({
+const authorizationService =  createAuthorizationService({
     authorizationRepository,
     permissionCache,
   });
+
+  const authorizePermission = createAuthorizePermission({
+  authorizationService,
+});
 
 
 // Authentication
@@ -115,6 +119,7 @@ const authRoutes = createAuthRoutes({
 export {
   authRoutes,
   authenticate,
+  authorizePermission,
   authorizationService,
   authorizationRepository,
   sessionService,

@@ -34,6 +34,12 @@ const permissions = [
     description: "View a user profile",
   },
   {
+  name: "email-dlq.replay",
+  resource: "email-dlq",
+  action: "replay",
+  description: "Replay failed email jobs from the dead-letter queue",
+},
+  {
     name: "profile.update",
     resource: "profile",
     action: "update",
@@ -309,6 +315,7 @@ const rolePermissions: Record<RoleName, string[]> = {
   [RoleName.ADMIN]: [
     "profile.read",
     "profile.update",
+    "email-dlq.replay",
 
     "users.read",
     "users.create",

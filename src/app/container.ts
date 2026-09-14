@@ -1,10 +1,8 @@
-import type { Router } from "express";
 import { prisma } from "../database/prisma/client.js";
-import { authRoutes, authenticate,} from "../modules/identity/identity.container.js";
+import { authRoutes, authenticate, authorizePermission,} from "../modules/identity/identity.container.js";
 import { createEmailDlqService } from "../workers/services/email-dlq.service.js";
 import { createEmailDlqController } from "../workers/controllers/email-dlq.controller.js";
 import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
-import { authorize } from "../middlewares/authorize.js";
 import { createS3Service } from "../infrastructure/s3/s3.service.js";
 import { createMediaDependencies } from "../modules/media/media.dependencies.js";
 import { createProfileDependencies } from "../modules/profile/profile.dependencies.js";
@@ -24,7 +22,7 @@ const emailDlqController = createEmailDlqController({
 const emailDlqRoutes = createEmailDlqRoutes({
   emailDlqController,
   authenticate,
-  authorize,
+  authorizePermission
 });
 
 

@@ -1,11 +1,8 @@
-
 import type { Redis } from "ioredis";
-
 
 // get    → Redis GET
 // set    → Redis SET + TTL
 // remove → Redis DEL
-
 
 type PermissionCacheDependencies = {
   redis: Redis;
@@ -16,15 +13,20 @@ const PERMISSION_CACHE_TTL = 60 * 15;
 
 const getPermissionCacheKey = (userId: string) => `auth:permissions:${userId}`;
 
-export const createPermissionCache = ({ redis}: PermissionCacheDependencies) => {
+export const createPermissionCache = ({
+  redis,
+}: PermissionCacheDependencies) => {
+  //Get a user's permissions from Redis.
+  // Returns null when the permissions are not cached.
 
- //Get a user's permissions from Redis.
- // Returns null when the permissions are not cached.
-   
   const get = async (userId: string): Promise<string[] | null> => {
     const key = getPermissionCacheKey(userId);
 
     const cachedPermissions = await redis.get(key);
+
+    console.log(
+      cachedPermissions ? "Permission cache HIT" : "Permission cache MISS",
+    );
 
     if (!cachedPermissions) {
       return null;
@@ -33,10 +35,10 @@ export const createPermissionCache = ({ redis}: PermissionCacheDependencies) => 
     return JSON.parse(cachedPermissions) as string[];
   };
 
-   // Store a user's permissions in Redis.
-   // Permissions are serialized as JSON because Redis stores values as strings.
-   
-  const set = async (userId: string,permissions: string[],): Promise<void> => {
+  // Store a user's permissions in Redis.
+  // Permissions are serialized as JSON because Redis stores values as strings.
+
+  const set = async (userId: string, permissions: string[]): Promise<void> => {
     const key = getPermissionCacheKey(userId);
 
     await redis.set(
