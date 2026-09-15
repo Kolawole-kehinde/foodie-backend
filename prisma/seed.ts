@@ -279,6 +279,27 @@ const permissions = [
     action: "read",
     description: "View security events",
   },
+
+  //Assign roles
+
+  {
+  name: "users.roles.assign",
+  resource: "users.roles",
+  action: "assign",
+  description: "Assign a role to a user",
+},
+{
+  name: "users.roles.read",
+  resource: "users.roles",
+  action: "read",
+  description: "View roles assigned to a user",
+},
+{
+  name: "users.roles.remove",
+  resource: "users.roles",
+  action: "remove",
+  description: "Remove a role from a user",
+},
 ];
 
 const rolePermissions: Record<RoleName, string[]> = {
@@ -353,6 +374,10 @@ const rolePermissions: Record<RoleName, string[]> = {
 
     "audit.read",
     "security-events.read",
+
+     "users.roles.assign",
+    "users.roles.read",
+    "users.roles.remove",
   ],
 
   // We are keeping these roles for future features.
