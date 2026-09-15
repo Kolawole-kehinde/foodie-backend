@@ -29,6 +29,19 @@ export const createRoleRepository = (db: DatabaseClient) => {
     });
   };
 
+  const getUserIdsByRoleId = async (roleId: string) => {
+  const userRoles = await db.userRole.findMany({
+    where: {
+      roleId,
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  return userRoles.map(({ userId }) => userId);
+};
+
   const getRoleByName = async (name: RoleName) => {
     return db.role.findUnique({
       where: {
@@ -61,6 +74,7 @@ export const createRoleRepository = (db: DatabaseClient) => {
     getRoleByName,
     updateRole,
     deleteRole,
+    getUserIdsByRoleId,
   };
 };
 

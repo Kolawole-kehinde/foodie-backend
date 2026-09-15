@@ -1,9 +1,7 @@
 import { prisma } from "../../database/prisma/client.js";
 import { redis } from "../../database/redis/client.js";
-
 import { createAuthController } from "./controllers/auth.controller.js";
 import { createRoleController } from "./controllers/role.controller.js";
-
 import { createAuthorizationRepository } from "./repositories/authorization.repository.js";
 import { createAuditRepository } from "./repositories/audit.repository.js";
 import { createLoginAttemptRepository } from "./repositories/login-attempt.repository.js";
@@ -14,14 +12,11 @@ import { createRoleRepository } from "./repositories/role.repository.js";
 import { createSecurityEventRepository } from "./repositories/security-event.repository.js";
 import { createUserRepository } from "./repositories/user.repository.js";
 import { createUserSessionRepository } from "./repositories/user-session.repository.js";
-
 import { createAuthRoutes } from "./routes/auth.routes.js";
 import { createRoleRoutes } from "./routes/role.routes.js";
-
 import { createGeoLocationService } from "./security/geo-location.service.js";
 import { createImpossibleTravelService } from "./security/impossible-travel.service.js";
 import { createSecurityEventService } from "./security/security-event.service.js";
-
 import { createAuthorizationService } from "./services/authorization.service.js";
 import { createAuditService } from "./services/audit.service.js";
 import { createAuthService } from "./services/auth.service.js";
@@ -29,13 +24,11 @@ import { createPasswordService } from "./services/password.service.js";
 import { createRoleService } from "./services/role.service.js";
 import { createSessionService } from "./services/session.service.js";
 import { createTokenService } from "./services/token.service.js";
-
 import { createPermissionCache } from "./cache/permission.cache.js";
-
 import { createEmailQueueService } from "../../queues/email/email.queue.service.js";
-
 import { createAuthenticate } from "../../middlewares/authentication.js";
 import { createAuthorizePermission } from "../../middlewares/authorize-permission.js";
+import { createAuthorizationCacheService } from "./services/authorization-cache.service.js";
 
 // Repositories
 
@@ -68,6 +61,10 @@ const permissionCache = createPermissionCache({
   redis,
 });
 
+const authorizationCacheService = createAuthorizationCacheService({
+  permissionCache,
+});
+
 const authorizationService = createAuthorizationService({
   authorizationRepository,
   permissionCache,
@@ -77,21 +74,20 @@ const authorizePermission = createAuthorizePermission({
   authorizationService,
 });
 
-// Authentication
 
+// Authentication
 const authenticate = createAuthenticate({
   tokenService,
   sessionService,
 });
 
 // Role Management
-
 const roleService = createRoleService({
   roleRepository,
+  authorizationCacheService,
 });
 
 // Auth Service
-
 const authService = createAuthService({
   prisma,
 

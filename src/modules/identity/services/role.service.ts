@@ -1,6 +1,7 @@
-import type { RoleName } from "@prisma/client";
+import { RoleName } from "@prisma/client";
 
 import type { RoleRepository } from "../repositories/role.repository.js";
+import type { AuthorizationCacheService } from "./authorization-cache.service.js";
 
 type CreateRoleInput = {
   name: RoleName;
@@ -14,13 +15,23 @@ type UpdateRoleInput = {
 
 type RoleServiceDependencies = {
   roleRepository: RoleRepository;
+  authorizationCacheService: AuthorizationCacheService;
 };
 
-const protectedRoles: RoleName[] = ["ADMIN", "USER", "CUSTOMER_SUPPORT"];
+const protectedRoles: RoleName[] = [
+  RoleName.ADMIN,
+  RoleName.USER,
+  RoleName.CUSTOMER_SUPPORT,
+];
 
-export const createRoleService = ({roleRepository}: RoleServiceDependencies) => {
-
-  const createRole = async ({ name, description }: CreateRoleInput) => {
+export const createRoleService = ({
+  roleRepository,
+  authorizationCacheService,
+}: RoleServiceDependencies) => {
+  const createRole = async ({
+    name,
+    description,
+  }: CreateRoleInput) => {
     const existingRole = await roleRepository.getRoleByName(name);
 
     if (existingRole) {
@@ -48,8 +59,10 @@ export const createRoleService = ({roleRepository}: RoleServiceDependencies) => 
     return roleRepository.getRoleByName(name);
   };
 
-
-  const updateRole = async (roleId: string, data: UpdateRoleInput) => {
+  const updateRole = async (
+    roleId: string,
+    data: UpdateRoleInput,
+  ) => {
     const existingRole = await roleRepository.getRoleById(roleId);
 
     if (!existingRole) {
@@ -57,20 +70,30 @@ export const createRoleService = ({roleRepository}: RoleServiceDependencies) => 
     }
 
     if (data.name && data.name !== existingRole.name) {
-      const roleWithSameName = await roleRepository.getRoleByName(data.name);
+      const roleWithSameName =
+        await roleRepository.getRoleByName(data.name);
 
       if (roleWithSameName) {
         throw new Error(`Role "${data.name}" already exists`);
       }
     }
 
-    if (protectedRoles.includes(existingRole.name) &&data.name &&data.name !== existingRole.name) {
+    if (
+      protectedRoles.includes(existingRole.name) &&
+      data.name &&
+      data.name !== existingRole.name
+    ) {
       throw new Error(
         `Protected role "${existingRole.name}" cannot be renamed`,
       );
     }
 
-    return roleRepository.updateRole(roleId, data);
+    const updatedRole = await roleRepository.updateRole(
+      roleId,
+      data,
+    );
+
+    return updatedRole;
   };
 
   const deleteRole = async (roleId: string) => {
@@ -86,7 +109,9 @@ export const createRoleService = ({roleRepository}: RoleServiceDependencies) => 
       );
     }
 
-    return roleRepository.deleteRole(roleId);
+    const deletedRole = await roleRepository.deleteRole(roleId);
+
+    return deletedRole;
   };
 
   return {
