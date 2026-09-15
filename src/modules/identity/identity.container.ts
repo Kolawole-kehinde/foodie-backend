@@ -37,8 +37,7 @@ import { createAuthorizePermission } from "../../middlewares/authorize-permissio
 
 // Repositories
 const userRepository = createUserRepository(prisma);
-const pendingRegistrationRepository =
-  createPendingRegistrationRepository(prisma);
+const pendingRegistrationRepository = createPendingRegistrationRepository(prisma);
 const auditRepository = createAuditRepository(prisma);
 const userSessionRepository = createUserSessionRepository(prisma);
 const refreshTokenRepository = createRefreshTokenRepository(prisma);
@@ -50,7 +49,6 @@ const roleRepository = createRoleRepository(prisma);
 const userRoleRepository = createUserRoleRepository(prisma);
 
 // Security / Infrastructure Services
-
 const passwordService = createPasswordService();
 const tokenService = createTokenService();
 const auditService = createAuditService(auditRepository);
@@ -67,7 +65,6 @@ const sessionService = createSessionService({
 });
 
 // Authorization
-
 const permissionCache = createPermissionCache({
   redis,
 });
@@ -86,21 +83,18 @@ const authorizePermission = createAuthorizePermission({
 });
 
 // Authentication
-
 const authenticate = createAuthenticate({
   tokenService,
   sessionService,
 });
 
 // Role Management
-
 const roleService = createRoleService({
   roleRepository,
   authorizationCacheService,
 });
 
 // User Role Management
-
 const userRoleService = createUserRoleService({
   userRepository,
   roleRepository,
@@ -109,7 +103,6 @@ const userRoleService = createUserRoleService({
 });
 
 // Auth Service
-
 const authService = createAuthService({
   prisma,
 
@@ -138,7 +131,6 @@ const authService = createAuthService({
 });
 
 // Controllers
-
 const authController = createAuthController({
   authService,
 });
@@ -152,7 +144,6 @@ const userRoleController = createUserRoleController({
 });
 
 // Routes
-
 const authRoutes = createAuthRoutes({
   authController,
   authenticate,
@@ -171,7 +162,6 @@ const userRoleRoutes = createUserRoleRoutes({
 });
 
 // Public Identity Dependencies
-
 export {
   authRoutes,
   roleRoutes,

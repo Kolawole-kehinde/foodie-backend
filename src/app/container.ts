@@ -1,5 +1,5 @@
 import { prisma } from "../database/prisma/client.js";
-import { authRoutes, roleRoutes, authenticate, authorizePermission,} from "../modules/identity/identity.container.js";
+import { authRoutes, roleRoutes, authenticate, authorizePermission, userRoleRoutes} from "../modules/identity/identity.container.js";
 import { createEmailDlqService } from "../workers/services/email-dlq.service.js";
 import { createEmailDlqController } from "../workers/controllers/email-dlq.controller.js";
 import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
@@ -41,6 +41,7 @@ const profile = createProfileDependencies({
 export {
   authRoutes,
   roleRoutes,
+  userRoleRoutes,
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,
