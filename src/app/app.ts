@@ -4,7 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
 import { notFound } from "../middlewares/notFound.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
-import { authRoutes, emailDlqRoutes, media, profile } from "./container.js";
+import { authRoutes, emailDlqRoutes, media, profile, roleRoutes } from "./container.js";
 import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
 
 export function createApp(): Express {
@@ -18,16 +18,13 @@ export function createApp(): Express {
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: true }));
 
-  app.use(
-    "/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec),
-  );
+  app.use("/docs",swaggerUi.serve,swaggerUi.setup(swaggerSpec),);
 
   app.use("/api/v1/auth", authRoutes);
   app.use("/api/v1/admin/email-dlq", emailDlqRoutes);
   app.use("/api/v1/media", media.mediaUploadRoutes);
   app.use("/api/v1", profile.profileRoutes);
+  app.use("/api/v1/roles", roleRoutes);
 
   // 404 MUST come after all routes
   app.use(notFound);

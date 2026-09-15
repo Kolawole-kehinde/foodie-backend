@@ -1,5 +1,5 @@
 import { prisma } from "../database/prisma/client.js";
-import { authRoutes, authenticate, authorizePermission,} from "../modules/identity/identity.container.js";
+import { authRoutes, roleRoutes, authenticate, authorizePermission,} from "../modules/identity/identity.container.js";
 import { createEmailDlqService } from "../workers/services/email-dlq.service.js";
 import { createEmailDlqController } from "../workers/controllers/email-dlq.controller.js";
 import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
@@ -7,10 +7,8 @@ import { createS3Service } from "../infrastructure/s3/s3.service.js";
 import { createMediaDependencies } from "../modules/media/media.dependencies.js";
 import { createProfileDependencies } from "../modules/profile/profile.dependencies.js";
 
-
 // Infrastructure
 const s3Service = createS3Service();
-
 
 // Email DLQ
 const emailDlqService = createEmailDlqService();
@@ -22,9 +20,8 @@ const emailDlqController = createEmailDlqController({
 const emailDlqRoutes = createEmailDlqRoutes({
   emailDlqController,
   authenticate,
-  authorizePermission
+  authorizePermission,
 });
-
 
 // Media
 const media = createMediaDependencies({
@@ -33,7 +30,6 @@ const media = createMediaDependencies({
   authenticate,
 });
 
-
 // Profile
 const profile = createProfileDependencies({
   db: prisma,
@@ -41,10 +37,10 @@ const profile = createProfileDependencies({
   authenticate,
 });
 
-
 // Public Dependencies
 export {
   authRoutes,
+  roleRoutes,
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,
