@@ -48,6 +48,7 @@ export const createRoleService = ({roleRepository}: RoleServiceDependencies) => 
     return roleRepository.getRoleByName(name);
   };
 
+
   const updateRole = async (roleId: string, data: UpdateRoleInput) => {
     const existingRole = await roleRepository.getRoleById(roleId);
 
