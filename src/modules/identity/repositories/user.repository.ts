@@ -27,7 +27,9 @@ export const createUserRepository = (db: DatabaseClient) => {
 
   const findByEmail = async (email: string) => {
     return db.user.findUnique({
-      where: { email },
+      where: {
+         email
+         },
       include: userWithRoles,
     });
   };
