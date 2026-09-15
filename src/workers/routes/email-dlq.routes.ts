@@ -9,11 +9,7 @@ type CreateEmailDlqRoutesDependencies = {
   authorizePermission: ( requiredPermission: string,) => RequestHandler;
 };
 
-export const createEmailDlqRoutes = ({
-  emailDlqController,
-  authenticate,
-  authorizePermission,
-}: CreateEmailDlqRoutesDependencies) => {
+export const createEmailDlqRoutes = ({ emailDlqController, authenticate,authorizePermission,}: CreateEmailDlqRoutesDependencies) => {
   const router = Router();
 
   router.post(
