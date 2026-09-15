@@ -34,11 +34,11 @@ const permissions = [
     description: "View a user profile",
   },
   {
-  name: "email-dlq.replay",
-  resource: "email-dlq",
-  action: "replay",
-  description: "Replay failed email jobs from the dead-letter queue",
-},
+    name: "email-dlq.replay",
+    resource: "email-dlq",
+    action: "replay",
+    description: "Replay failed email jobs from the dead-letter queue",
+  },
   {
     name: "profile.update",
     resource: "profile",

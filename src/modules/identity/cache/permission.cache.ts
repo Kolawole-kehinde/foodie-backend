@@ -13,12 +13,10 @@ const PERMISSION_CACHE_TTL = 60 * 15;
 
 const getPermissionCacheKey = (userId: string) => `auth:permissions:${userId}`;
 
-export const createPermissionCache = ({
-  redis,
-}: PermissionCacheDependencies) => {
+export const createPermissionCache = ({redis}: PermissionCacheDependencies) => {
+
   //Get a user's permissions from Redis.
   // Returns null when the permissions are not cached.
-
   const get = async (userId: string): Promise<string[] | null> => {
     const key = getPermissionCacheKey(userId);
 

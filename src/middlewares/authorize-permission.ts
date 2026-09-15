@@ -7,7 +7,6 @@ type AuthorizePermissionDependencies = {
 };
 
 export const createAuthorizePermission = ({ authorizationService,}: AuthorizePermissionDependencies) => {
-  
   const authorizePermission = (requiredPermission: string): RequestHandler => {
     return async (req, _res, next) => {
       try {

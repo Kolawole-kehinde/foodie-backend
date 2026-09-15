@@ -2,9 +2,9 @@ import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 export const createAuthorizationRepository = (db: DatabaseClient) => {
 
+
   // Get all roles assigned to a user.
   // Relationship: User → UserRole → Role
-   
   const getUserRoles = async (userId: string) => {
     return db.userRole.findMany({
       where: {
@@ -16,10 +16,8 @@ export const createAuthorizationRepository = (db: DatabaseClient) => {
     });
   };
 
-
-   // Get all permissions assigned to a user through their roles.
-   // Relationship: User → UserRole → Role → RolePermission → Permission
-
+  // Get all permissions assigned to a user through their roles.
+  // Relationship: User → UserRole → Role → RolePermission → Permission
   const getUserPermissions = async (userId: string) => {
     return db.userRole.findMany({
       where: {
@@ -39,12 +37,10 @@ export const createAuthorizationRepository = (db: DatabaseClient) => {
     });
   };
 
-
- // Check whether a user has a specific permission.
- // Relationship: User → UserRole → Role → RolePermission → Permission
- // true/false for a specific permission
-
-  const hasPermission = async ( userId: string, permissionName: string,): Promise<boolean> => {
+  // Check whether a user has a specific permission.
+  // Relationship: User → UserRole → Role → RolePermission → Permission
+  // true/false for a specific permission
+  const hasPermission = async (userId: string,permissionName: string): Promise<boolean> => {
     const count = await db.permission.count({
       where: {
         name: permissionName,
@@ -72,4 +68,4 @@ export const createAuthorizationRepository = (db: DatabaseClient) => {
   };
 };
 
-export type AuthorizationRepository = ReturnType<typeof createAuthorizationRepository>;
+export type AuthorizationRepository = ReturnType< typeof createAuthorizationRepository>;

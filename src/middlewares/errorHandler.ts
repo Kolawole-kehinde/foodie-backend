@@ -10,12 +10,7 @@ import { sendError } from "../shared/responses/error-response.js";
 
 
 
-export const errorHandler: ErrorRequestHandler = (
-  error,
-  req,
-  res,
-  _next,
-) => {
+export const errorHandler: ErrorRequestHandler = ( error, req, res, _next,) => {
   let appError: AppError;
 
   if (error instanceof AppError) {

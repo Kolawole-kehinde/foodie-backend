@@ -54,7 +54,6 @@ export const createAuthorizationService = ({authorizationRepository,permissionCa
 
    // Check whether a user has a specific permission.
    // We use getUserPermissions() instead of querying the repository directly so this check automatically benefits from Redis caching.
-   
   const hasPermission = async (userId: string,permissionName: string,): Promise<boolean> => {
 
     const permissions = await getUserPermissions(userId);

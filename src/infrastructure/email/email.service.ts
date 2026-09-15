@@ -10,19 +10,18 @@ const sendVerificationEmail = async (
   email: string,
   verificationToken: string,
 ) => {
-  const emailContent =
-    verifyEmailTemplate(verificationToken);
+  const emailContent = verifyEmailTemplate(verificationToken);
 
-  const verificationUrl =
-    `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
+  // const verificationUrl =  `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
 
   logger.info(
     {
       email,
-      verificationUrl,
+      // verificationUrl,
     },
     "Sending verification email",
   );
+  throw new Error("DLQ TEST FAILURE");
 
   await emailTransporter.sendMail({
     from: env.mail.FROM,
