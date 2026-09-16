@@ -12,7 +12,8 @@ import {
   rolePermissionRoutes,
   roleRoutes,
   userRoleRoutes,
-  permissionRoutes
+  permissionRoutes,
+  userRoutes
 } from "./container.js";
 import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
 
@@ -34,6 +35,7 @@ export function createApp(): Express {
   app.use("/api/v1/media", media.mediaUploadRoutes);
   app.use("/api/v1", profile.profileRoutes);
   app.use("/api/v1/roles", roleRoutes);
+  app.use("/api/v1/users", userRoutes);
   app.use("/api/v1/users", userRoleRoutes);
   app.use("/api/v1/roles", rolePermissionRoutes);
   app.use("/api/v1/permissions", permissionRoutes);
