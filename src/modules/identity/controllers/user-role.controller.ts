@@ -1,7 +1,6 @@
 import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 import type { RequestHandler } from "express";
-
 import type { UserRoleService } from "../services/user-role.service.js";
 
 export type UserRoleController = {
