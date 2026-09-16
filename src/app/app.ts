@@ -12,6 +12,7 @@ import {
   rolePermissionRoutes,
   roleRoutes,
   userRoleRoutes,
+  permissionRoutes
 } from "./container.js";
 import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
 
@@ -35,6 +36,7 @@ export function createApp(): Express {
   app.use("/api/v1/roles", roleRoutes);
   app.use("/api/v1/users", userRoleRoutes);
   app.use("/api/v1/roles", rolePermissionRoutes);
+  app.use("/api/v1/permissions", permissionRoutes);
 
   // 404 MUST come after all routes
   app.use(notFound);

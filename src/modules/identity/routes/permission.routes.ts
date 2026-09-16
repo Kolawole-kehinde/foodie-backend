@@ -1,8 +1,9 @@
 import { Router, type RequestHandler } from "express";
-
 import type { PermissionController } from "../controllers/permission.controller.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
 import { permissionIdSchema } from "../validators/permission.validation.js";
+
+
 type CreatePermissionRoutesDependencies = {
   permissionController: PermissionController;
   authenticate: RequestHandler;

@@ -1,5 +1,5 @@
 import { prisma } from "../database/prisma/client.js";
-import { authRoutes, roleRoutes, authenticate, authorizePermission, userRoleRoutes, rolePermissionRoutes} from "../modules/identity/identity.container.js";
+import { authRoutes, roleRoutes, authenticate, authorizePermission, userRoleRoutes, rolePermissionRoutes, permissionRoutes} from "../modules/identity/identity.container.js";
 import { createEmailDlqService } from "../workers/services/email-dlq.service.js";
 import { createEmailDlqController } from "../workers/controllers/email-dlq.controller.js";
 import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
@@ -43,6 +43,7 @@ export {
   roleRoutes,
   userRoleRoutes,
   rolePermissionRoutes,
+  permissionRoutes,
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,

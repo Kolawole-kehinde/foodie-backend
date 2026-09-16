@@ -38,6 +38,9 @@ import { createRolePermissionService } from "./services/role-permission.service.
 import { createPermissionRepository } from "./repositories/permission.repository.js";
 import { createRolePermissionRoutes } from "./routes/role-permission.routes.js";
 import { createRolePermissionController } from "./controllers/role-permission.controller.js";
+import { createPermissionService } from "./services/permission.service.js";
+import { createPermissionController } from "./controllers/permission.controller.js";
+import { createPermissionRoutes } from "./routes/permission.routes.js";
 
 
 // Repositories
@@ -117,6 +120,12 @@ rolePermissionRepository,
 authorizationCacheService
 });
 
+
+// Permission Management 
+ const permissionService = createPermissionService({ 
+  permissionRepository,
+ });
+
 // Auth Service
 const authService = createAuthService({
   prisma,
@@ -162,6 +171,9 @@ const rolePermissionController = createRolePermissionController({
   rolePermissionService,
 });
 
+const permissionController = createPermissionController({
+   permissionService, });
+
 // Routes
 const authRoutes = createAuthRoutes({
   authController,
@@ -186,11 +198,18 @@ const rolePermissionRoutes = createRolePermissionRoutes({
   authorizePermission,
 });
 
+const permissionRoutes = createPermissionRoutes({ 
+  permissionController,
+   authenticate, 
+   authorizePermission, 
+  });
+
 // Public Identity Dependencies
 export {
   authRoutes,
   roleRoutes,
   userRoleRoutes,
+  permissionRoutes,
   authenticate,
   authorizePermission,
   rolePermissionRoutes,
