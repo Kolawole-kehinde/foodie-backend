@@ -82,4 +82,4 @@ export const createRolePermissionController = ({
   };
 };
 
-export type RolePermissionControllerType = ReturnType<typeof createRolePermissionController>;
+

@@ -1,5 +1,4 @@
-import { z } from "zod";
-
+import { z } from "../../../docs/zod-openapi.js";
 export const createRoleSchema = z.object({
   name: z.string().min(1, "Role name is required"),
   description: z.string().trim().min(1, "Description cannot be empty").optional(),

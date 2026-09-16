@@ -39,4 +39,4 @@ export const createUserRoleRoutes = ({
   return router;
 };
 
-export type UserRoleRoutes = ReturnType<typeof createUserRoleRoutes>;
+
