@@ -1,7 +1,8 @@
 import { Router, type RequestHandler } from "express";
-import { validate } from "../../../shared/middlewares/validate.js";
+
 import type { PermissionController } from "../controllers/permission.controller.js";
-import { permissionIdSchema } from "../validation/permission.validation.js";
+import { validate } from "../../../shared/middleware/validate.middleware.js";
+import { permissionIdSchema } from "../validators/permission.validation.js";
 type CreatePermissionRoutesDependencies = {
   permissionController: PermissionController;
   authenticate: RequestHandler;
@@ -22,7 +23,7 @@ export const createPermissionRoutes = ({
     authorizePermission("permissions.read"),
     permissionController.getAllPermissions,
   );
-  
+
   router.get(
     "/:permissionId",
     authenticate,

@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
+import type { PermissionResponseDto } from "../dto/permission.dto.js";
 import type { PermissionService } from "../services/permission.service.js";
-
 
 
 export type PermissionController = {
@@ -15,29 +15,26 @@ type PermissionControllerDependencies = {
 };
 
 
-export const createPermissionController = ({ permissionService,}: PermissionControllerDependencies): PermissionController => {
+export const createPermissionController = ({permissionService,}: PermissionControllerDependencies): PermissionController => {
 
   const getAllPermissions = asyncHandler(async (_req, res) => {
 
-    const permissions = await permissionService.getAllPermissions();
+    const permissions: PermissionResponseDto[] = await permissionService.getAllPermissions();
+
     return res.status(200).json(permissions);
   });
 
   const getPermissionById = asyncHandler(async (req, res) => {
 
-    const permissionId = req.params.permissionId;
+    const permissionId = req.params.permissionId as string;
 
-    if (typeof permissionId !== "string" || !permissionId) {
-      throw new Error("Permission ID is required");
-    }
-    const permission = await permissionService.getPermissionById(permissionId);
+    const permission: PermissionResponseDto = await permissionService.getPermissionById(permissionId);
+
     return res.status(200).json(permission);
   });
   return { 
     getAllPermissions,
-    getPermissionById
- };
+    getPermissionById 
 };
-
-
-export type PermissionControllerType = ReturnType<typeof createPermissionController>;
+};
+export type PermissionControllerType = ReturnType< typeof createPermissionController>;
