@@ -3,7 +3,6 @@ import type { PermissionController } from "../controllers/permission.controller.
 import { validate } from "../../../shared/middleware/validate.middleware.js";
 import { permissionIdSchema } from "../validators/permission.validation.js";
 
-
 type CreatePermissionRoutesDependencies = {
   permissionController: PermissionController;
   authenticate: RequestHandler;
@@ -15,7 +14,6 @@ export const createPermissionRoutes = ({
   authenticate,
   authorizePermission,
 }: CreatePermissionRoutesDependencies) => {
-
   const router = Router();
 
   router.get(

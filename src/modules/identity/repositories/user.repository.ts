@@ -1,7 +1,7 @@
 import { SessionRevocationReason } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { AUTH_SECURITY } from "../constants/auth.constants.js";
-import type { CreateUserData, UpdateUserData,} from "./types.js";
+import type { CreateUserData, UpdateUserData } from "./types.js";
 
 export const createUserRepository = (db: DatabaseClient) => {
   const create = async (data: CreateUserData) => {
@@ -18,6 +18,13 @@ export const createUserRepository = (db: DatabaseClient) => {
     },
   };
 
+  const findAll = async () => {
+    return db.user.findMany({
+      include: userWithRoles,
+      orderBy: { createdAt: "desc" },
+    });
+  };
+
   const findById = async (id: string) => {
     return db.user.findUnique({
       where: { id },
@@ -28,33 +35,29 @@ export const createUserRepository = (db: DatabaseClient) => {
   const findByEmail = async (email: string) => {
     return db.user.findUnique({
       where: {
-         email
-         },
+        email,
+      },
       include: userWithRoles,
     });
   };
 
-
-   // Revoke every active session belonging to this user.
+  // Revoke every active session belonging to this user.
   // revokedAt: null means the session is still active.
   // Once revoked, the session can no longer be used to
   // refresh access tokens.
 
-  const revokeAllByUserId = async (userId: string) =>{
+  const revokeAllByUserId = async (userId: string) => {
     return db.userSession.updateMany({
       where: {
         userId,
-       revokedAt: null
+        revokedAt: null,
       },
       data: {
         revokedAt: new Date(),
-        revokeReason: SessionRevocationReason.LOGOUT_ALL_DEVICES
-      }
-    })
-  }
-
-
-
+        revokeReason: SessionRevocationReason.LOGOUT_ALL_DEVICES,
+      },
+    });
+  };
 
   /**
    * Atomically increments failed login attempts.
@@ -109,9 +112,7 @@ export const createUserRepository = (db: DatabaseClient) => {
     return user;
   };
 
-  const resetFailedLoginAttempts = async (
-    id: string
-  ) => {
+  const resetFailedLoginAttempts = async (id: string) => {
     return db.user.update({
       where: { id },
 
@@ -122,10 +123,7 @@ export const createUserRepository = (db: DatabaseClient) => {
     });
   };
 
-  const update = async (
-    id: string,
-    data: UpdateUserData
-  ) => {
+  const update = async (id: string, data: UpdateUserData) => {
     return db.user.update({
       where: { id },
       data,
@@ -134,6 +132,7 @@ export const createUserRepository = (db: DatabaseClient) => {
 
   return {
     create,
+    findAll,
     findById,
     findByEmail,
     revokeAllByUserId,
