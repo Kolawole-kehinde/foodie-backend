@@ -20,6 +20,13 @@ export const createUserRoutes = ({
     authorizePermission("users.read"),
     userController.getAllUsers,
   );
+
+  router.get(
+    "/me", 
+    authenticate, 
+    userController.getMe
+);
+
   router.get(
     "/:userId",
     authenticate,
