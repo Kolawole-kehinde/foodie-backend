@@ -41,7 +41,7 @@ export const createRolePermissionController = ({
     return res.status(201).json(result);
   });
 
-
+  
 
   const getRolePermissions = asyncHandler(async (req, res) => {
     const roleId = req.params.roleId;
@@ -54,7 +54,6 @@ export const createRolePermissionController = ({
 
     return res.status(200).json(result);
   });
-  
 
   const removePermission = asyncHandler(async (req, res) => {
     const roleId = req.params.roleId;
@@ -82,4 +81,4 @@ export const createRolePermissionController = ({
   };
 };
 
-
+export type RolePermissionControllerType = ReturnType<typeof createRolePermissionController>;

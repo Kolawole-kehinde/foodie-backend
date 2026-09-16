@@ -33,6 +33,11 @@ import { createPermissionCache } from "./cache/permission.cache.js";
 import { createEmailQueueService } from "../../queues/email/email.queue.service.js";
 import { createAuthenticate } from "../../middlewares/authentication.js";
 import { createAuthorizePermission } from "../../middlewares/authorize-permission.js";
+import { createRolePermissionRepository } from "./repositories/role-permission.repository.js";
+import { createRolePermissionService } from "./services/role-permission.service.js";
+import { createPermissionRepository } from "./repositories/permission.repository.js";
+import { createRolePermissionRoutes } from "./routes/role-permission.routes.js";
+import { createRolePermissionController } from "./controllers/role-permission.controller.js";
 
 
 // Repositories
@@ -47,6 +52,8 @@ const passwordResetTokenRepository = createPasswordResetTokenRepository(prisma);
 const authorizationRepository = createAuthorizationRepository(prisma);
 const roleRepository = createRoleRepository(prisma);
 const userRoleRepository = createUserRoleRepository(prisma);
+const rolePermissionRepository = createRolePermissionRepository(prisma);
+const permissionRepository = createPermissionRepository(prisma);
 
 // Security / Infrastructure Services
 const passwordService = createPasswordService();
@@ -102,6 +109,14 @@ const userRoleService = createUserRoleService({
   authorizationCacheService,
 });
 
+  // Role permission Management
+const rolePermissionService = createRolePermissionService({
+roleRepository,
+permissionRepository,
+rolePermissionRepository,
+authorizationCacheService
+});
+
 // Auth Service
 const authService = createAuthService({
   prisma,
@@ -143,6 +158,10 @@ const userRoleController = createUserRoleController({
   userRoleService,
 });
 
+const rolePermissionController = createRolePermissionController({
+  rolePermissionService,
+});
+
 // Routes
 const authRoutes = createAuthRoutes({
   authController,
@@ -161,6 +180,12 @@ const userRoleRoutes = createUserRoleRoutes({
   authorizePermission,
 });
 
+const rolePermissionRoutes = createRolePermissionRoutes({
+  rolePermissionController,
+  authenticate,
+  authorizePermission,
+});
+
 // Public Identity Dependencies
 export {
   authRoutes,
@@ -168,6 +193,7 @@ export {
   userRoleRoutes,
   authenticate,
   authorizePermission,
+  rolePermissionRoutes,
   authorizationService,
   authorizationCacheService,
   authorizationRepository,
