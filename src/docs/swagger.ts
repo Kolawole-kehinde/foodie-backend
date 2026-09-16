@@ -13,9 +13,17 @@ import "./auth/sessions.js";
 import "./auth/forgot-password.js";
 import "./auth/reset-password.js";
 
-
 // User documentation
 import "./user/profile.js";
+import "./user/users.js";
+import "./user/user-roles.js";
+
+// Role documentation
+import "./role/roles.js";
+import "./role/role-permissions.js";
+
+// Permission documentation
+import "./permission/permissions.js";
 
 // Media documentation
 import "./media/uploads.js";
@@ -37,14 +45,22 @@ export const swaggerSpec = generator.generateDocument({
     },
   ],
 
- tags: [
+tags: [
   {
     name: "Auth",
     description: "Authentication and identity endpoints",
   },
   {
     name: "User",
-    description: "Authenticated user profile endpoints",
+    description: "User account and profile endpoints",
+  },
+  {
+    name: "Role",
+    description: "Role management endpoints",
+  },
+  {
+    name: "Permission",
+    description: "Permission catalog endpoints",
   },
   {
     name: "Media",
