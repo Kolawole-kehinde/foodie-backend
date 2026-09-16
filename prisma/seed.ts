@@ -34,16 +34,18 @@ const permissions = [
     description: "View a user profile",
   },
   {
-    name: "email-dlq.replay",
-    resource: "email-dlq",
-    action: "replay",
-    description: "Replay failed email jobs from the dead-letter queue",
-  },
-  {
     name: "profile.update",
     resource: "profile",
     action: "update",
     description: "Update a user profile",
+  },
+
+  // Email DLQ
+  {
+    name: "email-dlq.replay",
+    resource: "email-dlq",
+    action: "replay",
+    description: "Replay failed email jobs from the dead-letter queue",
   },
 
   // Cart
@@ -162,6 +164,26 @@ const permissions = [
     description: "Delete a user",
   },
 
+  // User Roles
+  {
+    name: "users.roles.assign",
+    resource: "users.roles",
+    action: "assign",
+    description: "Assign a role to a user",
+  },
+  {
+    name: "users.roles.read",
+    resource: "users.roles",
+    action: "read",
+    description: "View roles assigned to a user",
+  },
+  {
+    name: "users.roles.remove",
+    resource: "users.roles",
+    action: "remove",
+    description: "Remove a role from a user",
+  },
+
   // Products
   {
     name: "products.read",
@@ -240,6 +262,26 @@ const permissions = [
     description: "Delete roles",
   },
 
+  // Role Permissions
+  {
+    name: "roles.permissions.assign",
+    resource: "roles.permissions",
+    action: "assign",
+    description: "Assign a permission to a role",
+  },
+  {
+    name: "roles.permissions.read",
+    resource: "roles.permissions",
+    action: "read",
+    description: "View permissions assigned to a role",
+  },
+  {
+    name: "roles.permissions.remove",
+    resource: "roles.permissions",
+    action: "remove",
+    description: "Remove a permission from a role",
+  },
+
   // Permissions
   {
     name: "permissions.read",
@@ -279,27 +321,6 @@ const permissions = [
     action: "read",
     description: "View security events",
   },
-
-  //Assign roles
-
-  {
-  name: "users.roles.assign",
-  resource: "users.roles",
-  action: "assign",
-  description: "Assign a role to a user",
-},
-{
-  name: "users.roles.read",
-  resource: "users.roles",
-  action: "read",
-  description: "View roles assigned to a user",
-},
-{
-  name: "users.roles.remove",
-  resource: "users.roles",
-  action: "remove",
-  description: "Remove a role from a user",
-},
 ];
 
 const rolePermissions: Record<RoleName, string[]> = {
@@ -334,57 +355,75 @@ const rolePermissions: Record<RoleName, string[]> = {
   ],
 
   [RoleName.ADMIN]: [
+    // Profile
     "profile.read",
     "profile.update",
+
+    // Email
     "email-dlq.replay",
 
+    // Users
     "users.read",
     "users.create",
     "users.update",
     "users.suspend",
     "users.delete",
 
+    // User roles
+    "users.roles.assign",
+    "users.roles.read",
+    "users.roles.remove",
+
+    // Products
     "products.read",
     "products.create",
     "products.update",
     "products.delete",
 
+    // Inventory
     "inventory.read",
     "inventory.create",
     "inventory.update",
     "inventory.delete",
 
+    // Orders
     "orders.read",
     "orders.update",
     "orders.cancel",
     "orders.refund",
 
+    // Reviews
     "reviews.read",
     "reviews.delete",
 
+    // Roles
     "roles.read",
     "roles.create",
     "roles.update",
     "roles.delete",
 
+    // Role permissions
+    "roles.permissions.assign",
+    "roles.permissions.read",
+    "roles.permissions.remove",
+
+    // Permissions
     "permissions.read",
     "permissions.create",
     "permissions.update",
     "permissions.delete",
 
+    // Audit & Security
     "audit.read",
     "security-events.read",
-
-     "users.roles.assign",
-    "users.roles.read",
-    "users.roles.remove",
   ],
 
-  // We are keeping these roles for future features.
+  // Reserved for future features
   [RoleName.EDITOR]: [],
 
   [RoleName.MODERATOR]: [],
 };
+
 
 async function main() {
   // 1. Seed roles

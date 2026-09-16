@@ -34,7 +34,7 @@ export function createApp(): Express {
   app.use("/api/v1", profile.profileRoutes);
   app.use("/api/v1/roles", roleRoutes);
   app.use("/api/v1/users", userRoleRoutes);
-  app.use("/api/v1/users", rolePermissionRoutes);
+  app.use("/api/v1/roles", rolePermissionRoutes);
 
   // 404 MUST come after all routes
   app.use(notFound);
