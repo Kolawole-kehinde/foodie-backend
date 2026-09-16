@@ -1,7 +1,8 @@
 import { Router, type RequestHandler } from "express";
-import { validate } from "../../../shared/middlewares/validate.js";
 import type { UserController } from "../controllers/user.controller.js";
-import { userIdSchema } from "../validation/user.validation.js";
+import { validate } from "../../../shared/middleware/validate.middleware.js";
+import { userIdSchema } from "../validators/user.validation.js";
+
 type CreateUserRoutesDependencies = {
   userController: UserController;
   authenticate: RequestHandler;

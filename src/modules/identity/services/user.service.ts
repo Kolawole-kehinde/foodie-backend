@@ -1,12 +1,12 @@
 import type { UserRepository } from "../repositories/user.repository.js";
 
 
-type UserServiceDependencies = { 
-    userRepository: UserRepository
+type UserServiceDependencies = {
+     userRepository: UserRepository
  };
 
 
-export const createUserService = ({userRepository,}: UserServiceDependencies) => {
+export const createUserService = ({ userRepository,}: UserServiceDependencies) => {
 
   const getAllUsers = async () => {
     return userRepository.findAll();
@@ -18,12 +18,11 @@ export const createUserService = ({userRepository,}: UserServiceDependencies) =>
       throw new Error("User not found");
     }
     return user;
-    
   };
-  return {
-     getAllUsers, 
+
+  return { 
+    getAllUsers,
      getUserById 
-    
     };
 };
 export type UserService = ReturnType<typeof createUserService>;

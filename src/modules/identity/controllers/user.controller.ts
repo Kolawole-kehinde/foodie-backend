@@ -10,22 +10,53 @@ export type UserController = {
 };
 
 
-type UserControllerDependencies = { 
-    userService: UserService
- };
+type UserControllerDependencies = {
+     userService: UserService
+    
+    };
 
 
-export const createUserController = ({ userService,}: UserControllerDependencies): UserController => {
+
+export const createUserController = ({userService,}: UserControllerDependencies): UserController => {
 
   const getAllUsers = asyncHandler(async (_req, res) => {
-    const users: UserResponseDto[] = await userService.getAllUsers();
-    return res.status(200).json(users);
+    const users = await userService.getAllUsers();
+    const response: UserResponseDto[] = users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      status: user.status,
+      emailVerifiedAt: user.emailVerifiedAt,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      roles: user.roles.map(({ role }) => ({
+        id: role.id,
+        name: role.name,
+        description: role.description,
+      })),
+    }));
+    return res.status(200).json(response);
   });
+
   
   const getUserById = asyncHandler(async (req, res) => {
     const userId = req.params.userId as string;
-    const user: UserResponseDto = await userService.getUserById(userId);
-    return res.status(200).json(user);
+    const user = await userService.getUserById(userId);
+    const response: UserResponseDto = {
+      id: user.id,
+      email: user.email,
+      status: user.status,
+      emailVerifiedAt: user.emailVerifiedAt,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      roles: user.roles.map(({ role }) => ({
+        id: role.id,
+        name: role.name,
+        description: role.description,
+      })),
+    };
+    return res.status(200).json(response);
   });
   return { getAllUsers, getUserById };
 };
