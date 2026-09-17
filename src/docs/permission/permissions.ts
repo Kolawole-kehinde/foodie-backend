@@ -45,7 +45,7 @@ const PermissionIdParams = registry.register(
 registry.registerPath({
   method: "get",
   path: "/permissions",
-  tags: ["Permission"],
+  tags: ["Admin - Permissions"],
   summary: "Get all permissions",
   description:
     "Returns the complete permission catalog available in the system.",
@@ -76,7 +76,7 @@ registry.registerPath({
 registry.registerPath({
   method: "get",
   path: "/permissions/{permissionId}",
-  tags: ["Permission"],
+  tags: ["Admin - Permissions"],
   summary: "Get permission by ID",
   description: "Returns a specific permission by its ID.",
   security: [

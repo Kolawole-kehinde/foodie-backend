@@ -32,7 +32,7 @@ const RefreshResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/refresh",
+  path: "/api/v1/auth/refresh",
 
   tags: ["Auth"],
 

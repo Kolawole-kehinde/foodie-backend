@@ -19,7 +19,7 @@ const RegisterResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/register",
+  path: "/api/v1/auth/register",
 
   tags: ["Auth"],
 

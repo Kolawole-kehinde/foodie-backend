@@ -12,7 +12,7 @@ const LogoutResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/logout",
+  path: "/api/v1/auth/logout",
 
   tags: ["Auth"],
 

@@ -58,7 +58,7 @@ const GetSessionsResponse = registry.register(
 
 registry.registerPath({
   method: "get",
-  path: "/auth/sessions",
+  path: "/api/v1/auth/sessions",
 
   tags: ["Auth"],
 

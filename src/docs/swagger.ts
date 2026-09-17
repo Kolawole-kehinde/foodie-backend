@@ -41,7 +41,7 @@ export const swaggerSpec = generator.generateDocument({
 
   servers: [
     {
-      url: "http://localhost:4000/api/v1",
+      url: "http://localhost:4000",
     },
   ],
 
@@ -52,15 +52,25 @@ export const swaggerSpec = generator.generateDocument({
     },
     {
       name: "User",
-      description: "User account and profile endpoints",
+      description: "Authenticated user self-service endpoints",
     },
     {
-      name: "Role",
-      description: "Role management endpoints",
+      name: "Profile",
+      description: "Authenticated user profile endpoints",
     },
     {
-      name: "Permission",
-      description: "Permission catalog endpoints",
+      name: "Admin - Users",
+      description:
+        "Administrative user management and role assignment endpoints",
+    },
+    {
+      name: "Admin - Roles",
+      description:
+        "Administrative role management and permission assignment endpoints",
+    },
+    {
+      name: "Admin - Permissions",
+      description: "Administrative permission catalog endpoints",
     },
     {
       name: "Media",

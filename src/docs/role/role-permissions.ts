@@ -64,8 +64,8 @@ const RolePermissionParams = registry.register(
 // Assign permission to role
 registry.registerPath({
   method: "post",
-  path: "/roles/{roleId}/permissions",
-  tags: ["Role"],
+  path: "/api/v1/roles/{roleId}/permissions",
+  tags: ["Admin - Roles"],
   summary: "Assign permission to role",
   description:
     "Assigns an existing permission to a role and invalidates cached permissions for all users assigned to that role.",
@@ -113,8 +113,8 @@ registry.registerPath({
 // Get role permissions
 registry.registerPath({
   method: "get",
-  path: "/roles/{roleId}/permissions",
-  tags: ["Role"],
+  path: "/api/v1/roles/{roleId}/permissions",
+  tags: ["Admin - Roles"],
   summary: "Get role permissions",
   description: "Returns all permissions assigned to a specific role.",
   security: [
@@ -149,8 +149,8 @@ registry.registerPath({
 // Remove permission from role
 registry.registerPath({
   method: "delete",
-  path: "/roles/{roleId}/permissions/{permissionId}",
-  tags: ["Role"],
+  path: "/api/v1/roles/{roleId}/permissions/{permissionId}",
+  tags: ["Admin - Roles"],
   summary: "Remove permission from role",
   description:
     "Removes a permission from a role and invalidates cached permissions for all users assigned to that role.",

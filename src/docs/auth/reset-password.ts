@@ -15,7 +15,7 @@ const ForgotPasswordResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/forgot-password",
+  path: "/api/v1/auth/forgot-password",
 
   tags: ["Auth"],
 

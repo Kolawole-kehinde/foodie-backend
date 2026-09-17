@@ -43,7 +43,7 @@ const ProfileResponse = registry.register(
 registry.registerPath({
   method: "get",
   path: "/profile",
-  tags: ["User"],
+  tags: ["Profile"],
   summary: "Get user profile",
   description:
     "Returns the authenticated user's profile. If the profile does not exist, it is created automatically.",
@@ -70,7 +70,7 @@ registry.registerPath({
 registry.registerPath({
   method: "patch",
   path: "/profile",
-  tags: ["User"],
+  tags: ["Profile"],
   summary: "Update user profile",
   description:
     "Updates the authenticated user's profile information.",

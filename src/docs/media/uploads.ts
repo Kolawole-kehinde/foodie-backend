@@ -80,7 +80,7 @@ const ConfirmMediaUploadResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/media/uploads",
+  path: "/api/v1/media/uploads",
 
   tags: ["Media"],
 

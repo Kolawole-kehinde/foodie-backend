@@ -22,7 +22,7 @@ const LogoutAllDevicesResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/logout-all-devices",
+  path: "/api/v1/auth/logout-all-devices",
 
   tags: ["Auth"],
 

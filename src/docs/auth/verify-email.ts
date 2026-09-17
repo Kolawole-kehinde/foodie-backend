@@ -18,7 +18,7 @@ const VerifyEmailResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/verify-email",
+  path: "/api/v1/auth/verify-email",
 
   tags: ["Auth"],
 

@@ -52,8 +52,8 @@ const RoleIdParams = registry.register(
 // Create role
 registry.registerPath({
   method: "post",
-  path: "/roles",
-  tags: ["Role"],
+  path: "/api/v1/roles",
+  tags: ["Admin - Roles"],
   summary: "Create a role",
   description: "Creates a new role.",
   security: [
@@ -95,8 +95,8 @@ registry.registerPath({
 // Get all roles
 registry.registerPath({
   method: "get",
-  path: "/roles",
-  tags: ["Role"],
+  path: "/api/v1/roles",
+  tags: ["Admin - Roles"],
   summary: "Get all roles",
   description: "Returns all roles available in the system.",
   security: [
@@ -125,8 +125,8 @@ registry.registerPath({
 // Get role by ID
 registry.registerPath({
   method: "get",
-  path: "/roles/{roleId}",
-  tags: ["Role"],
+  path: "/api/v1/roles/{roleId}",
+  tags: ["Admin - Roles"],
   summary: "Get role by ID",
   description: "Returns a specific role by its ID.",
   security: [
@@ -164,8 +164,8 @@ registry.registerPath({
 // Update role
 registry.registerPath({
   method: "patch",
-  path: "/roles/{roleId}",
-  tags: ["Role"],
+  path: "/api/v1/roles/{roleId}",
+  tags: ["Admin - Roles"],
   summary: "Update a role",
   description: "Updates the name or description of an existing role.",
   security: [
@@ -211,8 +211,8 @@ registry.registerPath({
 // Delete role
 registry.registerPath({
   method: "delete",
-  path: "/roles/{roleId}",
-  tags: ["Role"],
+  path: "/api/v1/roles/{roleId}",
+  tags: ["Admin - Roles"],
   summary: "Delete a role",
   description:
     "Deletes a role and invalidates cached permissions for users assigned to the role.",

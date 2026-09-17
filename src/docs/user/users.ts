@@ -53,7 +53,7 @@ const UserIdParams = registry.register(
   "UserIdParams",
   z.object({
     userId: z.string().openapi({
-      example: "cmt7ircy60006vc5cms59z9ck",
+      example: "cmt7ircy60006vc5cms5uu9z9ck",
     }),
   }),
 );
@@ -61,8 +61,8 @@ const UserIdParams = registry.register(
 // Get all users
 registry.registerPath({
   method: "get",
-  path: "/users",
-  tags: ["User"],
+  path: "/api/v1/users",
+  tags: ["Admin - Users"],
   summary: "Get all users",
   description: "Returns all users in the system.",
   security: [
@@ -91,7 +91,7 @@ registry.registerPath({
 // Get current user
 registry.registerPath({
   method: "get",
-  path: "/users/me",
+  path: "/api/v1/users/me",
   tags: ["User"],
   summary: "Get current user",
   description: "Returns the account information of the authenticated user.",
@@ -118,8 +118,8 @@ registry.registerPath({
 // Get user by ID
 registry.registerPath({
   method: "get",
-  path: "/users/{userId}",
-  tags: ["User"],
+  path: "/api/v1/users/{userId}",
+  tags: ["Admin - Users"],
   summary: "Get user by ID",
   description: "Returns a specific user by their ID.",
   security: [

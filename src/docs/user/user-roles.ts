@@ -47,8 +47,8 @@ const UserRoleParams = registry.register(
 // Assign role to user
 registry.registerPath({
   method: "post",
-  path: "/users/{userId}/roles",
-  tags: ["User"],
+  path: "/api/v1/users/{userId}/roles",
+  tags: ["Admin - Users"],
   summary: "Assign role to user",
   description:
     "Assigns an existing role to a user and invalidates the user's cached permissions.",
@@ -99,8 +99,8 @@ registry.registerPath({
 // Get user's roles
 registry.registerPath({
   method: "get",
-  path: "/users/{userId}/roles",
-  tags: ["User"],
+  path: "/api/v1/users/{userId}/roles",
+  tags: ["Admin - Users"],
   summary: "Get user roles",
   description: "Returns all roles assigned to a specific user.",
   security: [
@@ -139,8 +139,8 @@ registry.registerPath({
 // Remove role from user
 registry.registerPath({
   method: "delete",
-  path: "/users/{userId}/roles/{roleId}",
-  tags: ["User"],
+  path: "/api/v1/users/{userId}/roles/{roleId}",
+   tags: ["Admin - Users"],
   summary: "Remove role from user",
   description:
     "Removes an assigned role from a user and invalidates the user's cached permissions.",

@@ -42,7 +42,7 @@ const LoginResponse = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: "/auth/login",
+  path: "/api/v1/auth/login",
 
   tags: ["Auth"],
 
