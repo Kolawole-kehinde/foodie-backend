@@ -72,8 +72,7 @@ export const createUserRepository = (db: DatabaseClient) => {
     const maxAttempts = AUTH_SECURITY.MAX_FAILED_LOGIN_ATTEMPTS;
 
     const lockDurationMs = AUTH_SECURITY.LOGIN_LOCKOUT_MS;
-    const result = await db.$queryRaw<
-      {
+    const result = await db.$queryRaw<{
         failedLoginAttempts: number;
         lockedUntil: Date | null;
       }[]

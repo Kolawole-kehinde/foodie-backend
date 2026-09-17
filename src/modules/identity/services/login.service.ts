@@ -8,14 +8,11 @@ import { createUserSessionRepository } from "../repositories/user-session.reposi
 import { ForbiddenError } from "../../../shared/errors/ForbiddenError.js";
 
 
-
-
 export const createLoginService = ({repositories,services,prisma,}: AuthDependencies) => {
 
   const login = async (dto: LoginRequestDto,context: AuthContext,): Promise<LoginResponseDto> => {
 
     const now = new Date();
-
     const { email, password } = dto;
 
    
@@ -131,7 +128,6 @@ if (!passwordValid) {
     const refreshTokenHash = services.token.hashToken(refreshToken);
 
     // 13. Calculate expiration
-
     const sessionExpiresAt = new Date(
       now.getTime() + AUTH_SECURITY.SESSION_DURATION_MS,
     );
@@ -174,7 +170,6 @@ if (!passwordValid) {
 
     // 15. Create access token
     const roles = user.roles.map((userRole) => userRole.role.name);
-
     const accessToken = services.token.createAccessToken({
       userId: user.id,
       sessionId: session.id,

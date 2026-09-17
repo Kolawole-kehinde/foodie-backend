@@ -171,7 +171,7 @@ registry.registerPath({
             message: z.string().openapi({
               example: "Permission removed from role successfully",
             }),
-          },
+          }),
         },
       },
     },

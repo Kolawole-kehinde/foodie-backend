@@ -26,68 +26,62 @@ export const createUserSessionRepository = (db: DatabaseClient) => {
     });
   };
 
-const findActiveById = async (id: string) => {
-  return db.userSession.findFirst({
-    where: {
-      id,
-      revokedAt: null,
-      expiresAt: {
-        gt: new Date(),
+  const findActiveById = async (id: string) => {
+    return db.userSession.findFirst({
+      where: {
+        id,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
       },
-    },
-    include: {
-      user: true,
-    },
-  });
-};
-
-const findActiveByUserId = async (userId: string) => {
-  return db.userSession.findMany({
-    where: {
-      userId,
-      revokedAt: null,
-      expiresAt: {
-        gt: new Date(),
+      include: {
+        user: true,
       },
-    },
-    orderBy: {
-      lastActivityAt: "desc",
-    },
-  });
-};
+    });
+  };
 
+  const findActiveByUserId = async (userId: string) => {
+    return db.userSession.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        lastActivityAt: "desc",
+      },
+    });
+  };
 
-const countActiveByUserId = async (userId: string) => {
-   return db.userSession.count({
-    where: {
-      userId,
-      revokedAt: null,
-      expiresAt:{
-      gt: new Date(),
-    }
-    }
-    
-   })
-};
+  const countActiveByUserId = async (userId: string) => {
+    return db.userSession.count({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+  };
 
-const findOldestActiveByUserId = async (userId: string) => {
+  const findOldestActiveByUserId = async (userId: string) => {
     return db.userSession.findFirst({
       where: {
         userId,
         revokedAt: null,
         expiresAt: {
           gt: new Date(),
-        }
-
+        },
       },
       orderBy: {
-        createdAt: "asc"
-      }
-    })
-
-}
-
-
+        createdAt: "asc",
+      },
+    });
+  };
 
   const updateLastActivity = async (id: string) => {
     return db.userSession.update({
@@ -98,7 +92,10 @@ const findOldestActiveByUserId = async (userId: string) => {
     });
   };
 
-  const revoke = async (id: string,reason?: Prisma.UserSessionUpdateInput["revokeReason"],) => {
+  const revoke = async (
+    id: string,
+    reason?: Prisma.UserSessionUpdateInput["revokeReason"],
+  ) => {
     return db.userSession.updateMany({
       where: {
         id,
@@ -111,22 +108,28 @@ const findOldestActiveByUserId = async (userId: string) => {
     });
   };
 
-  const revokeForUser = async (userId: string, sessionId: string, reason?: Prisma.UserSessionUpdateInput["revokeReason"]) => {
-       return db.userSession.updateMany({
-        where: {
-          id: sessionId,
-          userId,
-          revokedAt: null,
-        },
-        data: {
-           revokedAt: new Date(),
-           revokeReason: reason
-        }
-       })
-  }
+  const revokeForUser = async (
+    userId: string,
+    sessionId: string,
+    reason?: Prisma.UserSessionUpdateInput["revokeReason"],
+  ) => {
+    return db.userSession.updateMany({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+        revokeReason: reason,
+      },
+    });
+  };
 
-
-  const revokeAllForUser = async (userId: string,reason?: Prisma.UserSessionUpdateInput["revokeReason"],) => {
+  const revokeAllForUser = async (
+    userId: string,
+    reason?: Prisma.UserSessionUpdateInput["revokeReason"],
+  ) => {
     return db.userSession.updateMany({
       where: {
         userId,

@@ -1,41 +1,48 @@
 import { SessionRevocationReason } from "@prisma/client";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
+import { createRefreshTokenRepository } from "../repositories/refresh-token.repository.js";
+import { createUserSessionRepository } from "../repositories/user-session.repository.js";
 
 
 
-export const createLogoutService = ({repositories,services,}: AuthDependencies) => {
+export const createLogoutService = ({repositories,services, prisma}: AuthDependencies) => {
 
-  const logout = async (refreshToken: string, context: AuthContext) => {
+ const logout = async (
+  refreshToken: string,
+  context: AuthContext,
+) => {
+  const tokenHash = services.token.hashToken(refreshToken);
 
-    const tokenHash = services.token.hashToken(refreshToken);
+  const storedToken =
+    await repositories.refreshToken.findByTokenHash(tokenHash);
 
-    const storedToken = await repositories.refreshToken.findByTokenHash(tokenHash);
+  if (!storedToken) {
+    throw new UnauthorizedError("Invalid refresh token");
+  }
 
-    // Don't reveal whether the token exists.
-    if (!storedToken) {
-      throw new UnauthorizedError("Invalid refresh token");
-    }
+  const session = storedToken.session;
 
-    const session = storedToken.session;
+  await prisma.$transaction(async (tx) => {
+    const refreshTokenRepository = createRefreshTokenRepository(tx);
+    const sessionRepository = createUserSessionRepository(tx);
 
-    // Revoke the refresh token if it is still active.
     if (!storedToken.revokedAt) {
-      await repositories.refreshToken.revoke(storedToken.id);
+      await refreshTokenRepository.revoke(storedToken.id);
     }
 
-    // Revoke the session.
     if (!session.revokedAt) {
-      await repositories.session.revoke(
+      await sessionRepository.revoke(
         session.id,
         SessionRevocationReason.USER_LOGOUT,
       );
     }
+  });
 
-    return {
-      message: "Logged out successfully",
-    };
+  return {
+    message: "Logged out successfully",
   };
+};
 
   return {
     logout,

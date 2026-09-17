@@ -1,9 +1,4 @@
-import {
-  SecurityEventSeverity,
-  SecurityEventType,
-  SessionRevocationReason,
-  UserStatus,
-} from "@prisma/client";
+import {SecurityEventSeverity,SecurityEventType,SessionRevocationReason,UserStatus,} from "@prisma/client";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 import type { RefreshResponseDto } from "../dto/refresh-token.dto.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
@@ -12,23 +7,17 @@ import { AUTH_SECURITY } from "../constants/auth.constants.js";
 import { createRefreshTokenRepository } from "../repositories/refresh-token.repository.js";
 import { RefreshTokenAlreadyRotatedError } from "../../../shared/errors/RefreshTokenAlreadyRotatedError.js";
 
-export const createRefreshService = ({
-  repositories,
-  services,
-  prisma,
-}: AuthDependencies) => {
-  const refresh = async (
-    refreshToken: string,
-    context: AuthContext,
-  ): Promise<RefreshResponseDto> => {
+export const createRefreshService = ({ repositories, services, prisma,}: AuthDependencies) => {
+
+
+  const refresh = async ( refreshToken: string, context: AuthContext,): Promise<RefreshResponseDto> => {
     const now = new Date();
 
     // 1. Hash the raw refresh token
     const tokenHash = services.token.hashToken(refreshToken);
 
     // 2. Find refresh token + session + user
-    const storedToken =
-      await repositories.refreshToken.findByTokenHash(tokenHash);
+    const storedToken = await repositories.refreshToken.findByTokenHash(tokenHash);
 
     // 3. Token doesn't exist
     if (!storedToken) {

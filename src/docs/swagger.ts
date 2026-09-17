@@ -45,28 +45,28 @@ export const swaggerSpec = generator.generateDocument({
     },
   ],
 
-tags: [
-  {
-    name: "Auth",
-    description: "Authentication and identity endpoints",
-  },
-  {
-    name: "User",
-    description: "User account and profile endpoints",
-  },
-  {
-    name: "Role",
-    description: "Role management endpoints",
-  },
-  {
-    name: "Permission",
-    description: "Permission catalog endpoints",
-  },
-  {
-    name: "Media",
-    description: "Media upload and management endpoints",
-  },
-],
+  tags: [
+    {
+      name: "Auth",
+      description: "Authentication and identity endpoints",
+    },
+    {
+      name: "User",
+      description: "User account and profile endpoints",
+    },
+    {
+      name: "Role",
+      description: "Role management endpoints",
+    },
+    {
+      name: "Permission",
+      description: "Permission catalog endpoints",
+    },
+    {
+      name: "Media",
+      description: "Media upload and management endpoints",
+    },
+  ],
 });
 
 swaggerSpec.components = {

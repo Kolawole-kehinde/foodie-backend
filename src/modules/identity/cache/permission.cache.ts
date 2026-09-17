@@ -8,7 +8,7 @@ type PermissionCacheDependencies = {
   redis: Redis;
 };
 
-// Permissions are cached for 15 minutes, PostgreSQL remains the source of truth.
+// Permissions are cached for 15 minutes
 const PERMISSION_CACHE_TTL = 60 * 15;
 
 const getPermissionCacheKey = (userId: string) => `auth:permissions:${userId}`;
@@ -34,8 +34,6 @@ export const createPermissionCache = ({redis}: PermissionCacheDependencies) => {
   };
 
   // Store a user's permissions in Redis.
-  // Permissions are serialized as JSON because Redis stores values as strings.
-
   const set = async (userId: string, permissions: string[]): Promise<void> => {
     const key = getPermissionCacheKey(userId);
 

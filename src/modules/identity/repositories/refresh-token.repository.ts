@@ -32,19 +32,19 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
     });
   };
 
- const revokeAllByUserId = async (userId: string) => {
-  return db.refreshToken.updateMany({
-    where: {
-      session: {
-        userId,
+  const revokeAllByUserId = async (userId: string) => {
+    return db.refreshToken.updateMany({
+      where: {
+        session: {
+          userId,
+        },
+        revokedAt: null,
       },
-      revokedAt: null,
-    },
-    data: {
-      revokedAt: new Date(),
-    },
-  });
-};
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+  };
 
   const revoke = async (id: string) => {
     return db.refreshToken.update({
@@ -64,17 +64,9 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
    * If another request has already rotated the token,
    * no row will be updated and `rotated` will be false.
    */
-  const rotate = async ({
-    oldTokenId,
-    sessionId,
-    newTokenHash,
-    newTokenExpiresAt,
-  }: {
-    oldTokenId: string;
-    sessionId: string;
-    newTokenHash: string;
-    newTokenExpiresAt: Date;
-  }) => {
+  const rotate = async ({ oldTokenId, sessionId, newTokenHash, newTokenExpiresAt,}: {
+    oldTokenId: string; sessionId: string; newTokenHash: string; newTokenExpiresAt: Date;}) => {
+
     const now = new Date();
 
     // 1. Atomically claim the old refresh token.
@@ -146,11 +138,13 @@ export const createRefreshTokenRepository = (db: DatabaseClient) => {
   return {
     create,
     findByTokenHash,
-    revokeAllByUserId ,
+    revokeAllByUserId,
     revoke,
     rotate,
     deleteExpired,
   };
 };
 
-export type RefreshTokenRepository = ReturnType<typeof createRefreshTokenRepository>;
+export type RefreshTokenRepository = ReturnType<
+  typeof createRefreshTokenRepository
+>;

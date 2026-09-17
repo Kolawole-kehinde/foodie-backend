@@ -16,10 +16,10 @@ export const createLogoutAllDevicesService = ({prisma,}: AuthDependencies) => {
       const sessionRepository = createUserSessionRepository(tx);
       const refreshTokenRepository = createRefreshTokenRepository(tx);
 
-      // 1. Revoke all active sessions belonging to the user.
+   
       const sessions = await sessionRepository.revokeAllForUser(userId)
 
-      // 2. Revoke all active refresh tokens belonging to the user.
+  
       const refreshTokens = await refreshTokenRepository.revokeAllByUserId(userId);
 
       // Return useful information about what was revoked.
