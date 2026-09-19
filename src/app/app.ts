@@ -1,9 +1,11 @@
+
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
 import { notFound } from "../middlewares/notFound.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
+import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
 import {
   authRoutes,
   emailDlqRoutes,
@@ -13,9 +15,10 @@ import {
   roleRoutes,
   userRoleRoutes,
   permissionRoutes,
-  userRoutes
+  userRoutes,
 } from "./container.js";
-import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
+
+
 
 export function createApp(): Express {
   const app = express();
@@ -28,22 +31,28 @@ export function createApp(): Express {
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: true }));
 
-  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use(  "/docs",  swaggerUi.serve,  swaggerUi.setup(swaggerSpec),);
 
   app.use("/api/v1/auth", authRoutes);
+
   app.use("/api/v1/admin/email-dlq", emailDlqRoutes);
+
   app.use("/api/v1/media", media.mediaUploadRoutes);
+
   app.use("/api/v1", profile.profileRoutes);
+
   app.use("/api/v1/roles", roleRoutes);
+  app.use("/api/v1/roles", rolePermissionRoutes);
+
   app.use("/api/v1/users", userRoutes);
   app.use("/api/v1/users", userRoleRoutes);
-  app.use("/api/v1/roles", rolePermissionRoutes);
+
   app.use("/api/v1/permissions", permissionRoutes);
 
-  // 404 MUST come after all routes
+  // 404 handler must come after all routes.
   app.use(notFound);
 
-  // Global error handler MUST be last
+  // Global error handler must be last.
   app.use(errorHandler);
 
   return app;
