@@ -1,3 +1,4 @@
+
 import { Queue } from "bullmq";
 import { redis } from "../../database/redis/client.js";
 export const EMAIL_QUEUE_NAME = "email";
@@ -16,7 +17,7 @@ export type EmailDlqJob = {
 export type VerificationEmailJob = {
   type: "VERIFICATION_EMAIL";
   email: string;
-  verificationToken: string;
+  otp: string;
 };
 
 export type ForgotPasswordEmailJob = {
@@ -28,7 +29,6 @@ export type ForgotPasswordEmailJob = {
 export type EmailJob =
   | VerificationEmailJob
   | ForgotPasswordEmailJob;
-  
 
 export const emailQueue = new Queue<EmailJob>(
   EMAIL_QUEUE_NAME,

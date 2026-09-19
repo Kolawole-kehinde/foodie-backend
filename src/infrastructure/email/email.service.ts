@@ -1,34 +1,31 @@
+
 import { env } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import { emailTransporter } from "./email.transporter.js";
-import { verifyEmailTemplate } from "./templates/verify-email.template.js";
 import { forgotPasswordTemplate } from "./templates/forgot-password.template.js";
+import { verifyEmailTemplate } from "./templates/verify-email.template.js";
 
 export const createEmailService = () => {
-  
-const sendVerificationEmail = async (
-  email: string,
-  verificationToken: string,
-) => {
-  const emailContent = verifyEmailTemplate(verificationToken);
+  const sendVerificationEmail = async (
+    email: string,
+    otp: string,
+  ) => {
+    const emailContent = verifyEmailTemplate(otp);
 
-  // const verificationUrl =  `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
+    logger.info(
+      {
+        email,
+      },
+      "Sending verification email",
+    );
 
-  logger.info(
-    {
-      email,
-      // verificationUrl,
-    },
-    "Sending verification email",
-  );
-  throw new Error("DLQ TEST FAILURE");
+    await emailTransporter.sendMail({
+      from: env.mail.FROM,
+      to: email,
+      ...emailContent,
+    });
+  };
 
-  await emailTransporter.sendMail({
-    from: env.mail.FROM,
-    to: email,
-    ...emailContent,
-  });
-};
   const sendForgotPasswordEmail = async (
     email: string,
     resetUrl: string,
@@ -54,4 +51,6 @@ const sendVerificationEmail = async (
   };
 };
 
-export type EmailService =  ReturnType<typeof createEmailService>;
+export type EmailService = ReturnType<
+  typeof createEmailService
+>;
