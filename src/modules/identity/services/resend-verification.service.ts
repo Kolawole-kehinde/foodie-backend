@@ -1,11 +1,7 @@
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
-import type { RedisClient } from "../../../database/redis/client.js";
+import { AuditActions } from "../constants/audit-action.constants.js";
 import type { ResendVerificationRequestDto } from "../dto/resend-verification-request.dto.js";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
-
-type ResendVerificationServiceDependencies = AuthDependencies & {
-  redis: RedisClient;
-};
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -13,21 +9,13 @@ const getResendCooldownKey = (email: string): string => {
   return `auth:email-verification:resend:${email}`;
 };
 
-export const createResendVerificationService = ({
-  repositories,
-  services,
-  queues,
-  redis,
-}: ResendVerificationServiceDependencies) => {
-  const resendVerification = async (
-    dto: ResendVerificationRequestDto,
-    context?: AuthContext,
-  ): Promise<{ message: string }> => {
+export const createResendVerificationService = ({repositories, services,queues,redis,}: AuthDependencies) => {
+
+  const resendVerification = async ( dto: ResendVerificationRequestDto, context?: AuthContext,): Promise<{ message: string }> => {
     const pendingRegistration =
       await repositories.pendingRegistration.findByEmail(dto.email);
 
-    // Return a generic response when no pending registration exists.
-    // This prevents email enumeration.
+    // Do not reveal whether the email has a pending registration.
     if (!pendingRegistration) {
       return {
         message:
@@ -46,19 +34,14 @@ export const createResendVerificationService = ({
     }
 
     // Generate a new OTP.
-    // The OTP service replaces the previous OTP in Redis.
+    // This replaces the previous OTP stored in Redis.
     const otp = await services.emailVerificationOtp.generate(dto.email);
 
-    // Start the resend cooldown.
-    await redis.set(
-      cooldownKey,
-      "1",
-      "EX",
-      RESEND_COOLDOWN_SECONDS,
-    );
+    // Prevent another resend for 60 seconds.
+    await redis.set(cooldownKey, "1", "EX", RESEND_COOLDOWN_SECONDS);
 
     await services.audit.log({
-      action: "VERIFICATION_OTP_RESENT",
+      action: AuditActions.VERIFICATION_OTP_RESENT,
       ipAddress: context?.ipAddress,
       userAgent: context?.userAgent,
       metadata: {
