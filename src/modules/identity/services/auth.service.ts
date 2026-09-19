@@ -5,6 +5,7 @@ import { createLogoutService } from "./logout.service.js";
 import { createPasswordResetService } from "./password-reset.service.js";
 import { createRefreshService } from "./refresh.service.js";
 import { createRegistrationService } from "./registration.service.js";
+import { createResendVerificationService } from "./resend-verification.service.js";
 import { createVerifyEmailService } from "./verify-email.service.js";
 
 export const createAuthService = (dependencies: AuthDependencies) => {
@@ -15,10 +16,12 @@ export const createAuthService = (dependencies: AuthDependencies) => {
   const logout = createLogoutService(dependencies);
   const logoutAllDevices = createLogoutAllDevicesService(dependencies);
   const passwordReset = createPasswordResetService(dependencies);
+  const resendVerification = createResendVerificationService(dependencies);
 
   return {
     register: registration.register,
     verifyEmail: verifyEmail.verifyEmail,
+    resendVerification: resendVerification.resendVerification,
     login: login.login,
     refresh: refresh.refresh,
     logout: logout.logout,
