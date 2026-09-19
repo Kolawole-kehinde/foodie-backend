@@ -44,6 +44,15 @@ export const createAuthRoutes = ({
   );
 
   router.post(
+  "/resend-verification",
+  validate(resendVerificationSchema),
+  rateLimit({
+    rules: resendVerificationRateLimitPolicy,
+  }),
+  authController.resendVerification,
+);
+
+  router.post(
     "/login",
     validate(loginSchema),
     rateLimit({
