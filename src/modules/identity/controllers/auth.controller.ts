@@ -1,14 +1,14 @@
+
+import type { RequestHandler } from "express";
 import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
-import {REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS,} from "../constants/auth-cookie.js";
+import { REFRESH_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE_OPTIONS,} from "../constants/auth-cookie.js";
+import type { ForgotPasswordDto, ResetPasswordDto } from "../dto/forgot-password-dto.js";
 import type { LoginRequestDto } from "../dto/login-dto.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import type { AuthService } from "../services/auth.service.js";
-import type { RequestHandler } from "express";
-import type { ForgotPasswordDto, ResetPasswordDto } from "../dto/forgot-password-dto.js";
-
 
 export type AuthController = {
   register: RequestHandler;
@@ -20,17 +20,17 @@ export type AuthController = {
   getSessions: RequestHandler;
   revokeSession: RequestHandler;
   forgotPassword: RequestHandler;
-resetPassword: RequestHandler;
+  resetPassword: RequestHandler;
 };
 
 type CreateAuthControllerDependencies = {
   authService: AuthService;
 };
 
-export const createAuthController = ({
-  authService,
-}: CreateAuthControllerDependencies): AuthController => {
+export const createAuthController = ({ authService,}: CreateAuthControllerDependencies): AuthController => {
+
   const register = asyncHandler(async (req, res) => {
+    
     const dto: RegisterRequestDto = req.body;
 
     const result = await authService.register(dto, {
@@ -110,7 +110,7 @@ export const createAuthController = ({
 
     res.clearCookie(
       REFRESH_TOKEN_COOKIE,
-      REFRESH_TOKEN_COOKIE_OPTIONS
+      REFRESH_TOKEN_COOKIE_OPTIONS,
     );
 
     return res.status(200).json({
@@ -118,78 +118,68 @@ export const createAuthController = ({
     });
   });
 
-
-
-
-  // The authentication middleware should attach the authenticated
-  // user's ID to the request.
-
   const logoutAllDevices = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+    const userId = req.user.id;
 
-  const result = await authService.logoutAllDevices(userId);
+    const result = await authService.logoutAllDevices(userId);
 
-  // Clear the refresh-token cookie on the current browser/device.
-  res.clearCookie(
-    REFRESH_TOKEN_COOKIE,
-    REFRESH_TOKEN_COOKIE_OPTIONS
-  );
+    res.clearCookie(
+      REFRESH_TOKEN_COOKIE,
+      REFRESH_TOKEN_COOKIE_OPTIONS,
+    );
 
-  return res.status(200).json({
-    message: "Logged out from all devices successfully",
-    ...result,
+    return res.status(200).json({
+      message: "Logged out from all devices successfully",
+      ...result,
+    });
   });
-});
 
-
-const getSessions = asyncHandler (async(req, res) => {
-    const userId = req.user.id
+  const getSessions = asyncHandler(async (req, res) => {
+    const userId = req.user.id;
     const currentSessionId = req.user.sessionId;
 
     const result = await authService.getActiveSessions(
       userId,
-      currentSessionId
+      currentSessionId,
     );
 
-  return res.status(200).json(result);
-});
-
-const revokeSession = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
-  const sessionId = req.params.sessionId;
-
-  if (typeof sessionId !== "string" || !sessionId) {
-    throw new BadRequestError("Session ID is required");
-  }
-
-  const result = await authService.revokeSession(
-    userId,
-    sessionId,
-  );
-
-  return res.status(200).json(result);
-});
-
-const forgotPassword = asyncHandler(async (req, res) => {
-  const dto: ForgotPasswordDto = req.body;
-
-  const result = await authService.passwordReset(dto, {
-    ipAddress: req.ip,
-    userAgent: req.get("user-agent"),
+    return res.status(200).json(result);
   });
 
-  return res.status(200).json(result);
-});
+  const revokeSession = asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+    const sessionId = req.params.sessionId;
 
-const resetPassword = asyncHandler(async (req, res) => {
-  const dto: ResetPasswordDto = req.body;
+    if (typeof sessionId !== "string" || !sessionId) {
+      throw new BadRequestError("Session ID is required");
+    }
 
-  const result = await authService.resetPassword(dto);
+    const result = await authService.revokeSession(
+      userId,
+      sessionId,
+    );
 
-  return res.status(200).json(result);
-});
+    return res.status(200).json(result);
+  });
 
+  const forgotPassword = asyncHandler(async (req, res) => {
+    const dto: ForgotPasswordDto = req.body;
 
+    const result = await authService.passwordReset(dto, {
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+
+    return res.status(200).json(result);
+  });
+
+  const resetPassword = asyncHandler(async (req, res) => {
+    const dto: ResetPasswordDto = req.body;
+
+    const result = await authService.resetPassword(dto);
+
+    return res.status(200).json(result);
+  });
 
   return {
     register,
@@ -204,5 +194,3 @@ const resetPassword = asyncHandler(async (req, res) => {
     resetPassword,
   };
 };
-
-

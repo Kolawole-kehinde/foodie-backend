@@ -28,7 +28,6 @@ model User {
   loginAttempts         LoginAttempt[]
   securityEvents         SecurityEvent[]
   sessions              UserSession[]
-  emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens   PasswordResetToken[]
   auditLogs             AuditLog[]
   profile                Profile?

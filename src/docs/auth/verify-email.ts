@@ -1,3 +1,4 @@
+
 import { z } from "../zod-openapi.js";
 import { registry } from "../registry.js";
 import { verifyEmailSchema } from "../../modules/identity/validators/verify-email.validator.js";
@@ -25,7 +26,7 @@ registry.registerPath({
   summary: "Verify user email",
 
   description:
-    "Verifies a user's email address using the verification token sent during registration.",
+    "Verifies a user's email address using the one-time password (OTP) sent during registration.",
 
   request: {
     body: {
@@ -54,7 +55,7 @@ registry.registerPath({
     },
 
     409: {
-      description: "Invalid or expired verification token",
+      description: "Invalid or expired verification code",
     },
 
     429: {
