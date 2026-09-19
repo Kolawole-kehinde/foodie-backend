@@ -9,6 +9,7 @@ export const AuditActions = {
   PASSWORD_RESET_REQUESTED: "PASSWORD_RESET_REQUESTED",
   PASSWORD_RESET_COMPLETED: "PASSWORD_RESET_COMPLETED",
   PASSWORD_CHANGED: "PASSWORD_CHANGED",
+  VERIFICATION_OTP_RESENT: "VERIFICATION_OTP_RESENT"
 } as const;
 
 export type AuditAction =  (typeof AuditActions)[keyof typeof AuditActions];
