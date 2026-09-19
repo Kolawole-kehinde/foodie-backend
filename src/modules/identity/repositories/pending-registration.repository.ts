@@ -1,42 +1,25 @@
+
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 export type CreatePendingRegistrationData = {
   email: string;
   passwordHash: string;
-  verificationTokenHash: string;
-  verificationTokenExpiresAt: Date;
   expiresAt: Date;
   ipAddress?: string;
   userAgent?: string;
 };
 
-type PendingRegistrationUpdateData =
-  Parameters<
-    DatabaseClient["pendingRegistration"]["update"]
-  >[0]["data"];
+type PendingRegistrationUpdateData = Parameters<   DatabaseClient["pendingRegistration"]["update"] >[0]["data"];
 
-export const createPendingRegistrationRepository = (
-  db: DatabaseClient
-) => {
+export const createPendingRegistrationRepository = ( db: DatabaseClient,) => {
+
   const findByEmail = async (email: string) => {
     return db.pendingRegistration.findUnique({
       where: { email },
     });
   };
 
-  const findByTokenHash = async (
-    verificationTokenHash: string
-  ) => {
-    return db.pendingRegistration.findUnique({
-      where: {
-        verificationTokenHash,
-      },
-    });
-  };
-
-  const create = async (
-    data: CreatePendingRegistrationData
-  ) => {
+  const create = async ( data: CreatePendingRegistrationData,) => {
     return db.pendingRegistration.create({
       data,
     });
@@ -56,7 +39,7 @@ export const createPendingRegistrationRepository = (
 
   const update = async (
     id: string,
-    data: PendingRegistrationUpdateData
+    data: PendingRegistrationUpdateData,
   ) => {
     return db.pendingRegistration.update({
       where: { id },
@@ -66,7 +49,6 @@ export const createPendingRegistrationRepository = (
 
   return {
     findByEmail,
-    findByTokenHash,
     create,
     deleteById,
     deleteByEmail,
@@ -74,4 +56,6 @@ export const createPendingRegistrationRepository = (
   };
 };
 
-export type PendingRegistrationRepository =  ReturnType< typeof createPendingRegistrationRepository>;
+export type PendingRegistrationRepository = ReturnType<
+  typeof createPendingRegistrationRepository
+>;
