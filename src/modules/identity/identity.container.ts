@@ -145,6 +145,7 @@ const userService = createUserService({
 // Auth Service
 const authService = createAuthService({
   prisma,
+   redis,
 
   repositories: {
     user: userRepository,

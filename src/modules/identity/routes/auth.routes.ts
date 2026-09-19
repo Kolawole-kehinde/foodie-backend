@@ -13,6 +13,8 @@ import { loginRateLimitPolicy } from "../middleware/login-rate-limit.policy.js";
 import { passwordResetPolicy } from "../middleware/password-reset-limit-policy.js";
 import { resetPasswordRateLimitPolicy } from "../middleware/reset-password-rateLimit-policy.js";
 import type { AuthController } from "../controllers/auth.controller.js";
+import { resendVerificationSchema } from "../validators/resend-verification.validator.js";
+import { resendVerificationRateLimitPolicy } from "../middleware/resend-verification-rate-limit.policy.js";
 
 type CreateAuthRoutesDependencies = {
   authController: AuthController;
