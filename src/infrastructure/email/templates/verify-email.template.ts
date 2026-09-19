@@ -1,34 +1,35 @@
-import { env } from "../../../config/env.js";
 
-export const verifyEmailTemplate = (verificationToken: string) => {
-    
-  const verificationUrl = `${env.mail.CLIENT_URL}/verify-email?token=${verificationToken}`;
 
+
+export const verifyEmailTemplate = (otp: string) => {
   return {
     subject: "Verify your email",
 
     text: `
-      Please verify your email by visiting:
-      ${verificationUrl}
+      Your email verification code is:
 
-      This link expires in 30 minutes.
+      ${otp}
+
+      Enter this code in the verification page to verify your email address.
+
+      This code expires in 10 minutes.
     `,
 
     html: `
       <h2>Verify your email</h2>
 
       <p>
-        Please click the link below to verify your email address.
+        Your email verification code is:
+      </p>
+
+      <h1>${otp}</h1>
+
+      <p>
+        Enter this code in the verification page to verify your email address.
       </p>
 
       <p>
-        <a href="${verificationUrl}">
-          Verify Email
-        </a>
-      </p>
-
-      <p>
-        This link expires in 30 minutes.
+        This code expires in 10 minutes.
       </p>
     `,
   };
