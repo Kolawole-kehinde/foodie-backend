@@ -1,4 +1,9 @@
-import type { SecurityEventSeverity, SecurityEventType } from "@prisma/client";
+import type {
+  Prisma,
+  SecurityEventSeverity,
+  SecurityEventType,
+} from "@prisma/client";
+
 import type { SecurityEventRepository } from "../repositories/security-event.repository.js";
 
 type CreateSecurityEventInput = {
@@ -9,10 +14,12 @@ type CreateSecurityEventInput = {
   userAgent?: string;
   country?: string;
   city?: string;
-  metadata?: unknown;
+  metadata?: Prisma.InputJsonValue;
 };
 
-export const createSecurityEventService = ( repository: SecurityEventRepository) => {
+export const createSecurityEventService = (
+  repository: SecurityEventRepository,
+) => {
   const record = async (data: CreateSecurityEventInput) => {
     return repository.create(data);
   };
@@ -22,4 +29,6 @@ export const createSecurityEventService = ( repository: SecurityEventRepository)
   };
 };
 
-export type SecurityEventService = ReturnType <typeof createSecurityEventService>;
+export type SecurityEventService = ReturnType<
+  typeof createSecurityEventService
+>;

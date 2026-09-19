@@ -1,3 +1,4 @@
+import type { RequestHandler } from "express";
 import { prisma } from "../../database/prisma/client.js";
 import { redis } from "../../database/redis/client.js";
 import { createAuthController } from "./controllers/auth.controller.js";
@@ -97,7 +98,7 @@ const authorizePermission = createAuthorizePermission({
 });
 
 // Authentication
-const authenticate = createAuthenticate({
+const authenticate: RequestHandler = createAuthenticate({
   tokenService,
   sessionService,
 });
