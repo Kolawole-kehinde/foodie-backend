@@ -37,10 +37,7 @@ export const createPendingRegistrationRepository = ( db: DatabaseClient,) => {
     });
   };
 
-  const update = async (
-    id: string,
-    data: PendingRegistrationUpdateData,
-  ) => {
+  const update = async ( id: string, data: PendingRegistrationUpdateData,) => {
     return db.pendingRegistration.update({
       where: { id },
       data,

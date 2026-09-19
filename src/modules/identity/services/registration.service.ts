@@ -1,20 +1,21 @@
+
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
+
 import { AuditActions } from "../constants/audit-action.constants.js";
 import { AUTH_EXPIRATION } from "../constants/auth.constants.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { RegisterResponseDto } from "../dto/register-response.dto.js";
-import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
-
+import type {
+  AuthContext,
+  AuthDependencies,
+} from "../types/auth.types.js";
 
 export const createRegistrationService = ({repositories,services,queues,}: AuthDependencies) => {
-  const register = async (
-    dto: RegisterRequestDto,
-    context?: AuthContext
-  ): Promise<RegisterResponseDto> => {
+
+  const register = async (dto: RegisterRequestDto,context?: AuthContext,): Promise<RegisterResponseDto> => {
     const { email, password } = dto;
 
-    const existingUser =
-      await repositories.user.findByEmail(email);
+    const existingUser = await repositories.user.findByEmail(email);
 
     if (existingUser) {
       throw new ConflictError("Email already exists");
@@ -25,37 +26,30 @@ export const createRegistrationService = ({repositories,services,queues,}: AuthD
 
     if (existingPending) {
       throw new ConflictError(
-        "A registration for this email is already pending verification"
+        "A registration for this email is already pending verification",
       );
     }
 
-    const passwordHash =
-      await services.password.hash(password);
-
-    const verificationToken =
-      services.token.generateRandomToken();
-
-    const verificationTokenHash =
-      services.token.hashToken(verificationToken);
+    const passwordHash = await services.password.hash(password);
 
     const now = Date.now();
 
     await repositories.pendingRegistration.create({
       email,
       passwordHash,
-      verificationTokenHash,
-
-      verificationTokenExpiresAt: new Date(
-        now + AUTH_EXPIRATION.VERIFICATION_TOKEN_MS
-      ),
 
       expiresAt: new Date(
-        now + AUTH_EXPIRATION.PENDING_REGISTRATION_MS
+        now + AUTH_EXPIRATION.PENDING_REGISTRATION_MS,
       ),
 
       ipAddress: context?.ipAddress,
       userAgent: context?.userAgent,
     });
+
+    // Generate and store the OTP in Redis.
+    // Only the hashed OTP is stored; the raw OTP is returned
+    // so it can be sent to the user's email.
+    const verificationOtp = await services.emailVerificationOtp.generate(email);
 
     await services.audit.log({
       action: AuditActions.REGISTRATION_INITIATED,
@@ -68,7 +62,7 @@ export const createRegistrationService = ({repositories,services,queues,}: AuthD
 
     await queues.email.sendVerificationEmail(
       email,
-      verificationToken
+      verificationOtp,
     );
 
     return {
@@ -82,4 +76,6 @@ export const createRegistrationService = ({repositories,services,queues,}: AuthD
   };
 };
 
-export type RegistrationService = ReturnType<typeof createRegistrationService>;
+export type RegistrationService = ReturnType<
+  typeof createRegistrationService
+>;
