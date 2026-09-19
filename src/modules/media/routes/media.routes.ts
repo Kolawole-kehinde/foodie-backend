@@ -15,7 +15,7 @@ type CreateMediaUploadRoutesDependencies = {
 export const createMediaUploadRoutes = ({
   mediaUploadController,
   authenticate,
-}: CreateMediaUploadRoutesDependencies) => {
+}: CreateMediaUploadRoutesDependencies): Router => {
   const router = Router();
 
   router.post(

@@ -11,7 +11,7 @@ type CreateProfileRoutesDependencies = {
 export const createProfileRoutes = ({
   profileController,
   authenticate,
-}: CreateProfileRoutesDependencies) => {
+}: CreateProfileRoutesDependencies): Router => {
   const router = Router();
 
   router.get(

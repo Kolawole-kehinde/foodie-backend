@@ -12,6 +12,8 @@ declare global {
       };
 
       context: {
+        requestId: string;
+        startedAt: number;
         ipAddress?: string;
         userAgent?: string;
         deviceName?: string;

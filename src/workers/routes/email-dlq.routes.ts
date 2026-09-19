@@ -6,10 +6,14 @@ import type { EmailDlqController } from "../controllers/email-dlq.controller.js"
 type CreateEmailDlqRoutesDependencies = {
   emailDlqController: EmailDlqController;
   authenticate: RequestHandler;
-  authorizePermission: ( requiredPermission: string,) => RequestHandler;
+  authorizePermission: (requiredPermission: string) => RequestHandler;
 };
 
-export const createEmailDlqRoutes = ({ emailDlqController, authenticate,authorizePermission,}: CreateEmailDlqRoutesDependencies) => {
+export const createEmailDlqRoutes = ({
+  emailDlqController,
+  authenticate,
+  authorizePermission,
+}: CreateEmailDlqRoutesDependencies): Router => {
   const router = Router();
 
   router.post(
