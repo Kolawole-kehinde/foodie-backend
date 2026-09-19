@@ -9,10 +9,12 @@ import type { LoginRequestDto } from "../dto/login-dto.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import type { AuthService } from "../services/auth.service.js";
+import type { ResendVerificationRequestDto } from "../dto/resend-verification-request.dto.js";
 
 export type AuthController = {
   register: RequestHandler;
   verifyEmail: RequestHandler;
+   resendVerification: RequestHandler;
   login: RequestHandler;
   refresh: RequestHandler;
   logout: RequestHandler;
@@ -30,7 +32,7 @@ type CreateAuthControllerDependencies = {
 export const createAuthController = ({ authService,}: CreateAuthControllerDependencies): AuthController => {
 
   const register = asyncHandler(async (req, res) => {
-    
+
     const dto: RegisterRequestDto = req.body;
 
     const result = await authService.register(dto, {
@@ -51,6 +53,18 @@ export const createAuthController = ({ authService,}: CreateAuthControllerDepend
 
     return res.status(200).json(result);
   });
+
+  const resendVerification = asyncHandler(async (req, res) => {
+  const dto: ResendVerificationRequestDto = req.body;
+
+  const result = await authService.resendVerification(dto, {
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+  });
+
+  return res.status(200).json(result);
+});
+
 
   const login = asyncHandler(async (req, res) => {
     const dto: LoginRequestDto = req.body;
@@ -184,6 +198,7 @@ export const createAuthController = ({ authService,}: CreateAuthControllerDepend
   return {
     register,
     verifyEmail,
+    resendVerification,
     login,
     refresh,
     logout,
