@@ -1,11 +1,11 @@
-import type { Redis } from "ioredis";
+import type { RedisClient } from "../../../database/redis/client.js";
 
 // get    → Redis GET
 // set    → Redis SET + TTL
 // remove → Redis DEL
 
 type PermissionCacheDependencies = {
-  redis: Redis;
+  redis: RedisClient;
 };
 
 // Permissions are cached for 15 minutes
@@ -13,9 +13,10 @@ const PERMISSION_CACHE_TTL = 60 * 15;
 
 const getPermissionCacheKey = (userId: string) => `auth:permissions:${userId}`;
 
-export const createPermissionCache = ({redis}: PermissionCacheDependencies) => {
-
-  //Get a user's permissions from Redis.
+export const createPermissionCache = ({
+  redis,
+}: PermissionCacheDependencies) => {
+  // Get a user's permissions from Redis.
   // Returns null when the permissions are not cached.
   const get = async (userId: string): Promise<string[] | null> => {
     const key = getPermissionCacheKey(userId);
@@ -46,8 +47,7 @@ export const createPermissionCache = ({redis}: PermissionCacheDependencies) => {
   };
 
   // Remove a user's cached permissions.
-  // This will be used when the user's authorization data changes.
-
+  // Used when the user's authorization data changes.
   const remove = async (userId: string): Promise<void> => {
     const key = getPermissionCacheKey(userId);
 

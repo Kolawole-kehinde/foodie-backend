@@ -44,6 +44,7 @@ import { createPermissionRoutes } from "./routes/permission.routes.js";
 import { createUserService } from "./services/user.service.js";
 import { createUserController } from "./controllers/user.controller.js";
 import { createUserRoutes } from "./routes/user.routes.js";
+import { createEmailVerificationOtpService } from "./services/email-verification-otp.service.js";
 
 
 // Repositories
@@ -99,6 +100,11 @@ const authorizePermission = createAuthorizePermission({
 const authenticate = createAuthenticate({
   tokenService,
   sessionService,
+});
+
+const emailVerificationOtpService = createEmailVerificationOtpService({
+  redis,
+  tokenService,
 });
 
 // Role Management
@@ -157,6 +163,7 @@ const authService = createAuthService({
     geoLocation,
     securityEvent: securityEventService,
     session: sessionService,
+    emailVerificationOtp: emailVerificationOtpService,
   },
 
   queues: {
@@ -248,4 +255,5 @@ export {
   roleController,
   userRoleService,
   userRoleController,
+  emailVerificationOtpService
 };

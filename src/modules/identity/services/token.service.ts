@@ -17,8 +17,13 @@ type JwtAccessTokenPayload = jwt.JwtPayload & {
 };
 
 export const createTokenService = () => {
+  
   const generateRandomToken = (size = 32): string => {
     return crypto.randomBytes(size).toString("hex");
+  };
+
+    const generateOtp = (): string => {
+    return crypto.randomInt(100000, 1000000).toString();
   };
 
   const generateJwtId = (): string => {
@@ -74,6 +79,7 @@ export const createTokenService = () => {
     hashToken,
     createAccessToken,
     verifyAccessToken,
+    generateOtp,
   };
 };
 

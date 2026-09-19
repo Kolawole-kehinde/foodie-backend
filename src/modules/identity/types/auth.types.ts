@@ -13,6 +13,7 @@ import type { GeoLocationService } from "../security/geo-location.service.js";
 import type { SecurityEventService } from "../security/security-event.service.js";
 import type { SessionService } from "../services/session.service.js";
 import type { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository.js";
+import type { EmailVerificationOtpService } from "../services/email-verification-otp.service.js";
 
 export type AuthContext = {
   ipAddress?: string;
@@ -28,7 +29,7 @@ export type AuthRepositories = {
   session: UserSessionRepository;
   refreshToken: RefreshTokenRepository;
   loginAttempt: LoginAttemptRepository;
-  passwordResetToken: PasswordResetTokenRepository
+  passwordResetToken: PasswordResetTokenRepository;
 };
 
 export type AuthServices = {
@@ -39,7 +40,7 @@ export type AuthServices = {
   geoLocation: GeoLocationService;
   securityEvent: SecurityEventService;
   session: SessionService;
-  
+  emailVerificationOtp: EmailVerificationOtpService;
 };
 
 export type AuthQueues = {
