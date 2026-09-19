@@ -18,7 +18,10 @@ const createRedisClient = () => {
   });
 };
 
-type RedisClient = ReturnType<typeof createRedisClient>;
+export type RedisClient = ReturnType<typeof createRedisClient>;
+
+
+
 
 const globalForRedis = globalThis as typeof globalThis & {
   redis?: RedisClient;
