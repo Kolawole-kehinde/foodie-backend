@@ -1,3 +1,1 @@
-import type { Redis } from "ioredis";
-
-export type RedisClient = Redis;
+export type { RedisClient } from "./client.js";
