@@ -24,7 +24,8 @@ type CreateAuthRoutesDependencies = {
 export const createAuthRoutes = ({
   authController,
   authenticate,
-}: CreateAuthRoutesDependencies) => {
+}: CreateAuthRoutesDependencies): Router => {
+  
   const router = Router();
 
   router.post(

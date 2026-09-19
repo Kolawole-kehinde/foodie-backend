@@ -13,7 +13,7 @@ export const createPermissionRoutes = ({
   permissionController,
   authenticate,
   authorizePermission,
-}: CreatePermissionRoutesDependencies) => {
+}: CreatePermissionRoutesDependencies): Router => {
   const router = Router();
 
   router.get(

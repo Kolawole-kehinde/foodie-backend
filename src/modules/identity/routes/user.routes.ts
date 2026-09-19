@@ -12,7 +12,7 @@ export const createUserRoutes = ({
   userController,
   authenticate,
   authorizePermission,
-}: CreateUserRoutesDependencies) => {
+}: CreateUserRoutesDependencies): Router => {
   const router = Router();
   router.get(
     "/",

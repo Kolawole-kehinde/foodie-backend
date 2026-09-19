@@ -12,7 +12,7 @@ export const createUserRoleRoutes = ({
   userRoleController,
   authenticate,
   authorizePermission,
-}: CreateUserRoleRoutesDependencies) => {
+}: CreateUserRoleRoutesDependencies): Router => {
   const router = Router();
 
   router.post(

@@ -5,11 +5,14 @@ import type { RoleController } from "../controllers/role.controller.js";
 type CreateRoleRoutesDependencies = {
   roleController: RoleController;
   authenticate: RequestHandler;
-  authorizePermission: ( requiredPermission: string,) => RequestHandler;
+  authorizePermission: (requiredPermission: string) => RequestHandler;
 };
 
-export const createRoleRoutes = ({roleController, authenticate, authorizePermission,}: CreateRoleRoutesDependencies) => {
-    
+export const createRoleRoutes = ({
+  roleController,
+  authenticate,
+  authorizePermission,
+}: CreateRoleRoutesDependencies): Router => {
   const router = Router();
 
   router.post(
