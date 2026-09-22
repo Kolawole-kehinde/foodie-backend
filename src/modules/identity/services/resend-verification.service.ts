@@ -9,13 +9,18 @@ const getResendCooldownKey = (email: string): string => {
   return `auth:email-verification:resend:${email}`;
 };
 
-export const createResendVerificationService = ({repositories, services,queues,redis,}: AuthDependencies) => {
+export const createResendVerificationService = ({
+  repositories,
+  services,
+  queues,
+  redis,
+}: AuthDependencies) => {
+  const resendVerification = async (
+    dto: ResendVerificationRequestDto,
+    context?: AuthContext,
+  ): Promise<{ message: string }> => {
 
-  const resendVerification = async ( dto: ResendVerificationRequestDto, context?: AuthContext,): Promise<{ message: string }> => {
-    const pendingRegistration =
-      await repositories.pendingRegistration.findByEmail(dto.email);
-
-    // Do not reveal whether the email has a pending registration.
+    const pendingRegistration =  await repositories.pendingRegistration.findByEmail(dto.email);
     if (!pendingRegistration) {
       return {
         message:

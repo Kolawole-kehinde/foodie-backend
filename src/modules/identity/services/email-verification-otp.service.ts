@@ -72,6 +72,7 @@ export const createEmailVerificationOtpService = ({
   redis,
   tokenService,
 }: EmailVerificationOtpServiceDependencies) => {
+    
   // Generate a new OTP and store its hash in Redis.
   const generate = async (email: string): Promise<string> => {
     const otp = tokenService.generateOtp();
@@ -93,10 +94,8 @@ export const createEmailVerificationOtpService = ({
   };
 
   // Verify an OTP atomically inside Redis.
-  const verify = async (
-    email: string,
-    otp: string,
-  ): Promise<boolean> => {
+  const verify = async ( email: string, otp: string,): Promise<boolean> => {
+
     const key = getOtpKey(email);
     const otpHash = tokenService.hashToken(otp);
 
@@ -134,6 +133,4 @@ export const createEmailVerificationOtpService = ({
   };
 };
 
-export type EmailVerificationOtpService = ReturnType<
-  typeof createEmailVerificationOtpService
->;
+export type EmailVerificationOtpService = ReturnType<typeof createEmailVerificationOtpService>;
