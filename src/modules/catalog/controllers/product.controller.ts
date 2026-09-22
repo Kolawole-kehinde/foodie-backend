@@ -5,12 +5,13 @@ import type {
   UpdateProductDto,
 } from "../dto/product.dto.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
+import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 
 type CreateProductControllerDependencies = {
   productService: ProductService;
 };
 
-type ProductController = {
+export type ProductController = {
   create: RequestHandler;
   getById: RequestHandler;
   getBySlug: RequestHandler;
@@ -35,17 +36,13 @@ export const createProductController = ({
   });
 
   const getById = asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const productId = req.params.productId;
 
-    if (!id || Array.isArray(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid product ID",
-      });
-      return;
+    if (typeof productId !== "string" || !productId) {
+      throw new BadRequestError("Product ID is required");
     }
 
-    const product = await productService.getProductById(id);
+    const product = await productService.getProductById(productId);
 
     res.status(200).json({
       success: true,
@@ -56,12 +53,8 @@ export const createProductController = ({
   const getBySlug = asyncHandler(async (req, res) => {
     const slug = req.params.slug;
 
-    if (!slug || Array.isArray(slug)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid product slug",
-      });
-      return;
+    if (typeof slug !== "string" || !slug) {
+      throw new BadRequestError("Product slug is required");
     }
 
     const product = await productService.getProductBySlug(slug);
@@ -84,15 +77,12 @@ export const createProductController = ({
   const getByCategory = asyncHandler(async (req, res) => {
     const categoryId = req.params.categoryId;
 
-    if (!categoryId || Array.isArray(categoryId)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid category ID",
-      });
-      return;
+    if (typeof categoryId !== "string" || !categoryId) {
+      throw new BadRequestError("Category ID is required");
     }
 
-    const products =  await productService.getProductsByCategory(categoryId);
+    const products =
+      await productService.getProductsByCategory(categoryId);
 
     res.status(200).json({
       success: true,
@@ -101,19 +91,15 @@ export const createProductController = ({
   });
 
   const update = asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const productId = req.params.productId;
 
-    if (!id || Array.isArray(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid product ID",
-      });
-      return;
+    if (typeof productId !== "string" || !productId) {
+      throw new BadRequestError("Product ID is required");
     }
 
     const dto: UpdateProductDto = req.body;
 
-    const product = await productService.update(id, dto);
+    const product = await productService.update(productId, dto);
 
     res.status(200).json({
       success: true,
@@ -122,17 +108,13 @@ export const createProductController = ({
   });
 
   const archive = asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const productId = req.params.productId;
 
-    if (!id || Array.isArray(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid product ID",
-      });
-      return;
+    if (typeof productId !== "string" || !productId) {
+      throw new BadRequestError("Product ID is required");
     }
 
-    const product = await productService.archive(id);
+    const product = await productService.archive(productId);
 
     res.status(200).json({
       success: true,

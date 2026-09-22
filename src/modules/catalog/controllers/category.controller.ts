@@ -5,12 +5,13 @@ import type {
   UpdateCategoryDto,
 } from "../dto/category.dto.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
+import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 
 type CreateCategoryControllerDependencies = {
   categoryService: CategoryService;
 };
 
-type CategoryController = {
+export type CategoryController = {
   create: RequestHandler;
   getById: RequestHandler;
   getBySlug: RequestHandler;
@@ -22,7 +23,6 @@ type CategoryController = {
 export const createCategoryController = ({
   categoryService,
 }: CreateCategoryControllerDependencies): CategoryController => {
-
   const create = asyncHandler(async (req, res) => {
     const dto: CreateCategoryDto = req.body;
 
@@ -34,19 +34,14 @@ export const createCategoryController = ({
     });
   });
 
-
   const getById = asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const categoryId = req.params.categoryId;
 
-    if (!id || Array.isArray(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid category ID",
-      });
-      return;
+    if (typeof categoryId !== "string" || !categoryId) {
+      throw new BadRequestError("Category ID is required");
     }
 
-    const category = await categoryService.getById(id);
+    const category = await categoryService.getById(categoryId);
 
     res.status(200).json({
       success: true,
@@ -57,12 +52,8 @@ export const createCategoryController = ({
   const getBySlug = asyncHandler(async (req, res) => {
     const slug = req.params.slug;
 
-    if (!slug || Array.isArray(slug)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid category slug",
-      });
-      return;
+    if (typeof slug !== "string" || !slug) {
+      throw new BadRequestError("Category slug is required");
     }
 
     const category = await categoryService.getBySlug(slug);
@@ -82,21 +73,16 @@ export const createCategoryController = ({
     });
   });
 
-  
   const update = asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const categoryId = req.params.categoryId;
 
-    if (!id || Array.isArray(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid category ID",
-      });
-      return;
+    if (typeof categoryId !== "string" || !categoryId) {
+      throw new BadRequestError("Category ID is required");
     }
 
-    const dto: UpdateCategoryDto = req.body;
+    const data: UpdateCategoryDto = req.body;
 
-    const category = await categoryService.update(id, dto);
+    const category = await categoryService.update(categoryId, data);
 
     res.status(200).json({
       success: true,
@@ -105,17 +91,13 @@ export const createCategoryController = ({
   });
 
   const deactivate = asyncHandler(async (req, res) => {
-    const id = req.params.id;
+    const categoryId = req.params.categoryId;
 
-    if (!id || Array.isArray(id)) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid category ID",
-      });
-      return;
+    if (typeof categoryId !== "string" || !categoryId) {
+      throw new BadRequestError("Category ID is required");
     }
 
-    const category = await categoryService.deactivate(id);
+    const category = await categoryService.deactivate(categoryId);
 
     res.status(200).json({
       success: true,
@@ -132,3 +114,4 @@ export const createCategoryController = ({
     deactivate,
   };
 };
+
