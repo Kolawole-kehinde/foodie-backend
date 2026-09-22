@@ -32,3 +32,43 @@ export const createProductSchema = z.object({
 
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
 });
+
+
+
+
+export const updateProductSchema = z.object({
+  categoryId: z.string().cuid("Invalid category ID").optional(),
+
+  name: z
+    .string()
+    .trim()
+    .min(2, "Product name must be at least 2 characters")
+    .max(150, "Product name must not exceed 150 characters")
+    .optional(),
+
+  slug: z
+    .string()
+    .trim()
+    .min(2, "Product slug must be at least 2 characters")
+    .max(150, "Product slug must not exceed 150 characters")
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Slug must contain only lowercase letters, numbers, and hyphens",
+    )
+    .optional(),
+
+  description: z
+    .string()
+    .trim()
+    .min(1, "Product description cannot be empty")
+    .max(2000, "Product description must not exceed 2000 characters")
+    .optional(),
+
+  price: z
+    .number()
+    .positive("Product price must be greater than zero")
+    .finite("Product price must be a valid number")
+    .optional(),
+
+  status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
+});
