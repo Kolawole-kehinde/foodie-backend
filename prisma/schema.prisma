@@ -8,30 +8,30 @@ generator client {
 }
 
 model User {
-  id                    String   @id @default(cuid())
-  email                 String   @unique
-  passwordHash          String
+  id           String @id @default(cuid())
+  email        String @unique
+  passwordHash String
 
-  status                UserStatus @default(PENDING_VERIFICATION)
+  status UserStatus @default(PENDING_VERIFICATION)
 
-  emailVerifiedAt       DateTime?
+  emailVerifiedAt DateTime?
 
-  failedLoginAttempts   Int      @default(0)
-  lockedUntil           DateTime?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
 
-  lastLoginAt           DateTime?
+  lastLoginAt DateTime?
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  roles                 UserRole[]
-  loginAttempts         LoginAttempt[]
-  securityEvents         SecurityEvent[]
-  sessions              UserSession[]
-  passwordResetTokens   PasswordResetToken[]
-  auditLogs             AuditLog[]
-  profile                Profile?
-  mediaUploads           MediaUpload[]
+  roles               UserRole[]
+  loginAttempts       LoginAttempt[]
+  securityEvents      SecurityEvent[]
+  sessions            UserSession[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]
+  profile             Profile?
+  mediaUploads        MediaUpload[]
 }
 
 model MediaUpload {
@@ -40,15 +40,15 @@ model MediaUpload {
   type         MediaType
   status       MediaUploadStatus @default(PENDING)
 
-  objectKey    String            @unique
-  contentType  String
-  fileSize     Int?
+  objectKey   String @unique
+  contentType String
+  fileSize    Int?
 
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  expiresAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
 
-  uploadedBy   User              @relation(fields: [uploadedById],references: [id],onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
 
   @@index([uploadedById])
   @@index([status])
@@ -69,50 +69,47 @@ model Profile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-
- model Role {
-  id          String   @id @default(cuid())
-  name        RoleName @unique
+model Role {
+  id          String           @id @default(cuid())
+  name        RoleName         @unique
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   users       UserRole[]
   permissions RolePermission[]
 }
 
 model Permission {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  name        String   @unique
+  name        String  @unique
   resource    String
   action      String
   description String?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  roles       RolePermission[]
+  roles RolePermission[]
 }
 
 model UserRole {
   userId String
   roleId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
 }
 
-
 model RolePermission {
   roleId       String
   permissionId String
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
 }
-
 
 model UserSession {
   id String @id @default(cuid())
@@ -130,7 +127,7 @@ model UserSession {
 
   expiresAt DateTime
 
-  revokedAt DateTime?
+  revokedAt    DateTime?
   revokeReason SessionRevocationReason?
 
   createdAt DateTime @default(now())
@@ -143,8 +140,6 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
 }
-
-
 
 model RefreshToken {
   id String @id @default(cuid())
@@ -167,6 +162,7 @@ model RefreshToken {
   @@index([sessionId])
   @@index([expiresAt])
 }
+
 model PendingRegistration {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -175,12 +171,11 @@ model PendingRegistration {
   ipAddress    String?
   userAgent    String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([expiresAt])
 }
-
 
 model PasswordResetToken {
   id String @id @default(cuid())
@@ -224,8 +219,8 @@ model AuditLog {
 model LoginAttempt {
   id String @id @default(cuid())
 
-  userId String?
-  email String?
+  userId  String?
+  email   String?
   success Boolean
 
   failureReason LoginFailureReason?
@@ -233,21 +228,20 @@ model LoginAttempt {
   ipAddress String?
   userAgent String?
 
-  country String?
-  city String?
-  latitude Float?
+  country   String?
+  city      String?
+  latitude  Float?
   longitude Float?
 
   createdAt DateTime @default(now())
 
-  user User? @relation(fields: [userId],references: [id],onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([email])
   @@index([ipAddress])
   @@index([createdAt])
 }
-
 
 model SecurityEvent {
   id String @id @default(cuid())
@@ -262,7 +256,7 @@ model SecurityEvent {
   userAgent String?
 
   country String?
-  city String?
+  city    String?
 
   metadata Json?
 
@@ -278,28 +272,25 @@ model SecurityEvent {
   @@index([createdAt])
 }
 
-
-
-
 model Category {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
   description String?
   imageUrl    String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean @default(true)
 
-  products    Product[]
+  products Product[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isActive])
 }
 
 model Product {
-  id          String        @id @default(cuid())
-  categoryId  String
+  id         String @id @default(cuid())
+  categoryId String
 
   name        String
   slug        String        @unique
@@ -307,17 +298,15 @@ model Product {
   price       Decimal       @db.Decimal(12, 2)
   status      ProductStatus @default(DRAFT)
 
-  category    Category      @relation(fields: [categoryId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([categoryId])
   @@index([status])
   @@index([categoryId, status])
 }
-
-
 
 enum SecurityEventType {
   LOGIN_FAILED
@@ -346,14 +335,12 @@ enum SecurityEventType {
   ADMIN_ACCOUNT_UNLOCKED
 }
 
-
 enum SecurityEventSeverity {
   LOW
   MEDIUM
   HIGH
   CRITICAL
 }
-
 
 enum LoginFailureReason {
   INVALID_CREDENTIALS
@@ -366,7 +353,6 @@ enum LoginFailureReason {
   MFA_FAILED
 }
 
-
 enum UserStatus {
   PENDING_VERIFICATION
   ACTIVE
@@ -374,7 +360,6 @@ enum UserStatus {
   SUSPENDED
   DELETED
 }
-
 
 enum SessionRevocationReason {
   USER_LOGOUT
@@ -395,7 +380,6 @@ enum RoleName {
   MODERATOR
 }
 
-
 enum MediaUploadStatus {
   PENDING
   READY
@@ -406,7 +390,6 @@ enum MediaType {
   AVATAR
   PRODUCT_IMAGE
 }
-
 
 enum ProductStatus {
   DRAFT
