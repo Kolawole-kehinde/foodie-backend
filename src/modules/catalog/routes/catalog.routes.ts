@@ -1,37 +1,118 @@
 import { Router } from "express";
+import type { RequestHandler } from "express";
+
 import type { CategoryController } from "../controllers/category.controller.js";
 import type { ProductController } from "../controllers/product.controller.js";
 
 type CatalogRouteDependencies = {
   categoryController: CategoryController;
   productController: ProductController;
+  authenticate: RequestHandler;
+  authorizePermission: (
+    permission: string,
+  ) => RequestHandler;
 };
 
 export const createCatalogRoutes = ({
   categoryController,
   productController,
+  authenticate,
+  authorizePermission,
 }: CatalogRouteDependencies) => {
   const router = Router();
 
-  // Categories
-  router.post("/categories", categoryController.create);
-  router.get("/categories", categoryController.getAll);
-  router.get("/categories/:id", categoryController.getById);
-  router.get("/categories/slug/:slug", categoryController.getBySlug);
-  router.patch("/categories/:id", categoryController.update);
-  router.delete("/categories/:id", categoryController.deactivate);
 
-  // Products
-  router.post("/products", productController.create);
-  router.get("/products", productController.getAll);
-  router.get("/products/:id", productController.getById);
-  router.get("/products/slug/:slug", productController.getBySlug);
+  // Read categories
+  router.get(
+    "/categories",
+    authenticate,
+    categoryController.getAll,
+  );
+
+  router.get(
+    "/categories/:id",
+    authenticate,
+    categoryController.getById,
+  );
+
+  router.get(
+    "/categories/slug/:slug",
+    authenticate,
+    categoryController.getBySlug,
+  );
+
+  // Manage categories
+  router.post(
+    "/categories",
+    authenticate,
+    authorizePermission("categories.create"),
+    categoryController.create,
+  );
+
+  router.patch(
+    "/categories/:id",
+    authenticate,
+    authorizePermission("categories.update"),
+    categoryController.update,
+  );
+
+  router.delete(
+    "/categories/:id",
+    authenticate,
+    authorizePermission("categories.delete"),
+    categoryController.deactivate,
+  );
+
+  /*
+   * Products
+   */
+
+  // Read products
+  router.get(
+    "/products",
+    authenticate,
+    productController.getAll,
+  );
+
+  router.get(
+    "/products/:id",
+    authenticate,
+    productController.getById,
+  );
+
+  router.get(
+    "/products/slug/:slug",
+    authenticate,
+    productController.getBySlug,
+  );
+
   router.get(
     "/products/category/:categoryId",
+    authenticate,
     productController.getByCategory,
   );
-  router.patch("/products/:id", productController.update);
-  router.delete("/products/:id", productController.archive);
+
+  // Manage products
+  router.post(
+    "/products",
+    authenticate,
+    authorizePermission("products.create"),
+    productController.create,
+  );
+
+  router.patch(
+    "/products/:id",
+    authenticate,
+    authorizePermission("products.update"),
+    productController.update,
+  );
+
+  router.delete(
+    "/products/:id",
+    authenticate,
+    authorizePermission("products.delete"),
+    productController.archive,
+  );
 
   return router;
 };

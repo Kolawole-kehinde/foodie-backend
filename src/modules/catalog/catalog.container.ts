@@ -1,4 +1,5 @@
 import type { DatabaseClient } from "../../database/prisma/types.js";
+import type { RequestHandler } from "express";
 import { createCategoryRepository } from "./repositories/category.repository.js";
 import { createProductRepository } from "./repositories/product.repository.js";
 import { createCategoryService } from "./services/category.service.js";
@@ -7,17 +8,23 @@ import { createCategoryController } from "./controllers/category.controller.js";
 import { createProductController } from "./controllers/product.controller.js";
 import { createCatalogRoutes } from "./routes/catalog.routes.js";
 
-type CatalogContainerDependencies = {
-  prisma: DatabaseClient;
+type CatalogDependencies = {
+  db: DatabaseClient;
+  authenticate: RequestHandler;
+  authorizePermission: (
+    permission: string,
+  ) => RequestHandler;
 };
 
-export const createCatalogContainer = ({
-  prisma,
-}: CatalogContainerDependencies) => {
-
+export const createCatalogDependencies = ({
+  db,
+  authenticate,
+  authorizePermission,
+}: CatalogDependencies) => {
+    
   // Repositories
-  const categoryRepository = createCategoryRepository(prisma);
-  const productRepository = createProductRepository(prisma);
+  const categoryRepository = createCategoryRepository(db);
+  const productRepository = createProductRepository(db);
 
   // Services
   const categoryService = createCategoryService({
@@ -42,6 +49,8 @@ export const createCatalogContainer = ({
   const routes = createCatalogRoutes({
     categoryController,
     productController,
+    authenticate,
+    authorizePermission,
   });
 
   return {
@@ -55,4 +64,5 @@ export const createCatalogContainer = ({
   };
 };
 
-export type CatalogContainer = ReturnType<typeof createCatalogContainer>;
+export type CatalogDependenciesContainer =
+  ReturnType<typeof createCatalogDependencies>;
