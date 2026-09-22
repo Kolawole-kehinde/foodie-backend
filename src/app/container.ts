@@ -57,6 +57,7 @@ const profile = createProfileDependencies({
 
 const catalog = createCatalogDependencies({
   db: prisma,
+  mediaUploadRepository: media.mediaUploadRepository,
   authenticate,
   authorizePermission,
 });

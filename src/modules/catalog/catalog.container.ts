@@ -1,5 +1,6 @@
 import type { DatabaseClient } from "../../database/prisma/types.js";
 import type { RequestHandler } from "express";
+import type { MediaUploadRepository } from "../media/repositories/media-upload.repository.js";
 
 import { createCategoryRepository } from "./repositories/category.repository.js";
 import { createProductRepository } from "./repositories/product.repository.js";
@@ -14,12 +15,14 @@ import { createCatalogRoutes } from "./routes/catalog.routes.js";
 
 type CatalogDependencies = {
   db: DatabaseClient;
+  mediaUploadRepository: MediaUploadRepository;
   authenticate: RequestHandler;
   authorizePermission: (permission: string) => RequestHandler;
 };
 
 export const createCatalogDependencies = ({
   db,
+  mediaUploadRepository,
   authenticate,
   authorizePermission,
 }: CatalogDependencies) => {
@@ -35,6 +38,7 @@ export const createCatalogDependencies = ({
   const productService = createProductService({
     productRepository,
     categoryRepository,
+    mediaUploadRepository,
   });
 
   // Controllers
@@ -65,4 +69,5 @@ export const createCatalogDependencies = ({
   };
 };
 
-export type CatalogDependenciesContainer = ReturnType<typeof createCatalogDependencies>;
+export type CatalogDependenciesContainer =
+  ReturnType<typeof createCatalogDependencies>;

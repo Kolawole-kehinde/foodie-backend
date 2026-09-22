@@ -30,11 +30,10 @@ export const createProductSchema = z.object({
     .positive("Product price must be greater than zero")
     .finite("Product price must be a valid number"),
 
+  mediaUploadId: z.string().cuid("Invalid media upload ID").optional(),
+
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
 });
-
-
-
 
 export const updateProductSchema = z.object({
   categoryId: z.string().cuid("Invalid category ID").optional(),
@@ -68,6 +67,12 @@ export const updateProductSchema = z.object({
     .number()
     .positive("Product price must be greater than zero")
     .finite("Product price must be a valid number")
+    .optional(),
+
+  mediaUploadId: z
+    .string()
+    .cuid("Invalid media upload ID")
+    .nullable()
     .optional(),
 
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),

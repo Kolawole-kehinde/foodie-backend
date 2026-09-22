@@ -31,6 +31,20 @@ export const createMediaUploadRepository = (db: DatabaseClient) => {
     });
   };
 
+  const findReadyProductUpload = async (
+    id: string,
+    uploadedById: string,
+  ) => {
+    return db.mediaUpload.findFirst({
+      where: {
+        id,
+        uploadedById,
+        type: "PRODUCT_IMAGE",
+        status: "READY",
+      },
+    });
+  };
+
   const markReady = async (
     id: string,
     uploadedById: string,
@@ -65,9 +79,11 @@ export const createMediaUploadRepository = (db: DatabaseClient) => {
   return {
     create,
     findById,
+    findReadyProductUpload,
     markReady,
     markFailed,
   };
 };
 
-export type MediaUploadRepository = ReturnType<typeof createMediaUploadRepository>;
+export type MediaUploadRepository =
+  ReturnType<typeof createMediaUploadRepository>;

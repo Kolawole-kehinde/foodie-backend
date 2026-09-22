@@ -27,7 +27,10 @@ export const createProductController = ({
   const create = asyncHandler(async (req, res) => {
     const dto: CreateProductDto = req.body;
 
-    const product = await productService.create(dto);
+    const product = await productService.create({
+      ...dto,
+      userId: req.user.id,
+    });
 
     res.status(201).json({
       success: true,
@@ -99,7 +102,10 @@ export const createProductController = ({
 
     const dto: UpdateProductDto = req.body;
 
-    const product = await productService.update(productId, dto);
+    const product = await productService.update(productId, {
+      ...dto,
+      userId: req.user.id,
+    });
 
     res.status(200).json({
       success: true,
