@@ -5,17 +5,24 @@ type CategoryServiceDependencies = {
   categoryRepository: CategoryRepository;
 };
 
-type CategoryData = {
-    name: string;
-    slug: string;
-    description?: string;
-    imageUrl?: string;
-    isActive?: boolean;
-}
+type CreateCategoryData = {
+  name: string;
+  slug: string;
+  description?: string;
+  imageUrl?: string;
+};
+
+type UpdateCategoryData = {
+  name?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string;
+  isActive?: boolean;
+};
 
 export const createCategoryService = ({ categoryRepository}: CategoryServiceDependencies) => {
     
-  const create = async (data: CategoryData) => {
+  const create = async (data: CreateCategoryData) => {
     const existingCategory = await categoryRepository.getCategoryBySlug(
       data.slug,
     );
@@ -52,8 +59,8 @@ export const createCategoryService = ({ categoryRepository}: CategoryServiceDepe
     return categoryRepository.getAllCategories();
   };
 
-  const update = async ( id: string, data: CategoryData,) => {
-    
+  const update = async ( id: string, data: UpdateCategoryData,) => {
+
     await getById(id);
 
     if (data.slug) {
