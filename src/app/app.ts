@@ -16,6 +16,7 @@ import {
   userRoleRoutes,
   permissionRoutes,
   userRoutes,
+  catalog
 } from "./container.js";
 
 
@@ -48,6 +49,7 @@ export function createApp(): Express {
   app.use("/api/v1/users", userRoleRoutes);
 
   app.use("/api/v1/permissions", permissionRoutes);
+  app.use("/api/v1/catalog", catalog.routes);
 
   // 404 handler must come after all routes.
   app.use(notFound);

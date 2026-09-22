@@ -6,6 +6,7 @@ import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
 import { createS3Service } from "../infrastructure/s3/s3.service.js";
 import { createMediaDependencies } from "../modules/media/media.dependencies.js";
 import { createProfileDependencies } from "../modules/profile/profile.dependencies.js";
+
 import {
   authRoutes,
   roleRoutes,
@@ -16,6 +17,7 @@ import {
   permissionRoutes,
   userRoutes,
 } from "../modules/identity/identity.container.js";
+import { createCatalogDependencies } from "../modules/catalog/catalog.container.js";
 
 // Infrastructure
 
@@ -51,6 +53,14 @@ const profile = createProfileDependencies({
   authenticate,
 });
 
+// Catalog
+
+const catalog = createCatalogDependencies({
+  db: prisma,
+  authenticate,
+  authorizePermission,
+});
+
 // Public Dependencies
 
 export {
@@ -67,4 +77,5 @@ export {
   emailDlqRoutes,
   media,
   profile,
+  catalog,
 };
