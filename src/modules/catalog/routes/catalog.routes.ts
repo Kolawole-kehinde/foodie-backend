@@ -21,7 +21,6 @@ export const createCatalogRoutes = ({
 }: CatalogRouteDependencies) => {
   const router = Router();
 
-
   // Read categories
   router.get(
     "/categories",
@@ -75,7 +74,7 @@ export const createCatalogRoutes = ({
   );
 
   router.get(
-    "/products/:id",
+    "/products/:productId",
     authenticate,
     productController.getById,
   );
@@ -101,14 +100,14 @@ export const createCatalogRoutes = ({
   );
 
   router.patch(
-    "/products/:id",
+    "/products/:productId",
     authenticate,
     authorizePermission("products.update"),
     productController.update,
   );
 
   router.delete(
-    "/products/:id",
+    "/products/:productId",
     authenticate,
     authorizePermission("products.delete"),
     productController.archive,

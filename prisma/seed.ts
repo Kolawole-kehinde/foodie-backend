@@ -321,6 +321,32 @@ const permissions = [
     action: "read",
     description: "View security events",
   },
+
+  // Categories
+  {
+    name: "categories.read",
+    resource: "categories",
+    action: "read",
+    description: "View categories",
+  },
+  {
+    name: "categories.create",
+    resource: "categories",
+    action: "create",
+    description: "Create a category",
+  },
+  {
+    name: "categories.update",
+    resource: "categories",
+    action: "update",
+    description: "Update a category",
+  },
+  {
+    name: "categories.delete",
+    resource: "categories",
+    action: "delete",
+    description: "Deactivate a category",
+  },
 ];
 
 const rolePermissions: Record<RoleName, string[]> = {
@@ -416,6 +442,12 @@ const rolePermissions: Record<RoleName, string[]> = {
     // Audit & Security
     "audit.read",
     "security-events.read",
+
+    //Categories
+    "categories.read",
+    "categories.create",
+    "categories.update",
+    "categories.delete",
   ],
 
   // Reserved for future features
@@ -423,7 +455,6 @@ const rolePermissions: Record<RoleName, string[]> = {
 
   [RoleName.MODERATOR]: [],
 };
-
 
 async function main() {
   // 1. Seed roles

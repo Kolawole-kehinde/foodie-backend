@@ -39,8 +39,8 @@ export const createProductService = ({
   categoryRepository,
   mediaUploadRepository,
 }: ProductServiceDependencies) => {
-  const create = async (data: CreateProductData) => {
-    const category = await categoryRepository.getCategoryById(data.categoryId);
+  const validateCategory = async (categoryId: string) => {
+    const category = await categoryRepository.getCategoryById(categoryId);
 
     if (!category) {
       throw new NotFoundError("Category not found");
@@ -50,25 +50,50 @@ export const createProductService = ({
       throw new ConflictError("Category is inactive");
     }
 
-    const existingProduct = await productRepository.getProductBySlug(data.slug);
+    return category;
+  };
 
-    if (existingProduct) {
+  const validateProductSlug = async (
+    slug: string,
+    productId?: string,
+  ) => {
+    const existingProduct =
+      await productRepository.getProductBySlug(slug);
+
+    if (existingProduct && existingProduct.id !== productId) {
       throw new ConflictError("Product with this slug already exists");
     }
+  };
+
+  const resolveImageKey = async (
+    mediaUploadId: string,
+    userId: string,
+  ) => {
+    const mediaUpload =
+      await mediaUploadRepository.findReadyProductUpload(
+        mediaUploadId,
+        userId,
+      );
+
+    if (!mediaUpload) {
+      throw new NotFoundError("Product image upload not found");
+    }
+
+    return mediaUpload.objectKey;
+  };
+
+  const create = async (data: CreateProductData) => {
+    await validateCategory(data.categoryId);
+
+    await validateProductSlug(data.slug);
 
     let imageKey: string | undefined;
 
     if (data.mediaUploadId) {
-      const mediaUpload = await mediaUploadRepository.findReadyProductUpload(
+      imageKey = await resolveImageKey(
         data.mediaUploadId,
         data.userId,
       );
-
-      if (!mediaUpload) {
-        throw new NotFoundError("Product image upload not found");
-      }
-
-      imageKey = mediaUpload.objectKey;
     }
 
     return productRepository.create({
@@ -111,64 +136,39 @@ export const createProductService = ({
   };
 
   const getProductsByCategory = async (categoryId: string) => {
-    const category = await categoryRepository.getCategoryById(categoryId);
-
-    if (!category) {
-      throw new NotFoundError("Category not found");
-    }
+    await validateCategory(categoryId);
 
     return productRepository.getProductsByCategory(categoryId);
   };
 
-  const update = async (id: string, data: UpdateProductData) => {
+  const update = async (
+    id: string,
+    data: UpdateProductData,
+  ) => {
     await getProductById(id);
 
-    if (data.categoryId) {
-      const category = await categoryRepository.getCategoryById(
-        data.categoryId,
-      );
-
-      if (!category) {
-        throw new NotFoundError("Category not found");
-      }
-
-      if (!category.isActive) {
-        throw new ConflictError("Category is inactive");
-      }
+    if (data.categoryId !== undefined) {
+      await validateCategory(data.categoryId);
     }
 
-    if (data.slug) {
-      const existingProduct = await productRepository.getProductBySlug(
-        data.slug,
-      );
-
-      if (existingProduct && existingProduct.id !== id) {
-        throw new ConflictError("Product with this slug already exists");
-      }
+    if (data.slug !== undefined) {
+      await validateProductSlug(data.slug, id);
     }
 
     let imageKey: string | null | undefined;
 
     if (data.mediaUploadId !== undefined) {
-      if (data.mediaUploadId === null) {
-        imageKey = null;
-      } else {
-        const mediaUpload =
-          await mediaUploadRepository.findReadyProductUpload(
-            data.mediaUploadId,
-            data.userId,
-          );
-
-        if (!mediaUpload) {
-          throw new NotFoundError("Product image upload not found");
-        }
-
-        imageKey = mediaUpload.objectKey;
-      }
+      imageKey =
+        data.mediaUploadId === null
+          ? null
+          : await resolveImageKey(
+              data.mediaUploadId,
+              data.userId,
+            );
     }
 
     return productRepository.updateProduct(id, {
-      ...(data.categoryId && {
+      ...(data.categoryId !== undefined && {
         category: {
           connect: {
             id: data.categoryId,
