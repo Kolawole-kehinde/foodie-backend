@@ -18,6 +18,10 @@ import "./user/profile.js";
 import "./user/users.js";
 import "./user/user-roles.js";
 
+// Catalog documentation
+import "./catalog/categories.js";
+import "./catalog/products.js";
+
 // Role documentation
 import "./role/roles.js";
 import "./role/role-permissions.js";
@@ -54,9 +58,27 @@ export const swaggerSpec = generator.generateDocument({
       name: "User",
       description: "Authenticated user self-service endpoints",
     },
+
+    {
+      name: "Catalog - Categories",
+      description: "Product category management endpoints",
+    },
+    {
+      name: "Catalog - Products",
+      description: "Product catalog and management endpoints",
+    },
     {
       name: "Profile",
       description: "Authenticated user profile endpoints",
+    },
+
+    {
+      name: "Catalog - Categories",
+      description: "Product category management endpoints",
+    },
+    {
+      name: "Catalog - Products",
+      description: "Product catalog and management endpoints",
     },
     {
       name: "Admin - Users",
