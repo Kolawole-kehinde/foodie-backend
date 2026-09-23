@@ -1,33 +1,25 @@
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { StringValue } from "ms";
-import type { RoleName } from "@prisma/client";
 import { env } from "../../../config/env.js";
 
 export type AccessTokenPayload = {
   userId: string;
   sessionId: string;
-  roles: RoleName[];
 };
 
 type JwtAccessTokenPayload = jwt.JwtPayload & {
   sub: string;
   sessionId: string;
-  roles: RoleName[];
 };
 
 export const createTokenService = () => {
-  
   const generateRandomToken = (size = 32): string => {
     return crypto.randomBytes(size).toString("hex");
   };
 
-    const generateOtp = (): string => {
+  const generateOtp = (): string => {
     return crypto.randomInt(100000, 1000000).toString();
-  };
-
-  const generateJwtId = (): string => {
-    return crypto.randomUUID();
   };
 
   const hashToken = (token: string): string => {
@@ -35,16 +27,18 @@ export const createTokenService = () => {
   };
 
   // Create access token
-  const createAccessToken = ({userId, sessionId, roles,}: AccessTokenPayload) => {
-    return jwt.sign({
+  const createAccessToken = ({
+    userId,
+    sessionId,
+  }: AccessTokenPayload): string => {
+    return jwt.sign(
+      {
         sub: userId,
         sessionId,
-        roles,
       },
       env.jwt.ACCESS_SECRET,
       {
         expiresIn: env.jwt.ACCESS_EXPIRES_IN as StringValue,
-        jwtid: generateJwtId(),
       },
     );
   };
@@ -61,8 +55,7 @@ export const createTokenService = () => {
 
     if (
       typeof payload.sub !== "string" ||
-      typeof payload.sessionId !== "string" ||
-      !Array.isArray(payload.roles)
+      typeof payload.sessionId !== "string"
     ) {
       throw new Error("Invalid access token payload");
     }
@@ -70,7 +63,6 @@ export const createTokenService = () => {
     return {
       userId: payload.sub,
       sessionId: payload.sessionId,
-      roles: payload.roles,
     };
   };
 
