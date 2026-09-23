@@ -1,14 +1,18 @@
 import type { RequestHandler } from "express";
+
 import type { ProductService } from "../services/product.service.js";
+import type { ProductMapper } from "../mappers/product.mapper.js";
 import type {
   CreateProductDto,
   UpdateProductDto,
 } from "../dto/product.dto.js";
+
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 
 type CreateProductControllerDependencies = {
   productService: ProductService;
+  productMapper: ProductMapper;
 };
 
 export type ProductController = {
@@ -23,6 +27,7 @@ export type ProductController = {
 
 export const createProductController = ({
   productService,
+  productMapper,
 }: CreateProductControllerDependencies): ProductController => {
   const create = asyncHandler(async (req, res) => {
     const dto: CreateProductDto = req.body;
@@ -34,7 +39,7 @@ export const createProductController = ({
 
     res.status(201).json({
       success: true,
-      data: product,
+      data: await productMapper.toResponse(product),
     });
   });
 
@@ -49,7 +54,7 @@ export const createProductController = ({
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: await productMapper.toResponse(product),
     });
   });
 
@@ -64,7 +69,7 @@ export const createProductController = ({
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: await productMapper.toResponse(product),
     });
   });
 
@@ -73,7 +78,7 @@ export const createProductController = ({
 
     res.status(200).json({
       success: true,
-      data: products,
+      data: await productMapper.toResponseList(products),
     });
   });
 
@@ -89,7 +94,7 @@ export const createProductController = ({
 
     res.status(200).json({
       success: true,
-      data: products,
+      data: await productMapper.toResponseList(products),
     });
   });
 
@@ -109,7 +114,7 @@ export const createProductController = ({
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: await productMapper.toResponse(product),
     });
   });
 
@@ -124,7 +129,7 @@ export const createProductController = ({
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: await productMapper.toResponse(product),
     });
   });
 
