@@ -33,12 +33,16 @@ export const createInventoryRepository = (db: DatabaseClient) => {
     });
   };
 
+
+
+// Records what happened to the stock.
   const createMovement = (data: Prisma.InventoryMovementCreateInput) => {
     return db.inventoryMovement.create({
       data,
     });
   };
 
+  //Retrieves the stock history, newest first.
   const getMovements = (inventoryId: string) => {
     return db.inventoryMovement.findMany({
       where: {
