@@ -5,6 +5,7 @@ import {
   updateProductSchema,
 } from "../../modules/catalog/validators/product.validator.js";
 
+
 const productResponseSchema = z.object({
   id: z.string(),
   categoryId: z.string(),
@@ -17,6 +18,7 @@ const productResponseSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
+
 
 const productIdParamsSchema = z.object({
   productId: z.string().cuid("Invalid product ID"),

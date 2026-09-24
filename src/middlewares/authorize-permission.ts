@@ -6,10 +6,12 @@ type AuthorizePermissionDependencies = {
   authorizationService: AuthorizationService;
 };
 
+
 export const createAuthorizePermission = ({ authorizationService,}: AuthorizePermissionDependencies) => {
   const authorizePermission = (requiredPermission: string): RequestHandler => {
     return async (req, _res, next) => {
       try {
+
         if (!req.user) {
           return next(new ForbiddenError("Access denied"));
         }
