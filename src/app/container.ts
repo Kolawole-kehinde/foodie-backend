@@ -6,7 +6,6 @@ import { createEmailDlqRoutes } from "../workers/routes/email-dlq.routes.js";
 import { createS3Service } from "../infrastructure/s3/s3.service.js";
 import { createMediaDependencies } from "../modules/media/media.dependencies.js";
 import { createProfileDependencies } from "../modules/profile/profile.dependencies.js";
-
 import {
   authRoutes,
   roleRoutes,
@@ -17,14 +16,14 @@ import {
   permissionRoutes,
   userRoutes,
 } from "../modules/identity/identity.container.js";
+
 import { createCatalogDependencies } from "../modules/catalog/catalog.container.js";
+import { createInventoryDependencies } from "../modules/inventory/inventory.container.js";
 
 // Infrastructure
-
 const s3Service = createS3Service();
 
 // Email DLQ
-
 const emailDlqService = createEmailDlqService();
 
 const emailDlqController = createEmailDlqController({
@@ -38,7 +37,6 @@ const emailDlqRoutes = createEmailDlqRoutes({
 });
 
 // Media
-
 const media = createMediaDependencies({
   db: prisma,
   s3Service,
@@ -46,7 +44,6 @@ const media = createMediaDependencies({
 });
 
 // Profile
-
 const profile = createProfileDependencies({
   db: prisma,
   s3Service,
@@ -54,11 +51,19 @@ const profile = createProfileDependencies({
 });
 
 // Catalog
-
 const catalog = createCatalogDependencies({
   db: prisma,
   mediaUploadRepository: media.mediaUploadRepository,
   s3Service,
+  authenticate,
+  authorizePermission,
+});
+
+// Inventory
+
+const inventory = createInventoryDependencies({
+  db: prisma,
+  productRepository: catalog.productRepository,
   authenticate,
   authorizePermission,
 });
@@ -80,4 +85,5 @@ export {
   media,
   profile,
   catalog,
+  inventory,
 };
