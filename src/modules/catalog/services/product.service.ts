@@ -1,10 +1,18 @@
 import { ProductStatus } from "@prisma/client";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
-import type { CreateProductData, GetProductsData, ProductServiceDependencies, UpdateProductData,} from "../types/product.js";
+import type {
+  CreateProductData,
+  GetProductsData,
+  ProductServiceDependencies,
+  UpdateProductData,
+} from "../types/product.js";
 
-
-export const createProductService = ({ productRepository, categoryRepository, mediaUploadRepository,}: ProductServiceDependencies) => {
+export const createProductService = ({
+  productRepository,
+  categoryRepository,
+  mediaUploadRepository,
+}: ProductServiceDependencies) => {
     
   const validateCategory = async (categoryId: string) => {
     const category = await categoryRepository.getCategoryById(categoryId);

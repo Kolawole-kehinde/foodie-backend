@@ -1,12 +1,9 @@
 import type { RequestHandler } from "express";
-
 import type { ProductService } from "../services/product.service.js";
 import type { ProductMapper } from "../mappers/product.mapper.js";
-import type {
-  CreateProductDto,
-  UpdateProductDto,
-} from "../dto/product.dto.js";
-
+import type { CreateProductDto, UpdateProductDto } from "../dto/product.dto.js";
+import type { ProductQueryDto } from "../dto/product-query.dto.js";
+import { productQuerySchema } from "../validators/product-query.validator.js";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 
@@ -20,7 +17,6 @@ export type ProductController = {
   getById: RequestHandler;
   getBySlug: RequestHandler;
   getAll: RequestHandler;
-  getByCategory: RequestHandler;
   update: RequestHandler;
   archive: RequestHandler;
 };
@@ -29,6 +25,7 @@ export const createProductController = ({
   productService,
   productMapper,
 }: CreateProductControllerDependencies): ProductController => {
+  
   const create = asyncHandler(async (req, res) => {
     const dto: CreateProductDto = req.body;
 
@@ -73,28 +70,29 @@ export const createProductController = ({
     });
   });
 
-  const getAll = asyncHandler(async (_req, res) => {
-    const products = await productService.getAllProducts();
+  // Fetch products using query filters, search, sorting, and pagination.
+  const getAll = asyncHandler(async (req, res) => {
+    const result = productQuerySchema.safeParse(req.query);
 
-    res.status(200).json({
-      success: true,
-      data: await productMapper.toResponseList(products),
-    });
-  });
-
-  const getByCategory = asyncHandler(async (req, res) => {
-    const categoryId = req.params.categoryId;
-
-    if (typeof categoryId !== "string" || !categoryId) {
-      throw new BadRequestError("Category ID is required");
+    if (!result.success) {
+      throw new BadRequestError(result.error.message);
     }
 
-    const products =
-      await productService.getProductsByCategory(categoryId);
+    const query: ProductQueryDto = result.data;
+
+    const { products, total } = await productService.getProducts(query);
+
+    const totalPages = Math.ceil(total / query.limit);
 
     res.status(200).json({
       success: true,
       data: await productMapper.toResponseList(products),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages,
+      },
     });
   });
 
@@ -138,7 +136,6 @@ export const createProductController = ({
     getById,
     getBySlug,
     getAll,
-    getByCategory,
     update,
     archive,
   };
