@@ -34,21 +34,20 @@ export const createCategoryController = ({
     });
   });
 
-  const getById = asyncHandler(async (req, res) => {
-    const categoryId = req.params.categoryId;
+ const getById = asyncHandler(async (req, res) => {
+  const categoryId = req.params.id;
 
-    if (typeof categoryId !== "string" || !categoryId) {
-      throw new BadRequestError("Category ID is required");
-    }
+  if (typeof categoryId !== "string" || !categoryId) {
+    throw new BadRequestError("Category ID is required");
+  }
 
-    const category = await categoryService.getById(categoryId);
+  const category = await categoryService.getById(categoryId);
 
-    res.status(200).json({
-      success: true,
-      data: category,
-    });
+  res.status(200).json({
+    success: true,
+    data: category,
   });
-
+});
   const getBySlug = asyncHandler(async (req, res) => {
     const slug = req.params.slug;
 
@@ -74,7 +73,7 @@ export const createCategoryController = ({
   });
 
   const update = asyncHandler(async (req, res) => {
-    const categoryId = req.params.categoryId;
+    const categoryId = req.params.id;
 
     if (typeof categoryId !== "string" || !categoryId) {
       throw new BadRequestError("Category ID is required");
@@ -91,7 +90,7 @@ export const createCategoryController = ({
   });
 
   const deactivate = asyncHandler(async (req, res) => {
-    const categoryId = req.params.categoryId;
+    const categoryId = req.params.id;
 
     if (typeof categoryId !== "string" || !categoryId) {
       throw new BadRequestError("Category ID is required");
