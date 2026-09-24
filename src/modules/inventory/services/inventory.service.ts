@@ -20,8 +20,7 @@ export const createInventoryService = ({
       throw new NotFoundError("Product not found");
     }
 
-    const existingInventory =
-      await inventoryRepository.getByProductId(productId);
+    const existingInventory = await inventoryRepository.getByProductId(productId);
 
     if (existingInventory) {
       throw new ConflictError("Inventory already exists for this product");
@@ -40,8 +39,7 @@ export const createInventoryService = ({
   };
 
   const getByProductId = async (productId: string) => {
-    const inventory =
-      await inventoryRepository.getByProductId(productId);
+    const inventory = await inventoryRepository.getByProductId(productId);
 
     if (!inventory) {
       throw new NotFoundError("Inventory not found");
@@ -60,6 +58,7 @@ export const createInventoryService = ({
     return inventory;
   };
 
+
   const addStock = async (
     productId: string,
     quantity: number,
@@ -72,8 +71,7 @@ export const createInventoryService = ({
     const inventory = await getByProductId(productId);
 
     const updatedInventory = await inventoryRepository.update(
-      inventory.id,
-      {
+      inventory.id, {
         quantity: {
           increment: quantity,
         },
@@ -105,16 +103,14 @@ export const createInventoryService = ({
 
     const inventory = await getByProductId(productId);
 
-    const availableQuantity =
-      inventory.quantity - inventory.reservedQuantity;
+    const availableQuantity = inventory.quantity - inventory.reservedQuantity;
 
     if (quantity > availableQuantity) {
       throw new ConflictError("Insufficient available stock");
     }
 
     const updatedInventory = await inventoryRepository.update(
-      inventory.id,
-      {
+      inventory.id, {
         quantity: {
           decrement: quantity,
         },
