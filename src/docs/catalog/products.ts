@@ -1,10 +1,12 @@
 import { registry } from "../registry.js";
 import { z } from "../zod-openapi.js";
+
 import {
   createProductSchema,
   updateProductSchema,
 } from "../../modules/catalog/validators/product.validator.js";
 
+import { productQuerySchema } from "../../modules/catalog/validators/product-query.validator.js";
 
 const productResponseSchema = z.object({
   id: z.string(),
@@ -19,6 +21,12 @@ const productResponseSchema = z.object({
   updatedAt: z.string(),
 });
 
+const paginationResponseSchema = z.object({
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+  totalPages: z.number(),
+});
 
 const productIdParamsSchema = z.object({
   productId: z.string().cuid("Invalid product ID"),
@@ -28,18 +36,19 @@ const productSlugParamsSchema = z.object({
   slug: z.string().min(1, "Product slug is required"),
 });
 
-const categoryIdParamsSchema = z.object({
-  categoryId: z.string().cuid("Invalid category ID"),
-});
-
 /**
  * GET /api/v1/catalog/products
+ *
+ * Supports category filtering, search, sorting, and pagination.
  */
 registry.registerPath({
   method: "get",
   path: "/api/v1/catalog/products",
   tags: ["Catalog - Products"],
   security: [{ bearerAuth: [] }],
+  request: {
+    query: productQuerySchema,
+  },
   responses: {
     200: {
       description: "Products retrieved successfully",
@@ -48,6 +57,7 @@ registry.registerPath({
           schema: z.object({
             success: z.literal(true),
             data: z.array(productResponseSchema),
+            pagination: paginationResponseSchema,
           }),
         },
       },
@@ -100,32 +110,6 @@ registry.registerPath({
           schema: z.object({
             success: z.literal(true),
             data: productResponseSchema,
-          }),
-        },
-      },
-    },
-  },
-});
-
-/**
- * GET /api/v1/catalog/products/category/{categoryId}
- */
-registry.registerPath({
-  method: "get",
-  path: "/api/v1/catalog/products/category/{categoryId}",
-  tags: ["Catalog - Products"],
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: categoryIdParamsSchema,
-  },
-  responses: {
-    200: {
-      description: "Products retrieved successfully",
-      content: {
-        "application/json": {
-          schema: z.object({
-            success: z.literal(true),
-            data: z.array(productResponseSchema),
           }),
         },
       },
