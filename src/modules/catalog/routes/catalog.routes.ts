@@ -1,6 +1,5 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
-
 import type { CategoryController } from "../controllers/category.controller.js";
 import type { ProductController } from "../controllers/product.controller.js";
 
@@ -8,9 +7,7 @@ type CatalogRouteDependencies = {
   categoryController: CategoryController;
   productController: ProductController;
   authenticate: RequestHandler;
-  authorizePermission: (
-    permission: string,
-  ) => RequestHandler;
+  authorizePermission: ( permission: string) => RequestHandler;
 };
 
 export const createCatalogRoutes = ({
@@ -19,7 +16,12 @@ export const createCatalogRoutes = ({
   authenticate,
   authorizePermission,
 }: CatalogRouteDependencies) => {
+  
   const router = Router();
+
+  /*
+   * Categories
+   */
 
   // Read categories
   router.get(
@@ -29,15 +31,15 @@ export const createCatalogRoutes = ({
   );
 
   router.get(
-    "/categories/:id",
-    authenticate,
-    categoryController.getById,
-  );
-
-  router.get(
     "/categories/slug/:slug",
     authenticate,
     categoryController.getBySlug,
+  );
+
+  router.get(
+    "/categories/:id",
+    authenticate,
+    categoryController.getById,
   );
 
   // Manage categories
@@ -67,18 +69,15 @@ export const createCatalogRoutes = ({
    */
 
   // Read products
+  // Filtering, search, sorting, and pagination are handled
+  // through query parameters.
   router.get(
     "/products",
     authenticate,
     productController.getAll,
   );
 
-  router.get(
-    "/products/:productId",
-    authenticate,
-    productController.getById,
-  );
-
+  // More specific product routes must come before /:productId.
   router.get(
     "/products/slug/:slug",
     authenticate,
@@ -86,9 +85,9 @@ export const createCatalogRoutes = ({
   );
 
   router.get(
-    "/products/category/:categoryId",
+    "/products/:productId",
     authenticate,
-    productController.getByCategory,
+    productController.getById,
   );
 
   // Manage products
