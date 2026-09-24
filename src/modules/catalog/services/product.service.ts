@@ -1,44 +1,11 @@
 import { ProductStatus } from "@prisma/client";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
+import type { CreateProductData, GetProductsData, ProductServiceDependencies, UpdateProductData,} from "../types/product.js";
 
-import type { CategoryRepository } from "../repositories/category.repository.js";
-import type { ProductRepository } from "../repositories/product.repository.js";
-import type { MediaUploadRepository } from "../../media/repositories/media-upload.repository.js";
 
-type ProductServiceDependencies = {
-  productRepository: ProductRepository;
-  categoryRepository: CategoryRepository;
-  mediaUploadRepository: MediaUploadRepository;
-};
-
-type CreateProductData = {
-  userId: string;
-  categoryId: string;
-  name: string;
-  slug: string;
-  description: string;
-  price: number;
-  mediaUploadId?: string;
-  status?: ProductStatus;
-};
-
-type UpdateProductData = {
-  userId: string;
-  categoryId?: string;
-  name?: string;
-  slug?: string;
-  description?: string;
-  price?: number;
-  mediaUploadId?: string | null;
-  status?: ProductStatus;
-};
-
-export const createProductService = ({
-  productRepository,
-  categoryRepository,
-  mediaUploadRepository,
-}: ProductServiceDependencies) => {
+export const createProductService = ({ productRepository, categoryRepository, mediaUploadRepository,}: ProductServiceDependencies) => {
+    
   const validateCategory = async (categoryId: string) => {
     const category = await categoryRepository.getCategoryById(categoryId);
 
@@ -53,27 +20,19 @@ export const createProductService = ({
     return category;
   };
 
-  const validateProductSlug = async (
-    slug: string,
-    productId?: string,
-  ) => {
-    const existingProduct =
-      await productRepository.getProductBySlug(slug);
+  const validateProductSlug = async (slug: string, productId?: string) => {
+    const existingProduct = await productRepository.getProductBySlug(slug);
 
     if (existingProduct && existingProduct.id !== productId) {
       throw new ConflictError("Product with this slug already exists");
     }
   };
 
-  const resolveImageKey = async (
-    mediaUploadId: string,
-    userId: string,
-  ) => {
-    const mediaUpload =
-      await mediaUploadRepository.findReadyProductUpload(
-        mediaUploadId,
-        userId,
-      );
+  const resolveImageKey = async (mediaUploadId: string, userId: string) => {
+    const mediaUpload = await mediaUploadRepository.findReadyProductUpload(
+      mediaUploadId,
+      userId,
+    );
 
     if (!mediaUpload) {
       throw new NotFoundError("Product image upload not found");
@@ -90,10 +49,7 @@ export const createProductService = ({
     let imageKey: string | undefined;
 
     if (data.mediaUploadId) {
-      imageKey = await resolveImageKey(
-        data.mediaUploadId,
-        data.userId,
-      );
+      imageKey = await resolveImageKey(data.mediaUploadId, data.userId);
     }
 
     return productRepository.create({
@@ -131,20 +87,35 @@ export const createProductService = ({
     return product;
   };
 
-  const getAllProducts = async () => {
-    return productRepository.getAllProducts();
+  // Fetch products using filters, search, sorting, and offset pagination.
+  const getProducts = async (data: GetProductsData) => {
+    let categoryId: string | undefined;
+
+    // Resolve the category slug into its database ID.
+    if (data.category) {
+      const category = await categoryRepository.getCategoryBySlug(
+        data.category,
+      );
+
+      if (!category) {
+        throw new NotFoundError("Category not found");
+      }
+
+      categoryId = category.id;
+    }
+
+    return productRepository.getProducts({
+      categoryId,
+      search: data.search,
+      status: data.status ?? ProductStatus.ACTIVE,
+      page: data.page,
+      limit: data.limit,
+      sortBy: data.sortBy,
+      sortOrder: data.sortOrder,
+    });
   };
 
-  const getProductsByCategory = async (categoryId: string) => {
-    await validateCategory(categoryId);
-
-    return productRepository.getProductsByCategory(categoryId);
-  };
-
-  const update = async (
-    id: string,
-    data: UpdateProductData,
-  ) => {
+  const update = async (id: string, data: UpdateProductData) => {
     await getProductById(id);
 
     if (data.categoryId !== undefined) {
@@ -161,10 +132,7 @@ export const createProductService = ({
       imageKey =
         data.mediaUploadId === null
           ? null
-          : await resolveImageKey(
-              data.mediaUploadId,
-              data.userId,
-            );
+          : await resolveImageKey(data.mediaUploadId, data.userId);
     }
 
     return productRepository.updateProduct(id, {
@@ -212,8 +180,7 @@ export const createProductService = ({
     create,
     getProductById,
     getProductBySlug,
-    getAllProducts,
-    getProductsByCategory,
+    getProducts,
     update,
     archive,
   };
