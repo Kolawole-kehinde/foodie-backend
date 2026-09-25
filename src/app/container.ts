@@ -16,10 +16,10 @@ import {
   permissionRoutes,
   userRoutes,
 } from "../modules/identity/identity.container.js";
-
 import { createCatalogDependencies } from "../modules/catalog/catalog.container.js";
 import { createInventoryDependencies } from "../modules/inventory/inventory.container.js";
-import { createCartContainer } from "../modules/cart/cart.container.js";
+import { createCartDependencies } from "../modules/cart/cart.container.js";
+
 
 // Infrastructure
 const s3Service = createS3Service();
@@ -72,9 +72,9 @@ const inventory = createInventoryDependencies({
 
 // Cart
 
-const cart = createCartContainer({
+const cart = createCartDependencies({
   db: prisma,
-  router,
+  productRepository: catalog.productRepository,
   authenticate,
 });
 
@@ -96,4 +96,5 @@ export {
   profile,
   catalog,
   inventory,
+  cart,
 };

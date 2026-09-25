@@ -17,7 +17,8 @@ import {
   permissionRoutes,
   userRoutes,
   catalog,
-  inventory
+  inventory,
+  cart
 } from "./container.js";
 
 
@@ -51,8 +52,10 @@ export function createApp(): Express {
 
   app.use("/api/v1/permissions", permissionRoutes);
   app.use("/api/v1/catalog", catalog.routes);
-  
+
   app.use("/api/v1/inventory", inventory.inventoryRoutes);
+
+  app.use("/api/v1/cart",  cart.cartRoutes);
 
   // 404 handler must come after all routes.
   app.use(notFound);
