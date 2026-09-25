@@ -8,12 +8,11 @@ type CreateCartRoutesDependencies = {
   router: Router;
   cartController: CartController;
    authenticate: RequestHandler;
-   authorizePermission: ( permission: string) => RequestHandler;
 };
 
 export const createCartRoutes = ({
   router,
-  cartController,
+  cartController, authenticate
 }: CreateCartRoutesDependencies) => {
   // Get authenticated user's cart
   router.get(
