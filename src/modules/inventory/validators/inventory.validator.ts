@@ -5,11 +5,11 @@ export const initializeInventorySchema = z.object({
 });
 
 export const addStockSchema = z.object({
-  productId: z.string().min(1, "Product ID is required"),
   quantity: z
     .number()
     .int("Quantity must be an integer")
     .positive("Quantity must be greater than zero"),
+
   reason: z
     .string()
     .trim()
@@ -18,11 +18,11 @@ export const addStockSchema = z.object({
 });
 
 export const removeStockSchema = z.object({
-  productId: z.string().min(1, "Product ID is required"),
   quantity: z
     .number()
     .int("Quantity must be an integer")
     .positive("Quantity must be greater than zero"),
+
   reason: z
     .string()
     .trim()

@@ -27,7 +27,7 @@ export const createInventoryController = ({
   });
 
   const getByProductId: RequestHandler = asyncHandler(async (req, res) => {
-    const productId = req.params.id;
+    const productId = req.params.productId;
 
     if (typeof productId !== "string" || !productId) {
       throw new BadRequestError("Product ID is required");
@@ -57,7 +57,7 @@ export const createInventoryController = ({
   });
 
   const addStock: RequestHandler = asyncHandler(async (req, res) => {
-    const productId = req.params.id;
+    const productId = req.params.productId;
     const dto: AddStockDto = req.body;
 
     if (typeof productId !== "string" || !productId) {
@@ -77,7 +77,7 @@ export const createInventoryController = ({
   });
 
   const removeStock: RequestHandler = asyncHandler(async (req, res) => {
-    const productId = req.params.id;
+    const productId = req.params.productId;
     const dto: RemoveStockDto = req.body;
 
     if (typeof productId !== "string" || !productId) {

@@ -211,12 +211,30 @@ const permissions = [
   },
 
   // Inventory
-  {
-    name: "inventory.read",
-    resource: "inventory",
-    action: "read",
-    description: "View inventory",
-  },
+ {
+  name: "inventory.read",
+  resource: "inventory",
+  action: "read",
+  description: "View inventory",
+},
+{
+  name: "inventory.create",
+  resource: "inventory",
+  action: "create",
+  description: "Initialize inventory",
+},
+{
+  name: "inventory.stock_in",
+  resource: "inventory",
+  action: "stock_in",
+  description: "Add stock to inventory",
+},
+{
+  name: "inventory.stock_out",
+  resource: "inventory",
+  action: "stock_out",
+  description: "Remove stock from inventory",
+},
   {
     name: "inventory.create",
     resource: "inventory",
@@ -407,10 +425,11 @@ const rolePermissions: Record<RoleName, string[]> = {
     "products.delete",
 
     // Inventory
+
     "inventory.read",
     "inventory.create",
-    "inventory.update",
-    "inventory.delete",
+    "inventory.stock_in",
+    "inventory.stock_out",
 
     // Orders
     "orders.read",

@@ -4,11 +4,11 @@ import { createInventoryRepository } from "./repositories/inventory.repositories
 import { createInventoryService } from "./services/inventory.service.js";
 import { createInventoryController } from "./controllers/inventory.controller.js";
 import { createInventoryRoutes } from "./routes/inventory.routes.js";
-
 import type { ProductRepository } from "../catalog/repositories/product.repository.js";
+import type { PrismaClient } from "@prisma/client";
 
 type InventoryDependencies = {
-  db: DatabaseClient;
+  db: PrismaClient;
   productRepository: ProductRepository;
   authenticate: RequestHandler;
   authorizePermission: (permission: string) => RequestHandler;
@@ -22,8 +22,10 @@ export const createInventoryDependencies = ({
 }: InventoryDependencies) => {
     
   const inventoryRepository = createInventoryRepository(db);
+  
 
   const inventoryService = createInventoryService({
+    db,
     inventoryRepository,
     productRepository,
   });
