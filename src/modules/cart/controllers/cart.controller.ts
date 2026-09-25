@@ -11,7 +11,7 @@ type CreateCartController = {
 };
 
 
-type CartController = {
+export type CartController = {
   getCart: RequestHandler;
   addItem: RequestHandler;
   updateItem: RequestHandler;
