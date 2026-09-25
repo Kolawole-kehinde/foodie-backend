@@ -19,6 +19,7 @@ import {
 
 import { createCatalogDependencies } from "../modules/catalog/catalog.container.js";
 import { createInventoryDependencies } from "../modules/inventory/inventory.container.js";
+import { createCartContainer } from "../modules/cart/cart.container.js";
 
 // Infrastructure
 const s3Service = createS3Service();
@@ -66,6 +67,15 @@ const inventory = createInventoryDependencies({
   productRepository: catalog.productRepository,
   authenticate,
   authorizePermission,
+});
+
+
+// Cart
+
+const cart = createCartContainer({
+  db: prisma,
+  router,
+  authenticate,
 });
 
 // Public Dependencies

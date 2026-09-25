@@ -1,19 +1,23 @@
-import type { RequestHandler, Router } from "express";
+import { Router } from "express";
+import type { RequestHandler } from "express";
 import type { CartController } from "../controllers/cart.controller.js";
+import {
+  addCartItemSchema,
+  updateCartItemSchema,
+} from "../validators/cart.validator.js";
 import { validate } from "../../../shared/middleware/validate.middleware.js";
-import { addCartItemSchema, updateCartItemSchema } from "../validators/cart.validator.js";
 
-
-type CreateCartRoutesDependencies = {
-  router: Router;
+type CartRoutesDependencies = {
   cartController: CartController;
-   authenticate: RequestHandler;
+  authenticate: RequestHandler;
 };
 
 export const createCartRoutes = ({
-  router,
-  cartController, authenticate
-}: CreateCartRoutesDependencies) => {
+  cartController,
+  authenticate,
+}: CartRoutesDependencies) => {
+  const router = Router();
+
   // Get authenticated user's cart
   router.get(
     "/",
@@ -53,3 +57,5 @@ export const createCartRoutes = ({
 
   return router;
 };
+
+export type CartRoutes = ReturnType<typeof createCartRoutes>;

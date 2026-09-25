@@ -1,27 +1,24 @@
-import type { RequestHandler, Router } from "express";
+import type { DatabaseClient } from "../../database/prisma/types.js";
+import type { RequestHandler } from "express";
 import { createCartRepository } from "./repositories/cart.repository.js";
 import { createCartService } from "./services/cart.service.js";
 import { createCartController } from "./controllers/cart.controller.js";
+import type { ProductRepository } from "../catalog/repositories/product.repository.js";
 import { createCartRoutes } from "./routes/cart.routes.js";
-import { createProductRepository } from "../catalog/repositories/product.repository.js";
-import type { DatabaseClient } from "../../database/prisma/types.js";
 
-
-
-type CreateCartContainerDependencies = {
+type CartDependencies = {
   db: DatabaseClient;
-  router: Router;
+  productRepository: ProductRepository;
   authenticate: RequestHandler;
-  
 };
 
-export const createCartContainer = ({
-  router,
-  authenticate, db
-}: CreateCartContainerDependencies) => {
-  // Repositories
+export const createCartDependencies = ({
+  db,
+  productRepository,
+  authenticate,
+}: CartDependencies) => {
+  // Repository
   const cartRepository = createCartRepository(db);
-  const productRepository = createProductRepository(db);
 
   // Service
   const cartService = createCartService({
@@ -36,7 +33,6 @@ export const createCartContainer = ({
 
   // Routes
   const cartRoutes = createCartRoutes({
-    router,
     cartController,
     authenticate,
   });
@@ -49,4 +45,5 @@ export const createCartContainer = ({
   };
 };
 
-export type CartContainer = ReturnType<typeof createCartContainer>;
+export type CartDependenciesContainer =
+  ReturnType<typeof createCartDependencies>;
