@@ -1,10 +1,16 @@
+import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import {
+  createOrderRepository,
+  type OrderRepository,
+} from "../repositories/order.repository.js";
 
-import type { OrderRepository } from "../repositories/order.repository.js";
-import type { CartRepository } from "../../cart/repositories/cart.repository.js";
+import {
+  createCartRepository,
+  type CartRepository,
+} from "../../cart/repositories/cart.repository.js";
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
-
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
@@ -23,11 +29,9 @@ export const createOrderService = ({
   productRepository,
   inventoryService,
 }: CreateOrderServiceDependencies) => {
-
   const getReservationExpiresAt = () => {
     return new Date(Date.now() + 15 * 60 * 1000);
   };
-
 
   const checkoutFromCart = async (userId: string) => {
     const cart = await cartRepository.getByUserIdWithItems(userId);
@@ -41,8 +45,19 @@ export const createOrderService = ({
     }
 
     return db.$transaction(async (tx) => {
-      const orderItems = [];
-      let totalAmount = 0;
+      // All database writes inside this transaction use tx.
+      const transactionOrderRepository = createOrderRepository(tx);
+      const transactionCartRepository = createCartRepository(tx);
+
+      const orderItems: {
+        productId: string;
+        productName: string;
+        unitPrice: Prisma.Decimal;
+        quantity: number;
+        subtotal: Prisma.Decimal;
+      }[] = [];
+
+      let totalAmount = new Prisma.Decimal(0);
 
       for (const item of cart.items) {
         const product = await productRepository.getProductById(item.productId);
@@ -55,9 +70,9 @@ export const createOrderService = ({
           throw new ConflictError(`${product.name} is no longer available`);
         }
 
-        const subtotal = Number(product.price) * item.quantity;
+        const subtotal = product.price.mul(item.quantity);
 
-        totalAmount += subtotal;
+        totalAmount = totalAmount.add(subtotal);
 
         orderItems.push({
           productId: product.id,
@@ -68,10 +83,7 @@ export const createOrderService = ({
         });
       }
 
-      
-      const reservationExpiresAt = getReservationExpiresAt();
-
-      const order = await orderRepository.create({
+      const order = await transactionOrderRepository.create({
         user: {
           connect: {
             id: userId,
@@ -79,7 +91,7 @@ export const createOrderService = ({
         },
         status: "PENDING",
         totalAmount,
-        reservationExpiresAt,
+        reservationExpiresAt: getReservationExpiresAt(),
       });
 
       for (const item of orderItems) {
@@ -91,7 +103,7 @@ export const createOrderService = ({
           order.id,
         );
 
-        await orderRepository.createOrderItem({
+        await transactionOrderRepository.createOrderItem({
           order: {
             connect: {
               id: order.id,
@@ -109,9 +121,9 @@ export const createOrderService = ({
         });
       }
 
-      await cartRepository.clearItems(cart.id);
+      await transactionCartRepository.clearItems(cart.id);
 
-      return orderRepository.getOrderWithItems(order.id);
+      return transactionOrderRepository.getOrderWithItems(order.id);
     });
   };
 
@@ -134,12 +146,12 @@ export const createOrderService = ({
       throw new ConflictError("Product is not available");
     }
 
-    const subtotal = Number(product.price) * quantity;
-
-    const reservationExpiresAt = getReservationExpiresAt();
+    const subtotal = product.price.mul(quantity);
 
     return db.$transaction(async (tx) => {
-      const order = await orderRepository.create({
+      const transactionOrderRepository = createOrderRepository(tx);
+
+      const order = await transactionOrderRepository.create({
         user: {
           connect: {
             id: userId,
@@ -147,7 +159,7 @@ export const createOrderService = ({
         },
         status: "PENDING",
         totalAmount: subtotal,
-        reservationExpiresAt,
+        reservationExpiresAt: getReservationExpiresAt(),
       });
 
       await inventoryService.reserveStock(
@@ -158,7 +170,7 @@ export const createOrderService = ({
         order.id,
       );
 
-      await orderRepository.createOrderItem({
+      await transactionOrderRepository.createOrderItem({
         order: {
           connect: {
             id: order.id,
@@ -175,7 +187,7 @@ export const createOrderService = ({
         subtotal,
       });
 
-      return orderRepository.getOrderWithItems(order.id);
+      return transactionOrderRepository.getOrderWithItems(order.id);
     });
   };
 
@@ -205,21 +217,39 @@ export const createOrderService = ({
     }
 
     return db.$transaction(async (tx) => {
-      for (const item of order.items) {
+      const transactionOrderRepository = createOrderRepository(tx);
+
+      // Re-read the order inside the transaction so we don't
+      // operate on stale status information.
+      const currentOrder =
+        await transactionOrderRepository.getOrderWithItems(orderId);
+
+      if (!currentOrder || currentOrder.userId !== userId) {
+        throw new NotFoundError("Order not found");
+      }
+
+      if (
+        currentOrder.status !== "PENDING" &&
+        currentOrder.status !== "CONFIRMED"
+      ) {
+        throw new ConflictError("Order cannot be cancelled");
+      }
+
+      for (const item of currentOrder.items) {
         await inventoryService.releaseStock(
           tx,
           item.productId,
           item.quantity,
           "Order cancelled",
-          order.id,
+          currentOrder.id,
         );
       }
 
-      await orderRepository.updateOrderStatus(order.id, {
+      await transactionOrderRepository.updateOrderStatus(currentOrder.id, {
         status: "CANCELLED",
       });
 
-      return orderRepository.getOrderWithItems(order.id);
+      return transactionOrderRepository.getOrderWithItems(currentOrder.id);
     });
   };
 
@@ -230,7 +260,11 @@ export const createOrderService = ({
 
     for (const order of expiredOrders) {
       await db.$transaction(async (tx) => {
-        const currentOrder = await orderRepository.getOrderWithItems(order.id);
+        const transactionOrderRepository = createOrderRepository(tx);
+
+        const currentOrder = await transactionOrderRepository.getOrderWithItems(
+          order.id,
+        );
 
         if (!currentOrder) {
           return;
@@ -257,7 +291,7 @@ export const createOrderService = ({
           );
         }
 
-        await orderRepository.updateOrderStatus(currentOrder.id, {
+        await transactionOrderRepository.updateOrderStatus(currentOrder.id, {
           status: "EXPIRED",
         });
       });
