@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { InventoryRepository } from "../repositories/inventory.repositories.js";
 import { createInventoryRepository } from "../repositories/inventory.repositories.js";
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
+import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
@@ -11,17 +12,21 @@ type InventoryServiceDependencies = {
   productRepository: ProductRepository;
 };
 
-export const createInventoryService = ({ db, inventoryRepository, productRepository,
+export const createInventoryService = ({
+  db,
+  inventoryRepository,
+  productRepository,
 }: InventoryServiceDependencies) => {
-
+    
   const initialize = async (productId: string) => {
-     const product = await productRepository.getProductById(productId);
+    const product = await productRepository.getProductById(productId);
 
     if (!product) {
       throw new NotFoundError("Product not found");
     }
 
-    const existingInventory =  await inventoryRepository.getByProductId(productId);
+    const existingInventory =
+      await inventoryRepository.getByProductId(productId);
 
     if (existingInventory) {
       throw new ConflictError("Inventory already exists for this product");
@@ -117,46 +122,38 @@ export const createInventoryService = ({ db, inventoryRepository, productReposit
     }
 
     return db.$transaction(async (tx) => {
-      /*
-       * Lock this inventory row until the transaction finishes.
-       *
-       * This prevents two simultaneous stock-out requests
-       * from reading the same available quantity and both
-       * succeeding.
-       */
-    const lockedInventory = await tx.$queryRaw<
-  Array<{
-    id: string;
-    quantity: number;
-    reservedQuantity: number;
-  }>
->`
-  SELECT
-    "id",
-    "quantity",
-    "reservedQuantity"
-  FROM "Inventory"
-  WHERE "id" = ${inventory.id}
-  FOR UPDATE
-`;
+      const lockedInventory = await tx.$queryRaw<
+        Array<{
+          id: string;
+          quantity: number;
+          reservedQuantity: number;
+        }>
+      >`
+        SELECT
+          "id",
+          "quantity",
+          "reservedQuantity"
+        FROM "Inventory"
+        WHERE "id" = ${inventory.id}
+        FOR UPDATE
+      `;
 
-if (lockedInventory.length === 0) {
-  throw new NotFoundError("Inventory not found");
-}
+      if (lockedInventory.length === 0) {
+        throw new NotFoundError("Inventory not found");
+      }
 
-const currentInventory = lockedInventory[0];
+      const currentInventory = lockedInventory[0];
 
-if (!currentInventory) {
-  throw new NotFoundError("Inventory not found");
-}
+      if (!currentInventory) {
+        throw new NotFoundError("Inventory not found");
+      }
 
-const availableQuantity =
-  currentInventory.quantity -
-  currentInventory.reservedQuantity;
+      const availableQuantity =
+        currentInventory.quantity - currentInventory.reservedQuantity;
 
-if (quantity > availableQuantity) {
-  throw new ConflictError("Insufficient available stock");
-}
+      if (quantity > availableQuantity) {
+        throw new ConflictError("Insufficient available stock");
+      }
 
       const transactionRepository = createInventoryRepository(tx);
 
@@ -184,6 +181,167 @@ if (quantity > availableQuantity) {
     });
   };
 
+  /*
+   * Reserves stock inside an existing transaction.
+   *
+   * The Order Service owns the transaction during checkout.
+   * This method only performs inventory business logic using
+   * the transaction client it receives.
+   */
+  const reserveStock = async (
+    tx: DatabaseClient,
+    productId: string,
+    quantity: number,
+    reason: string,
+    referenceId: string,
+  ) => {
+    if (quantity <= 0) {
+      throw new ConflictError("Reservation quantity must be greater than zero");
+    }
+
+    const transactionRepository = createInventoryRepository(tx);
+
+    const inventory = await transactionRepository.getByProductId(productId);
+
+    if (!inventory) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    /*
+     * Lock the inventory row so concurrent checkouts
+     * cannot reserve the same stock simultaneously.
+     */
+    const lockedInventory = await tx.$queryRaw<
+      Array<{
+        id: string;
+        quantity: number;
+        reservedQuantity: number;
+      }>
+    >`
+      SELECT
+        "id",
+        "quantity",
+        "reservedQuantity"
+      FROM "Inventory"
+      WHERE "id" = ${inventory.id}
+      FOR UPDATE
+    `;
+
+    if (lockedInventory.length === 0) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    const currentInventory = lockedInventory[0];
+
+    if (!currentInventory) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    const availableQuantity =
+      currentInventory.quantity - currentInventory.reservedQuantity;
+
+    if (quantity > availableQuantity) {
+      throw new ConflictError("Insufficient available stock");
+    }
+
+    const updatedInventory = await transactionRepository.update(inventory.id, {
+      reservedQuantity: {
+        increment: quantity,
+      },
+    });
+
+    await transactionRepository.createMovement({
+      inventory: {
+        connect: {
+          id: inventory.id,
+        },
+      },
+      type: "RESERVATION",
+      quantity,
+      reason,
+      referenceId,
+    });
+
+    return updatedInventory;
+  };
+
+  /*
+   * Releases previously reserved stock inside an
+   * existing transaction.
+   */
+  const releaseStock = async (
+    tx: DatabaseClient,
+    productId: string,
+    quantity: number,
+    reason: string,
+    referenceId: string,
+  ) => {
+    if (quantity <= 0) {
+      throw new ConflictError("Release quantity must be greater than zero");
+    }
+
+    const transactionRepository = createInventoryRepository(tx);
+
+    const inventory = await transactionRepository.getByProductId(productId);
+
+    if (!inventory) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    /*
+     * Lock the row before changing reserved quantity.
+     */
+    const lockedInventory = await tx.$queryRaw<
+      Array<{
+        id: string;
+        quantity: number;
+        reservedQuantity: number;
+      }>
+    >`
+      SELECT
+        "id",
+        "quantity",
+        "reservedQuantity"
+      FROM "Inventory"
+      WHERE "id" = ${inventory.id}
+      FOR UPDATE
+    `;
+
+    if (lockedInventory.length === 0) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    const currentInventory = lockedInventory[0];
+
+    if (!currentInventory) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    if (quantity > currentInventory.reservedQuantity) {
+      throw new ConflictError("Cannot release more stock than reserved");
+    }
+
+    const updatedInventory = await transactionRepository.update(inventory.id, {
+      reservedQuantity: {
+        decrement: quantity,
+      },
+    });
+
+    await transactionRepository.createMovement({
+      inventory: {
+        connect: {
+          id: inventory.id,
+        },
+      },
+      type: "RELEASE",
+      quantity,
+      reason,
+      referenceId,
+    });
+
+    return updatedInventory;
+  };
+
   const getMovements = async (inventoryId: string) => {
     await getById(inventoryId);
 
@@ -196,6 +354,8 @@ if (quantity > availableQuantity) {
     getById,
     addStock,
     removeStock,
+    reserveStock,
+    releaseStock,
     getMovements,
   };
 };

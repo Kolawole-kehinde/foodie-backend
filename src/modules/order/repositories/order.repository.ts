@@ -57,7 +57,10 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const updateOrderStatus = async ( id: string, data: Prisma.OrderUpdateInput,) => {
+  const updateOrderStatus = async (
+    id: string,
+    data: Prisma.OrderUpdateInput,
+  ) => {
     return db.order.update({
       where: {
         id,
