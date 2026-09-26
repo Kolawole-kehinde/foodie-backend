@@ -38,8 +38,7 @@ export const createCartService = ({
   };
 
   // Adds a product to the user's cart.
-  // If the product already exists, increase its quantity instead
-  // of creating a duplicate cart item.
+  // If the product already exists, increase its quantity instead of creating a duplicate cart item.
   const addItem = async (
     userId: string,
     productId: string,
