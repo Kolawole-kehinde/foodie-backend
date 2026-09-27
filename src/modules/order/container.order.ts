@@ -6,7 +6,7 @@ import type { InventoryService } from "../inventory/services/inventory.service.j
 import { createOrderRepository } from "./repositories/order.repository.js";
 import { createOrderService } from "./services/order.service.js";
 import { createOrderController } from "./controllers/controller.order.js";
-import { createOrderRoute } from "./routes/order.routes.js";
+import { createOrderRoutes } from "./routes/order.routes.js";
 
 type OrderDependencies = {
   db: PrismaClient;
@@ -16,7 +16,7 @@ type OrderDependencies = {
   authenticate: RequestHandler;
 };
 
-export const createOrderContainer = ({
+export const createOrderDependencies = ({
   db,
   productRepository,
   cartRepository,
@@ -37,7 +37,7 @@ export const createOrderContainer = ({
     orderService,
   });
 
-  const orderRoutes = createOrderRoute({
+  const orderRoutes = createOrderRoutes({
     orderController,
     authenticate,
   });
@@ -50,4 +50,4 @@ export const createOrderContainer = ({
   };
 };
 
-export type OrderContainer = ReturnType<typeof createOrderContainer>;
+export type OrderContainer = ReturnType<typeof createOrderDependencies>;

@@ -19,7 +19,7 @@ import {
 import { createCatalogDependencies } from "../modules/catalog/catalog.container.js";
 import { createInventoryDependencies } from "../modules/inventory/inventory.container.js";
 import { createCartDependencies } from "../modules/cart/cart.container.js";
-
+import { createOrderContainer } from "../modules/order/order.container.js";
 
 // Infrastructure
 const s3Service = createS3Service();
@@ -61,7 +61,6 @@ const catalog = createCatalogDependencies({
 });
 
 // Inventory
-
 const inventory = createInventoryDependencies({
   db: prisma,
   productRepository: catalog.productRepository,
@@ -69,32 +68,42 @@ const inventory = createInventoryDependencies({
   authorizePermission,
 });
 
-
 // Cart
-
 const cart = createCartDependencies({
   db: prisma,
   productRepository: catalog.productRepository,
   authenticate,
 });
 
-// Public Dependencies
+// Order
+const order = createOrderContainer({
+  db: prisma,
+  productRepository: catalog.productRepository,
+  cartRepository: cart.cartRepository,
+  inventoryService: inventory.inventoryService,
+  authenticate,
+});
 
+// Public Dependencies
 export {
   prisma,
   redis,
+
   authRoutes,
   roleRoutes,
   userRoleRoutes,
   rolePermissionRoutes,
   permissionRoutes,
   userRoutes,
+
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,
+
   media,
   profile,
   catalog,
   inventory,
   cart,
+  order,
 };

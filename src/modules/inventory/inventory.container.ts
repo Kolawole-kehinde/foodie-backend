@@ -41,6 +41,9 @@ export const createInventoryDependencies = ({
   });
 
   return {
-    inventoryRoutes,
-  };
+  inventoryRepository,
+  inventoryService,
+  inventoryController,
+  inventoryRoutes,
+};
 };

@@ -12,7 +12,7 @@ type CreateOrderRouteDependencies = {
   authenticate: RequestHandler;
 };
 
-export const createOrderRoute = ({
+export const createOrderRoutes = ({
   orderController,
   authenticate,
 }: CreateOrderRouteDependencies) => {
@@ -54,4 +54,4 @@ export const createOrderRoute = ({
   return router;
 };
 
-export type OrderRoute = ReturnType<typeof createOrderRoute>;
+export type OrderRoute = ReturnType<typeof createOrderRoutes>;
