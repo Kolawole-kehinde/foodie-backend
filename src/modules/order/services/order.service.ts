@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+
 import {
   createOrderRepository,
   type OrderRepository,
@@ -9,8 +10,10 @@ import {
   createCartRepository,
   type CartRepository,
 } from "../../cart/repositories/cart.repository.js";
+
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
+
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
@@ -34,20 +37,19 @@ export const createOrderService = ({
   };
 
   const checkoutFromCart = async (userId: string) => {
-    const cart = await cartRepository.getByUserIdWithItems(userId);
-
-    if (!cart) {
-      throw new NotFoundError("Cart not found");
-    }
-
-    if (cart.items.length === 0) {
-      throw new ConflictError("Cart is empty");
-    }
-
     return db.$transaction(async (tx) => {
-      // All database writes inside this transaction use tx.
       const transactionOrderRepository = createOrderRepository(tx);
       const transactionCartRepository = createCartRepository(tx);
+
+      const cart = await transactionCartRepository.getByUserIdWithItems(userId);
+
+      if (!cart) {
+        throw new NotFoundError("Cart not found");
+      }
+
+      if (cart.items.length === 0) {
+        throw new ConflictError("Cart is empty");
+      }
 
       const orderItems: {
         productId: string;
@@ -206,21 +208,9 @@ export const createOrderService = ({
   };
 
   const cancelOrder = async (userId: string, orderId: string) => {
-    const order = await orderRepository.getOrderWithItems(orderId);
-
-    if (!order || order.userId !== userId) {
-      throw new NotFoundError("Order not found");
-    }
-
-    if (order.status !== "PENDING" && order.status !== "CONFIRMED") {
-      throw new ConflictError("Order cannot be cancelled");
-    }
-
     return db.$transaction(async (tx) => {
       const transactionOrderRepository = createOrderRepository(tx);
 
-      // Re-read the order inside the transaction so we don't
-      // operate on stale status information.
       const currentOrder =
         await transactionOrderRepository.getOrderWithItems(orderId);
 
@@ -254,9 +244,9 @@ export const createOrderService = ({
   };
 
   const expireReservations = async () => {
-    const expiredOrders = await orderRepository.findExpiredPendingOrders(
-      new Date(),
-    );
+    const now = new Date();
+
+    const expiredOrders = await orderRepository.findExpiredPendingOrders(now);
 
     for (const order of expiredOrders) {
       await db.$transaction(async (tx) => {
@@ -276,7 +266,7 @@ export const createOrderService = ({
 
         if (
           !currentOrder.reservationExpiresAt ||
-          currentOrder.reservationExpiresAt > new Date()
+          currentOrder.reservationExpiresAt > now
         ) {
           return;
         }
