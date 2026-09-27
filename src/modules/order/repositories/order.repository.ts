@@ -8,7 +8,9 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const createOrderItem = async (data: Prisma.OrderItemCreateInput) => {
+  const createOrderItem = async (
+    data: Prisma.OrderItemCreateInput,
+  ) => {
     return db.orderItem.create({
       data,
     });
@@ -37,7 +39,7 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const getUserAllOrder = async (userId: string) => {
+  const getUserOrders = async (userId: string) => {
     return db.order.findMany({
       where: {
         userId,
@@ -48,7 +50,10 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const getUserOrderById = async (userId: string, orderId: string) => {
+  const getUserOrderById = async (
+    userId: string,
+    orderId: string,
+  ) => {
     return db.order.findFirst({
       where: {
         id: orderId,
@@ -57,7 +62,7 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const updateOrderStatus = async (
+  const updateStatus = async (
     id: string,
     data: Prisma.OrderUpdateInput,
   ) => {
@@ -85,9 +90,9 @@ export const createOrderRepository = (db: DatabaseClient) => {
     createOrderItem,
     getById,
     getOrderWithItems,
-    getUserAllOrder,
+    getUserOrders,
     getUserOrderById,
-    updateOrderStatus,
+    updateStatus,
     findExpiredPendingOrders,
   };
 };

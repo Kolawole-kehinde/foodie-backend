@@ -1,19 +1,15 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-
 import {
   createOrderRepository,
   type OrderRepository,
 } from "../repositories/order.repository.js";
-
 import {
   createCartRepository,
   type CartRepository,
 } from "../../cart/repositories/cart.repository.js";
-
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
-
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
@@ -194,7 +190,7 @@ export const createOrderService = ({
   };
 
   const getMyOrders = async (userId: string) => {
-    return orderRepository.getUserAllOrder(userId);
+    return orderRepository.getUserOrders(userId);
   };
 
   const getMyOrderById = async (userId: string, orderId: string) => {
@@ -235,7 +231,7 @@ export const createOrderService = ({
         );
       }
 
-      await transactionOrderRepository.updateOrderStatus(currentOrder.id, {
+      await transactionOrderRepository.updateStatus(currentOrder.id, {
         status: "CANCELLED",
       });
 
@@ -281,7 +277,7 @@ export const createOrderService = ({
           );
         }
 
-        await transactionOrderRepository.updateOrderStatus(currentOrder.id, {
+        await transactionOrderRepository.updateStatus(currentOrder.id, {
           status: "EXPIRED",
         });
       });
