@@ -25,6 +25,9 @@ import "./catalog/products.js";
 // Cart Documentation
 import "./cart/cart.js";
 
+// Inventory Documentation
+import "./inventory/inventory.js";
+
 // Role documentation
 import "./role/roles.js";
 import "./role/role-permissions.js";
@@ -74,6 +77,10 @@ export const swaggerSpec = generator.generateDocument({
    {
   name: "Cart",
   description: "Shopping cart management endpoints",
+},
+{
+  name: "Inventory",
+  description: "Inventory and stock management endpoints",
 },
     {
       name: "Profile",
