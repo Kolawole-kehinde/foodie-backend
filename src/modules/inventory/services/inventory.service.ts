@@ -17,7 +17,18 @@ export const createInventoryService = ({
   inventoryRepository,
   productRepository,
 }: InventoryServiceDependencies) => {
-    
+  const withAvailable = <
+    T extends {
+      quantity: number;
+      reservedQuantity: number;
+    },
+  >(
+    inventory: T,
+  ) => ({
+    ...inventory,
+    available: inventory.quantity - inventory.reservedQuantity,
+  });
+
   const initialize = async (productId: string) => {
     const product = await productRepository.getProductById(productId);
 
@@ -32,7 +43,7 @@ export const createInventoryService = ({
       throw new ConflictError("Inventory already exists for this product");
     }
 
-    return inventoryRepository.create({
+    const inventory = await inventoryRepository.create({
       product: {
         connect: {
           id: productId,
@@ -42,6 +53,8 @@ export const createInventoryService = ({
       reservedQuantity: 0,
       lowStockThreshold: 5,
     });
+
+    return withAvailable(inventory);
   };
 
   const getByProductId = async (productId: string) => {
@@ -51,7 +64,7 @@ export const createInventoryService = ({
       throw new NotFoundError("Inventory not found");
     }
 
-    return inventory;
+    return withAvailable(inventory);
   };
 
   const getById = async (id: string) => {
@@ -61,7 +74,7 @@ export const createInventoryService = ({
       throw new NotFoundError("Inventory not found");
     }
 
-    return inventory;
+    return withAvailable(inventory);
   };
 
   const addStock = async (
@@ -102,7 +115,7 @@ export const createInventoryService = ({
         reason,
       });
 
-      return updatedInventory;
+      return withAvailable(updatedInventory);
     });
   };
 
@@ -177,7 +190,7 @@ export const createInventoryService = ({
         reason,
       });
 
-      return updatedInventory;
+      return withAvailable(updatedInventory);
     });
   };
 
@@ -262,7 +275,7 @@ export const createInventoryService = ({
       referenceId,
     });
 
-    return updatedInventory;
+    return withAvailable(updatedInventory);
   };
 
   /*
@@ -339,7 +352,7 @@ export const createInventoryService = ({
       referenceId,
     });
 
-    return updatedInventory;
+    return withAvailable(updatedInventory);
   };
 
   const getMovements = async (inventoryId: string) => {
