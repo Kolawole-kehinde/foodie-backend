@@ -5,6 +5,7 @@ import type { ProductRepository } from "../../catalog/repositories/product.repos
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
+import { withAvailable } from "../utils/inventory.utils.js";
 
 type InventoryServiceDependencies = {
   db: PrismaClient;
@@ -17,18 +18,6 @@ export const createInventoryService = ({
   inventoryRepository,
   productRepository,
 }: InventoryServiceDependencies) => {
-  const withAvailable = <
-    T extends {
-      quantity: number;
-      reservedQuantity: number;
-    },
-  >(
-    inventory: T,
-  ) => ({
-    ...inventory,
-    available: inventory.quantity - inventory.reservedQuantity,
-  });
-
   const initialize = async (productId: string) => {
     const product = await productRepository.getProductById(productId);
 
@@ -128,47 +117,21 @@ export const createInventoryService = ({
       throw new ConflictError("Stock quantity must be greater than zero");
     }
 
-    const inventory = await inventoryRepository.getByProductId(productId);
-
-    if (!inventory) {
-      throw new NotFoundError("Inventory not found");
-    }
-
     return db.$transaction(async (tx) => {
-      const lockedInventory = await tx.$queryRaw<
-        Array<{
-          id: string;
-          quantity: number;
-          reservedQuantity: number;
-        }>
-      >`
-        SELECT
-          "id",
-          "quantity",
-          "reservedQuantity"
-        FROM "Inventory"
-        WHERE "id" = ${inventory.id}
-        FOR UPDATE
-      `;
+      const transactionRepository = createInventoryRepository(tx);
 
-      if (lockedInventory.length === 0) {
+      const inventory =
+        await transactionRepository.getByProductIdForUpdate(productId);
+
+      if (!inventory) {
         throw new NotFoundError("Inventory not found");
       }
 
-      const currentInventory = lockedInventory[0];
-
-      if (!currentInventory) {
-        throw new NotFoundError("Inventory not found");
-      }
-
-      const availableQuantity =
-        currentInventory.quantity - currentInventory.reservedQuantity;
+      const availableQuantity = inventory.quantity - inventory.reservedQuantity;
 
       if (quantity > availableQuantity) {
         throw new ConflictError("Insufficient available stock");
       }
-
-      const transactionRepository = createInventoryRepository(tx);
 
       const updatedInventory = await transactionRepository.update(
         inventory.id,
@@ -214,44 +177,18 @@ export const createInventoryService = ({
 
     const transactionRepository = createInventoryRepository(tx);
 
-    const inventory = await transactionRepository.getByProductId(productId);
+    /*
+     * Lock the inventory row so concurrent checkouts
+     * cannot reserve the same stock simultaneously.
+     */
+    const inventory =
+      await transactionRepository.getByProductIdForUpdate(productId);
 
     if (!inventory) {
       throw new NotFoundError("Inventory not found");
     }
 
-    /*
-     * Lock the inventory row so concurrent checkouts
-     * cannot reserve the same stock simultaneously.
-     */
-    const lockedInventory = await tx.$queryRaw<
-      Array<{
-        id: string;
-        quantity: number;
-        reservedQuantity: number;
-      }>
-    >`
-      SELECT
-        "id",
-        "quantity",
-        "reservedQuantity"
-      FROM "Inventory"
-      WHERE "id" = ${inventory.id}
-      FOR UPDATE
-    `;
-
-    if (lockedInventory.length === 0) {
-      throw new NotFoundError("Inventory not found");
-    }
-
-    const currentInventory = lockedInventory[0];
-
-    if (!currentInventory) {
-      throw new NotFoundError("Inventory not found");
-    }
-
-    const availableQuantity =
-      currentInventory.quantity - currentInventory.reservedQuantity;
+    const availableQuantity = inventory.quantity - inventory.reservedQuantity;
 
     if (quantity > availableQuantity) {
       throw new ConflictError("Insufficient available stock");
@@ -295,42 +232,14 @@ export const createInventoryService = ({
 
     const transactionRepository = createInventoryRepository(tx);
 
-    const inventory = await transactionRepository.getByProductId(productId);
+    // Lock the row before changing reserved quantity.
+    const inventory = await transactionRepository.getByProductIdForUpdate(productId);
 
     if (!inventory) {
       throw new NotFoundError("Inventory not found");
     }
 
-    /*
-     * Lock the row before changing reserved quantity.
-     */
-    const lockedInventory = await tx.$queryRaw<
-      Array<{
-        id: string;
-        quantity: number;
-        reservedQuantity: number;
-      }>
-    >`
-      SELECT
-        "id",
-        "quantity",
-        "reservedQuantity"
-      FROM "Inventory"
-      WHERE "id" = ${inventory.id}
-      FOR UPDATE
-    `;
-
-    if (lockedInventory.length === 0) {
-      throw new NotFoundError("Inventory not found");
-    }
-
-    const currentInventory = lockedInventory[0];
-
-    if (!currentInventory) {
-      throw new NotFoundError("Inventory not found");
-    }
-
-    if (quantity > currentInventory.reservedQuantity) {
+    if (quantity > inventory.reservedQuantity) {
       throw new ConflictError("Cannot release more stock than reserved");
     }
 

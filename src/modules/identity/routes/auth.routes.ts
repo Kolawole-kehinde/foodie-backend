@@ -58,9 +58,9 @@ export const createAuthRoutes = ({
   router.post(
     "/login",
     validate(loginSchema),
-    rateLimit({
-      rules: loginRateLimitPolicy,
-    }),
+    // rateLimit({
+    //   rules: loginRateLimitPolicy,
+    // }),
     authController.login,
   );
 

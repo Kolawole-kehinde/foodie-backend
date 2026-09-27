@@ -1,6 +1,16 @@
 import type { Prisma } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
+type LockedInventory = {
+  id: string;
+  productId: string;
+  quantity: number;
+  reservedQuantity: number;
+  lowStockThreshold: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export const createInventoryRepository = (db: DatabaseClient) => {
   const create = async (data: Prisma.InventoryCreateInput) => {
     return db.inventory.create({
@@ -14,6 +24,37 @@ export const createInventoryRepository = (db: DatabaseClient) => {
         productId,
       },
     });
+  };
+
+  const getByProductIdForUpdate = async (productId: string,): Promise<LockedInventory | null> => {
+    const inventory = await db.inventory.findUnique({
+      where: {
+        productId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!inventory) {
+      return null;
+    }
+
+    const [lockedInventory] = await db.$queryRaw<LockedInventory[]>`
+      SELECT
+        "id",
+        "productId",
+        "quantity",
+        "reservedQuantity",
+        "lowStockThreshold",
+        "createdAt",
+        "updatedAt"
+      FROM "Inventory"
+      WHERE "id" = ${inventory.id}
+      FOR UPDATE
+    `;
+
+    return lockedInventory ?? null;
   };
 
   const getById = async (id: string) => {
@@ -55,6 +96,7 @@ export const createInventoryRepository = (db: DatabaseClient) => {
   return {
     create,
     getByProductId,
+    getByProductIdForUpdate,
     getById,
     update,
     createMovement,
