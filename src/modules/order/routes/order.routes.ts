@@ -37,19 +37,19 @@ export const createOrderRoutes = ({
     orderController.getMyOrders,
   );
 
-  router.get(
-    "/:orderId",
-    authenticate,
-    validate(orderIdParamsSchema),
-    orderController.getMyOrderById,
-  );
+router.get(
+  "/:orderId",
+  authenticate,
+  validate(orderIdParamsSchema, "params"),
+  orderController.getMyOrderById,
+);
 
-  router.post(
-    "/:orderId/cancel",
-    authenticate,
-    validate(orderIdParamsSchema),
-    orderController.cancelOrder,
-  );
+router.post(
+  "/:orderId/cancel",
+  authenticate,
+  validate(orderIdParamsSchema, "params"),
+  orderController.cancelOrder,
+);
 
   return router;
 };
