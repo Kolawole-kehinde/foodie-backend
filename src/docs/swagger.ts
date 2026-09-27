@@ -22,11 +22,14 @@ import "./user/user-roles.js";
 import "./catalog/categories.js";
 import "./catalog/products.js";
 
+// Inventory Documentation
+import "./inventory/inventory.js";
+
 // Cart Documentation
 import "./cart/cart.js";
 
-// Inventory Documentation
-import "./inventory/inventory.js";
+// Order Documentation
+import "./orders/orders.js";
 
 // Role documentation
 import "./role/roles.js";
@@ -74,14 +77,19 @@ export const swaggerSpec = generator.generateDocument({
       description: "Product catalog and management endpoints",
     },
 
-   {
-  name: "Cart",
-  description: "Shopping cart management endpoints",
-},
-{
-  name: "Inventory",
-  description: "Inventory and stock management endpoints",
-},
+    {
+      name: "Cart",
+      description: "Shopping cart management endpoints",
+    },
+    {
+      name: "Inventory",
+      description: "Inventory and stock management endpoints",
+    },
+
+    {
+      name: "Orders",
+      description: "Order creation, retrieval, and cancellation endpoints",
+    },
     {
       name: "Profile",
       description: "Authenticated user profile endpoints",
