@@ -18,7 +18,8 @@ import {
   userRoutes,
   catalog,
   inventory,
-  cart
+  cart,
+  order
 } from "./container.js";
 
 
@@ -56,6 +57,8 @@ export function createApp(): Express {
   app.use("/api/v1/inventory", inventory.inventoryRoutes);
 
   app.use("/api/v1/cart",  cart.cartRoutes);
+
+  app.use("/api/v1/orders", order.orderRoutes);
 
   // 404 handler must come after all routes.
   app.use(notFound);

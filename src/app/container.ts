@@ -19,7 +19,8 @@ import {
 import { createCatalogDependencies } from "../modules/catalog/catalog.container.js";
 import { createInventoryDependencies } from "../modules/inventory/inventory.container.js";
 import { createCartDependencies } from "../modules/cart/cart.container.js";
-import { createOrderContainer } from "../modules/order/order.container.js";
+import { createOrderDependencies } from "../modules/order/container.order.js";
+
 
 // Infrastructure
 const s3Service = createS3Service();
@@ -76,7 +77,7 @@ const cart = createCartDependencies({
 });
 
 // Order
-const order = createOrderContainer({
+const order = createOrderDependencies({
   db: prisma,
   productRepository: catalog.productRepository,
   cartRepository: cart.cartRepository,
