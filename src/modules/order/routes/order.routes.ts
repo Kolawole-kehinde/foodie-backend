@@ -10,7 +10,6 @@ import {
 type CreateOrderRouteDependencies = {
   orderController: OrderController;
   authenticate: RequestHandler;
-  authorizePermission: (permission: string) => RequestHandler;
 };
 
 export const createOrderRoute = ({
