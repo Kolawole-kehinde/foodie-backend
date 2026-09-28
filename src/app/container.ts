@@ -20,10 +20,15 @@ import { createCatalogDependencies } from "../modules/catalog/catalog.container.
 import { createInventoryDependencies } from "../modules/inventory/inventory.container.js";
 import { createCartDependencies } from "../modules/cart/cart.container.js";
 import { createOrderDependencies } from "../modules/order/container.order.js";
+import { createOutboxDependencies } from "../modules/outbox/outbox.container.js";
 
 
 // Infrastructure
 const s3Service = createS3Service();
+
+
+// Outbox Pattern
+const outbox = createOutboxDependencies(prisma);
 
 // Email DLQ
 const emailDlqService = createEmailDlqService();
@@ -82,6 +87,7 @@ const order = createOrderDependencies({
   productRepository: catalog.productRepository,
   cartRepository: cart.cartRepository,
   inventoryService: inventory.inventoryService,
+  outboxService: outbox.outboxService,
   authenticate,
 });
 
@@ -106,5 +112,7 @@ export {
   catalog,
   inventory,
   cart,
+  outbox,
   order,
+
 };
