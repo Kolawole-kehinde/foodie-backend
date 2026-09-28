@@ -1,11 +1,10 @@
-
 import express, { type Express } from "express";
 import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
 import { notFound } from "../middlewares/notFound.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
-import { startCleanupJob } from "../jobs/cleanup/cleanup.job.js";
+import { startJobs } from "../jobs/index.js";
 import {
   authRoutes,
   emailDlqRoutes,
@@ -19,15 +18,11 @@ import {
   catalog,
   inventory,
   cart,
-  order
+  order,
 } from "./container.js";
-
-
 
 export function createApp(): Express {
   const app = express();
-
-  startCleanupJob();
 
   app.set("trust proxy", true);
 
@@ -35,14 +30,15 @@ export function createApp(): Express {
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: true }));
 
-  app.use(  "/docs",  swaggerUi.serve,  swaggerUi.setup(swaggerSpec),);
+  app.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec),
+  );
 
   app.use("/api/v1/auth", authRoutes);
-
   app.use("/api/v1/admin/email-dlq", emailDlqRoutes);
-
   app.use("/api/v1/media", media.mediaUploadRoutes);
-
   app.use("/api/v1", profile.profileRoutes);
 
   app.use("/api/v1/roles", roleRoutes);
@@ -52,13 +48,16 @@ export function createApp(): Express {
   app.use("/api/v1/users", userRoleRoutes);
 
   app.use("/api/v1/permissions", permissionRoutes);
+
   app.use("/api/v1/catalog", catalog.routes);
-
   app.use("/api/v1/inventory", inventory.inventoryRoutes);
-
-  app.use("/api/v1/cart",  cart.cartRoutes);
-
+  app.use("/api/v1/cart", cart.cartRoutes);
   app.use("/api/v1/orders", order.orderRoutes);
+
+  // Start all scheduled jobs.
+  startJobs({
+    orderService: order.orderService,
+  });
 
   // 404 handler must come after all routes.
   app.use(notFound);

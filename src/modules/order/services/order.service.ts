@@ -16,7 +16,6 @@ import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 type CreateOrderServiceDependencies = {
   db: PrismaClient;
   orderRepository: OrderRepository;
-  cartRepository: CartRepository;
   productRepository: ProductRepository;
   inventoryService: InventoryService;
 };
@@ -24,7 +23,6 @@ type CreateOrderServiceDependencies = {
 export const createOrderService = ({
   db,
   orderRepository,
-  cartRepository,
   productRepository,
   inventoryService,
 }: CreateOrderServiceDependencies) => {
@@ -239,50 +237,67 @@ export const createOrderService = ({
     });
   };
 
-  const expireReservations = async () => {
-    const now = new Date();
+    const expireReservations = async () => {
+  const now = new Date();
 
-    const expiredOrders = await orderRepository.findExpiredPendingOrders(now);
+  const expiredOrders =
+    await orderRepository.findExpiredPendingOrders(now);
 
-    for (const order of expiredOrders) {
-      await db.$transaction(async (tx) => {
-        const transactionOrderRepository = createOrderRepository(tx);
+  let expiredCount = 0;
 
-        const currentOrder = await transactionOrderRepository.getOrderWithItems(
+  for (const order of expiredOrders) {
+    const expired = await db.$transaction(async (tx) => {
+      const transactionOrderRepository = createOrderRepository(tx);
+
+      const currentOrder =
+        await transactionOrderRepository.getOrderWithItems(
           order.id,
         );
 
-        if (!currentOrder) {
-          return;
-        }
+      if (!currentOrder) {
+        return false;
+      }
 
-        if (currentOrder.status !== "PENDING") {
-          return;
-        }
+      if (currentOrder.status !== "PENDING") {
+        return false;
+      }
 
-        if (
-          !currentOrder.reservationExpiresAt ||
-          currentOrder.reservationExpiresAt > now
-        ) {
-          return;
-        }
+      if (
+        !currentOrder.reservationExpiresAt ||
+        currentOrder.reservationExpiresAt > now
+      ) {
+        return false;
+      }
 
-        for (const item of currentOrder.items) {
-          await inventoryService.releaseStock(
-            tx,
-            item.productId,
-            item.quantity,
-            "Reservation expired",
-            currentOrder.id,
-          );
-        }
+      for (const item of currentOrder.items) {
+        await inventoryService.releaseStock(
+          tx,
+          item.productId,
+          item.quantity,
+          "Reservation expired",
+          currentOrder.id,
+        );
+      }
 
-        await transactionOrderRepository.updateStatus(currentOrder.id, {
+      await transactionOrderRepository.updateStatus(
+        currentOrder.id,
+        {
           status: "EXPIRED",
-        });
-      });
+        },
+      );
+
+      return true;
+    });
+
+    if (expired) {
+      expiredCount++;
     }
+  }
+
+  return {
+    expiredCount,
   };
+};
 
   return {
     checkoutFromCart,

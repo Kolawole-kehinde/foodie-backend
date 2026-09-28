@@ -1,4 +1,5 @@
 import { registry } from "../registry.js";
+
 import { z } from "../zod-openapi.js";
 
 import {
@@ -12,6 +13,7 @@ const inventoryResponseSchema = z.object({
   productId: z.string(),
   quantity: z.number(),
   reservedQuantity: z.number(),
+  available: z.number(),
   lowStockThreshold: z.number(),
   createdAt: z.string(),
   updatedAt: z.string(),
