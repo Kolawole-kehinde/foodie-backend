@@ -7,12 +7,14 @@ import { createOrderRepository } from "./repositories/order.repository.js";
 import { createOrderService } from "./services/order.service.js";
 import { createOrderController } from "./controllers/controller.order.js";
 import { createOrderRoutes } from "./routes/order.routes.js";
+import type { OutboxService } from "../outbox/services/outbox.service.js";
 
 type OrderDependencies = {
   db: PrismaClient;
   productRepository: ProductRepository;
   cartRepository: CartRepository;
   inventoryService: InventoryService;
+  outboxService: OutboxService;
   authenticate: RequestHandler;
 };
 
@@ -21,6 +23,7 @@ export const createOrderDependencies = ({
   productRepository,
   cartRepository,
   inventoryService,
+  outboxService,
   authenticate,
 }: OrderDependencies) => {
   const orderRepository = createOrderRepository(db);
@@ -31,6 +34,7 @@ export const createOrderDependencies = ({
     productRepository,
     cartRepository,
     inventoryService,
+    outboxService
   });
 
   const orderController = createOrderController({

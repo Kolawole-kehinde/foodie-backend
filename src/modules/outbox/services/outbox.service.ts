@@ -13,14 +13,22 @@ type CreateEventInput = {
   aggregateType: string;
   aggregateId: string;
   payload: object;
+  repository?: OutboxRepository;
 };
 
 export const createOutboxService = ({
   outboxRepository,
 }: CreateOutboxServiceDependencies) => {
+  const createEvent = async ({
+    eventType,
+    aggregateType,
+    aggregateId,
+    payload,
+    repository,
+  }: CreateEventInput) => {
+    const targetRepository = repository ?? outboxRepository;
 
-  const createEvent = async ({eventType, aggregateType, aggregateId,payload,}: CreateEventInput) => {
-    return outboxRepository.create({
+    return targetRepository.create({
       eventType,
       aggregateType,
       aggregateId,
@@ -57,7 +65,12 @@ export const createOutboxService = ({
     const retryDelay = BASE_RETRY_DELAY_MS * 2 ** (event.attempts - 1);
 
     const availableAt = new Date(Date.now() + retryDelay);
-    return outboxRepository.markFailed(eventId, availableAt, lastError);
+
+    return outboxRepository.markFailed(
+      eventId,
+      availableAt,
+      lastError,
+    );
   };
 
   return {
