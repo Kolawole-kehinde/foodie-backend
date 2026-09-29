@@ -1,4 +1,4 @@
-import type { EventType } from "../../../shared/events/event.types.js";
+import type { OrderEvent } from "../../../shared/events/event.types.js";
 import type { OutboxRepository } from "../repositories/outbox.repository.js";
 
 const MAX_ATTEMPTS = 5;
@@ -9,10 +9,7 @@ type CreateOutboxServiceDependencies = {
 };
 
 type CreateEventInput = {
-  eventType: EventType;
-  aggregateType: string;
-  aggregateId: string;
-  payload: object;
+  event: OrderEvent;
   repository?: OutboxRepository;
 };
 
@@ -20,19 +17,16 @@ export const createOutboxService = ({
   outboxRepository,
 }: CreateOutboxServiceDependencies) => {
   const createEvent = async ({
-    eventType,
-    aggregateType,
-    aggregateId,
-    payload,
+    event,
     repository,
   }: CreateEventInput) => {
     const targetRepository = repository ?? outboxRepository;
 
     return targetRepository.create({
-      eventType,
-      aggregateType,
-      aggregateId,
-      payload,
+      eventType: event.eventType,
+      aggregateType: event.aggregateType,
+      aggregateId: event.aggregateId,
+      payload: event,
     });
   };
 
@@ -62,9 +56,12 @@ export const createOutboxService = ({
       return outboxRepository.markDeadLetter(eventId, lastError);
     }
 
-    const retryDelay = BASE_RETRY_DELAY_MS * 2 ** (event.attempts - 1);
+    const retryDelay =
+      BASE_RETRY_DELAY_MS * 2 ** (event.attempts - 1);
 
-    const availableAt = new Date(Date.now() + retryDelay);
+    const availableAt = new Date(
+      Date.now() + retryDelay,
+    );
 
     return outboxRepository.markFailed(
       eventId,

@@ -1,28 +1,24 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-
 import {
   createOrderRepository,
   type OrderRepository,
 } from "../repositories/order.repository.js";
-
 import {
   createCartRepository,
   type CartRepository,
 } from "../../cart/repositories/cart.repository.js";
-
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
 import type { OutboxService } from "../../outbox/services/outbox.service.js";
-
 import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
-
-import { EVENT_TYPES } from "../../../shared/events/event.types.js";
-
+import {
+  createOrderCancelledEvent,
+  createOrderCreatedEvent,
+  createOrderExpiredEvent,
+} from "../events/order.events.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
-
-import crypto from "node:crypto";
 
 type CreateOrderServiceDependencies = {
   db: PrismaClient;
@@ -44,6 +40,7 @@ export const createOrderService = ({
   const getReservationExpiresAt = () => {
     return new Date(Date.now() + 15 * 60 * 1000);
   };
+  
 
   const checkoutFromCart = async (userId: string) => {
     return db.$transaction(async (tx) => {
@@ -96,11 +93,7 @@ export const createOrderService = ({
       }
 
       const order = await transactionOrderRepository.create({
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        user: { connect: { id: userId } },
         status: "PENDING",
         totalAmount,
         reservationExpiresAt: getReservationExpiresAt(),
@@ -116,16 +109,8 @@ export const createOrderService = ({
         );
 
         await transactionOrderRepository.createOrderItem({
-          order: {
-            connect: {
-              id: order.id,
-            },
-          },
-          product: {
-            connect: {
-              id: item.productId,
-            },
-          },
+          order: { connect: { id: order.id } },
+          product: { connect: { id: item.productId } },
           productName: item.productName,
           unitPrice: item.unitPrice,
           quantity: item.quantity,
@@ -133,29 +118,24 @@ export const createOrderService = ({
         });
       }
 
+      const event = createOrderCreatedEvent({
+        orderId: order.id,
+        userId,
+        totalAmount: totalAmount.toString(),
+        items: orderItems.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          unitPrice: item.unitPrice.toString(),
+          quantity: item.quantity,
+          subtotal: item.subtotal.toString(),
+        })),
+      });
+
       await outboxService.createEvent({
-        eventType: EVENT_TYPES.ORDER_CREATED,
-        aggregateType: "order",
-        aggregateId: order.id,
-        payload: {
-          eventId: crypto.randomUUID(),
-          eventType: EVENT_TYPES.ORDER_CREATED,
-          occurredAt: new Date().toISOString(),
-          aggregateType: "order",
-          aggregateId: order.id,
-          data: {
-            orderId: order.id,
-            userId,
-            totalAmount: totalAmount.toString(),
-            items: orderItems.map((item) => ({
-              productId: item.productId,
-              productName: item.productName,
-              unitPrice: item.unitPrice.toString(),
-              quantity: item.quantity,
-              subtotal: item.subtotal.toString(),
-            })),
-          },
-        },
+        eventType: event.eventType,
+        aggregateType: event.aggregateType,
+        aggregateId: event.aggregateId,
+        payload: event,
         repository: transactionOutboxRepository,
       });
 
@@ -191,11 +171,7 @@ export const createOrderService = ({
       const transactionOutboxRepository = createOutboxRepository(tx);
 
       const order = await transactionOrderRepository.create({
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
+        user: { connect: { id: userId } },
         status: "PENDING",
         totalAmount: subtotal,
         reservationExpiresAt: getReservationExpiresAt(),
@@ -210,47 +186,34 @@ export const createOrderService = ({
       );
 
       await transactionOrderRepository.createOrderItem({
-        order: {
-          connect: {
-            id: order.id,
-          },
-        },
-        product: {
-          connect: {
-            id: productId,
-          },
-        },
+        order: { connect: { id: order.id } },
+        product: { connect: { id: productId } },
         productName: product.name,
         unitPrice: product.price,
         quantity,
         subtotal,
       });
 
-      await outboxService.createEvent({
-        eventType: EVENT_TYPES.ORDER_CREATED,
-        aggregateType: "order",
-        aggregateId: order.id,
-        payload: {
-          eventId: crypto.randomUUID(),
-          eventType: EVENT_TYPES.ORDER_CREATED,
-          occurredAt: new Date().toISOString(),
-          aggregateType: "order",
-          aggregateId: order.id,
-          data: {
-            orderId: order.id,
-            userId,
-            totalAmount: subtotal.toString(),
-            items: [
-              {
-                productId: product.id,
-                productName: product.name,
-                unitPrice: product.price.toString(),
-                quantity,
-                subtotal: subtotal.toString(),
-              },
-            ],
+      const event = createOrderCreatedEvent({
+        orderId: order.id,
+        userId,
+        totalAmount: subtotal.toString(),
+        items: [
+          {
+            productId: product.id,
+            productName: product.name,
+            unitPrice: product.price.toString(),
+            quantity,
+            subtotal: subtotal.toString(),
           },
-        },
+        ],
+      });
+
+      await outboxService.createEvent({
+        eventType: event.eventType,
+        aggregateType: event.aggregateType,
+        aggregateId: event.aggregateId,
+        payload: event,
         repository: transactionOutboxRepository,
       });
 
@@ -306,6 +269,20 @@ export const createOrderService = ({
         status: "CANCELLED",
       });
 
+      const event = createOrderCancelledEvent({
+        orderId: currentOrder.id,
+        userId: currentOrder.userId,
+        totalAmount: currentOrder.totalAmount.toString(),
+      });
+
+      await outboxService.createEvent({
+        eventType: event.eventType,
+        aggregateType: event.aggregateType,
+        aggregateId: event.aggregateId,
+        payload: event,
+        repository: transactionOutboxRepository,
+      });
+
       return transactionOrderRepository.getOrderWithItems(currentOrder.id);
     });
   };
@@ -320,6 +297,8 @@ export const createOrderService = ({
     for (const order of expiredOrders) {
       const expired = await db.$transaction(async (tx) => {
         const transactionOrderRepository = createOrderRepository(tx);
+
+        const transactionOutboxRepository = createOutboxRepository(tx);
 
         const currentOrder = await transactionOrderRepository.getOrderWithItems(
           order.id,
@@ -354,6 +333,20 @@ export const createOrderService = ({
           status: "EXPIRED",
         });
 
+        const event = createOrderExpiredEvent({
+          orderId: currentOrder.id,
+          userId: currentOrder.userId,
+          totalAmount: currentOrder.totalAmount.toString(),
+        });
+
+        await outboxService.createEvent({
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          payload: event,
+          repository: transactionOutboxRepository,
+        });
+
         return true;
       });
 
@@ -362,9 +355,7 @@ export const createOrderService = ({
       }
     }
 
-    return {
-      expiredCount,
-    };
+    return { expiredCount };
   };
 
   return {
