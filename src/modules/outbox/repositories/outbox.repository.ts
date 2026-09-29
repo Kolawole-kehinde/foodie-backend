@@ -14,7 +14,11 @@ export const createOutboxRepository = (db: DatabaseClient) => {
    * FOR UPDATE SKIP LOCKED prevents multiple workers
    * from claiming the same event.
    */
-  const claimPendingEvents = async (limit: number, now: Date) => {
+  const claimPendingEvents = async (
+    limit: number,
+    now: Date,
+    maxAttempts: number,
+  ) => {
     return db.$queryRaw<
       Array<{
         id: string;
@@ -37,6 +41,7 @@ export const createOutboxRepository = (db: DatabaseClient) => {
         FROM "OutboxEvent"
         WHERE "status" IN ('PENDING', 'FAILED')
           AND "availableAt" <= ${now}
+          AND "attempts" < ${maxAttempts}
         ORDER BY "createdAt" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT ${limit}
@@ -64,6 +69,55 @@ export const createOutboxRepository = (db: DatabaseClient) => {
         event."createdAt",
         event."updatedAt"
     `;
+  };
+
+  /**
+   * Recovers stale processing events.
+   *
+   * Events below the attempt limit return to PENDING.
+   * Events that have exhausted their attempts move to DEAD_LETTER.
+   */
+  const recoverStaleEvents = async (
+    processingBefore: Date,
+    maxAttempts: number,
+  ) => {
+    const deadLettered = await db.outboxEvent.updateMany({
+      where: {
+        status: "PROCESSING",
+        processingAt: {
+          lt: processingBefore,
+        },
+        attempts: {
+          gte: maxAttempts,
+        },
+      },
+      data: {
+        status: "DEAD_LETTER",
+        processingAt: null,
+        lastError: "Maximum processing attempts exceeded",
+      },
+    });
+
+    const recovered = await db.outboxEvent.updateMany({
+      where: {
+        status: "PROCESSING",
+        processingAt: {
+          lt: processingBefore,
+        },
+        attempts: {
+          lt: maxAttempts,
+        },
+      },
+      data: {
+        status: "PENDING",
+        processingAt: null,
+      },
+    });
+
+    return {
+      recoveredCount: recovered.count,
+      deadLetteredCount: deadLettered.count,
+    };
   };
 
   const findById = async (id: string) => {
@@ -111,28 +165,13 @@ export const createOutboxRepository = (db: DatabaseClient) => {
     });
   };
 
-  const recoverStaleEvents = async ( processingBefore: Date,) => {
-  return db.outboxEvent.updateMany({
-    where: {
-      status: "PROCESSING",
-      processingAt: {
-        lt: processingBefore,
-      },
-    },
-    data: {
-      status: "PENDING",
-      processingAt: null,
-    },
-  });
-};
-
   return {
     create,
     claimPendingEvents,
+    recoverStaleEvents,
     findById,
     markPublished,
     markFailed,
-    recoverStaleEvents,
     markDeadLetter,
   };
 };

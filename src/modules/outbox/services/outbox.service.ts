@@ -17,7 +17,6 @@ type CreateEventInput = {
 export const createOutboxService = ({
   outboxRepository,
 }: CreateOutboxServiceDependencies) => {
-  
   const createEvent = async ({ event, repository }: CreateEventInput) => {
     const targetRepository = repository ?? outboxRepository;
 
@@ -32,11 +31,11 @@ export const createOutboxService = ({
   const recoverStaleEvents = async () => {
     const processingBefore = new Date(Date.now() - PROCESSING_LEASE_MS);
 
-    return outboxRepository.recoverStaleEvents(processingBefore);
+    return outboxRepository.recoverStaleEvents(processingBefore, MAX_ATTEMPTS);
   };
 
   const claimPendingEvents = async (limit = 50) => {
-    return outboxRepository.claimPendingEvents(limit, new Date());
+    return outboxRepository.claimPendingEvents(limit, new Date(), MAX_ATTEMPTS);
   };
 
   const markPublished = async (eventId: string) => {
