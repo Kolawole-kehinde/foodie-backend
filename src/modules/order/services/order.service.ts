@@ -1,21 +1,12 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import {
-  createOrderRepository,
-  type OrderRepository,
-} from "../repositories/order.repository.js";
-import {
-  createCartRepository,
-  type CartRepository,
-} from "../../cart/repositories/cart.repository.js";
+import {createOrderRepository,type OrderRepository,} from "../repositories/order.repository.js";
+import {createCartRepository,type CartRepository,} from "../../cart/repositories/cart.repository.js";
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
 import type { OutboxService } from "../../outbox/services/outbox.service.js";
 import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
-import {
-  createOrderCancelledEvent,
-  createOrderCreatedEvent,
-  createOrderExpiredEvent,
+import {createOrderCancelledEvent,createOrderCreatedEvent,createOrderExpiredEvent,
 } from "../events/order.events.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
@@ -131,13 +122,10 @@ export const createOrderService = ({
         })),
       });
 
-      await outboxService.createEvent({
-        eventType: event.eventType,
-        aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId,
-        payload: event,
-        repository: transactionOutboxRepository,
-      });
+    await outboxService.createEvent({
+  event,
+  repository: transactionOutboxRepository,
+});
 
       await transactionCartRepository.clearItems(cart.id);
 
@@ -209,13 +197,10 @@ export const createOrderService = ({
         ],
       });
 
-      await outboxService.createEvent({
-        eventType: event.eventType,
-        aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId,
-        payload: event,
-        repository: transactionOutboxRepository,
-      });
+     await outboxService.createEvent({
+  event,
+  repository: transactionOutboxRepository,
+});
 
       return transactionOrderRepository.getOrderWithItems(order.id);
     });
@@ -275,13 +260,10 @@ export const createOrderService = ({
         totalAmount: currentOrder.totalAmount.toString(),
       });
 
-      await outboxService.createEvent({
-        eventType: event.eventType,
-        aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId,
-        payload: event,
-        repository: transactionOutboxRepository,
-      });
+     await outboxService.createEvent({
+  event,
+  repository: transactionOutboxRepository,
+});
 
       return transactionOrderRepository.getOrderWithItems(currentOrder.id);
     });
@@ -339,14 +321,10 @@ export const createOrderService = ({
           totalAmount: currentOrder.totalAmount.toString(),
         });
 
-        await outboxService.createEvent({
-          eventType: event.eventType,
-          aggregateType: event.aggregateType,
-          aggregateId: event.aggregateId,
-          payload: event,
-          repository: transactionOutboxRepository,
-        });
-
+       await outboxService.createEvent({
+  event,
+  repository: transactionOutboxRepository,
+});
         return true;
       });
 

@@ -11,7 +11,9 @@ export const createOutboxRepository = (db: DatabaseClient) => {
   const findPendingEvents = async (limit: number, now: Date) => {
     return db.outboxEvent.findMany({
       where: {
-        status: "PENDING",
+        status: {
+          in: ["PENDING", "FAILED"],
+        },
         availableAt: {
           lte: now,
         },
