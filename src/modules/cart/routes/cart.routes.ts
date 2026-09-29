@@ -15,7 +15,7 @@ type CartRoutesDependencies = {
 export const createCartRoutes = ({
   cartController,
   authenticate,
-}: CartRoutesDependencies) => {
+}: CartRoutesDependencies): Router => {
   const router = Router();
 
   // Get authenticated user's cart

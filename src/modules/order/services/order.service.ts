@@ -1,28 +1,36 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+
 import {
   createOrderRepository,
   type OrderRepository,
 } from "../repositories/order.repository.js";
+
 import {
   createCartRepository,
   type CartRepository,
 } from "../../cart/repositories/cart.repository.js";
+
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
+import type { OutboxService } from "../../outbox/services/outbox.service.js";
+
+import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
+
+import { EVENT_TYPES } from "../../../shared/events/event.types.js";
+
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
-import type { OutboxService } from "../../outbox/services/outbox.service.js";
-import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
-import { EVENT_TYPES } from "../../../shared/events/event.types.js";
+
+import crypto from "node:crypto";
 
 type CreateOrderServiceDependencies = {
   db: PrismaClient;
   orderRepository: OrderRepository;
   productRepository: ProductRepository;
   inventoryService: InventoryService;
-  cartRepository: CartRepository
-  outboxService: OutboxService
+  cartRepository: CartRepository;
+  outboxService: OutboxService;
 };
 
 export const createOrderService = ({
@@ -31,80 +39,173 @@ export const createOrderService = ({
   productRepository,
   inventoryService,
   cartRepository,
-  outboxService
+  outboxService,
 }: CreateOrderServiceDependencies) => {
   const getReservationExpiresAt = () => {
     return new Date(Date.now() + 15 * 60 * 1000);
   };
 
-const checkoutFromCart = async (userId: string) => {
-  return db.$transaction(async (tx) => {
-    const transactionOrderRepository = createOrderRepository(tx);
-    const transactionCartRepository = createCartRepository(tx);
-    const transactionOutboxRepository = createOutboxRepository(tx);
+  const checkoutFromCart = async (userId: string) => {
+    return db.$transaction(async (tx) => {
+      const transactionOrderRepository = createOrderRepository(tx);
+      const transactionCartRepository = createCartRepository(tx);
+      const transactionOutboxRepository = createOutboxRepository(tx);
 
-    const cart =
-      await transactionCartRepository.getByUserIdWithItems(userId);
+      const cart = await transactionCartRepository.getByUserIdWithItems(userId);
 
-    if (!cart) {
-      throw new NotFoundError("Cart not found");
-    }
-
-    if (cart.items.length === 0) {
-      throw new ConflictError("Cart is empty");
-    }
-
-    const orderItems: {
-      productId: string;
-      productName: string;
-      unitPrice: Prisma.Decimal;
-      quantity: number;
-      subtotal: Prisma.Decimal;
-    }[] = [];
-
-    let totalAmount = new Prisma.Decimal(0);
-
-    for (const item of cart.items) {
-      const product = await productRepository.getProductById(item.productId);
-
-      if (!product) {
-        throw new NotFoundError("Product not found");
+      if (!cart) {
+        throw new NotFoundError("Cart not found");
       }
 
-      if (product.status !== "ACTIVE") {
-        throw new ConflictError(`${product.name} is no longer available`);
+      if (cart.items.length === 0) {
+        throw new ConflictError("Cart is empty");
       }
 
-      const subtotal = product.price.mul(item.quantity);
+      const orderItems: {
+        productId: string;
+        productName: string;
+        unitPrice: Prisma.Decimal;
+        quantity: number;
+        subtotal: Prisma.Decimal;
+      }[] = [];
 
-      totalAmount = totalAmount.add(subtotal);
+      let totalAmount = new Prisma.Decimal(0);
 
-      orderItems.push({
-        productId: product.id,
-        productName: product.name,
-        unitPrice: product.price,
-        quantity: item.quantity,
-        subtotal,
-      });
-    }
+      for (const item of cart.items) {
+        const product = await productRepository.getProductById(item.productId);
 
-    const order = await transactionOrderRepository.create({
-      user: {
-        connect: {
-          id: userId,
+        if (!product) {
+          throw new NotFoundError("Product not found");
+        }
+
+        if (product.status !== "ACTIVE") {
+          throw new ConflictError(`${product.name} is no longer available`);
+        }
+
+        const subtotal = product.price.mul(item.quantity);
+
+        totalAmount = totalAmount.add(subtotal);
+
+        orderItems.push({
+          productId: product.id,
+          productName: product.name,
+          unitPrice: product.price,
+          quantity: item.quantity,
+          subtotal,
+        });
+      }
+
+      const order = await transactionOrderRepository.create({
+        user: {
+          connect: {
+            id: userId,
+          },
         },
-      },
-      status: "PENDING",
-      totalAmount,
-      reservationExpiresAt: getReservationExpiresAt(),
-    });
+        status: "PENDING",
+        totalAmount,
+        reservationExpiresAt: getReservationExpiresAt(),
+      });
 
-    for (const item of orderItems) {
+      for (const item of orderItems) {
+        await inventoryService.reserveStock(
+          tx,
+          item.productId,
+          item.quantity,
+          "Order checkout reservation",
+          order.id,
+        );
+
+        await transactionOrderRepository.createOrderItem({
+          order: {
+            connect: {
+              id: order.id,
+            },
+          },
+          product: {
+            connect: {
+              id: item.productId,
+            },
+          },
+          productName: item.productName,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+        });
+      }
+
+      await outboxService.createEvent({
+        eventType: EVENT_TYPES.ORDER_CREATED,
+        aggregateType: "order",
+        aggregateId: order.id,
+        payload: {
+          eventId: crypto.randomUUID(),
+          eventType: EVENT_TYPES.ORDER_CREATED,
+          occurredAt: new Date().toISOString(),
+          aggregateType: "order",
+          aggregateId: order.id,
+          data: {
+            orderId: order.id,
+            userId,
+            totalAmount: totalAmount.toString(),
+            items: orderItems.map((item) => ({
+              productId: item.productId,
+              productName: item.productName,
+              unitPrice: item.unitPrice.toString(),
+              quantity: item.quantity,
+              subtotal: item.subtotal.toString(),
+            })),
+          },
+        },
+        repository: transactionOutboxRepository,
+      });
+
+      await transactionCartRepository.clearItems(cart.id);
+
+      return transactionOrderRepository.getOrderWithItems(order.id);
+    });
+  };
+
+  const buyNow = async (
+    userId: string,
+    productId: string,
+    quantity: number,
+  ) => {
+    if (quantity <= 0) {
+      throw new ConflictError("Quantity must be greater than zero");
+    }
+
+    const product = await productRepository.getProductById(productId);
+
+    if (!product) {
+      throw new NotFoundError("Product not found");
+    }
+
+    if (product.status !== "ACTIVE") {
+      throw new ConflictError("Product is not available");
+    }
+
+    const subtotal = product.price.mul(quantity);
+
+    return db.$transaction(async (tx) => {
+      const transactionOrderRepository = createOrderRepository(tx);
+      const transactionOutboxRepository = createOutboxRepository(tx);
+
+      const order = await transactionOrderRepository.create({
+        user: {
+          connect: {
+            id: userId,
+          },
+        },
+        status: "PENDING",
+        totalAmount: subtotal,
+        reservationExpiresAt: getReservationExpiresAt(),
+      });
+
       await inventoryService.reserveStock(
         tx,
-        item.productId,
-        item.quantity,
-        "Order checkout reservation",
+        productId,
+        quantity,
+        "Buy now reservation",
         order.id,
       );
 
@@ -116,140 +217,46 @@ const checkoutFromCart = async (userId: string) => {
         },
         product: {
           connect: {
-            id: item.productId,
+            id: productId,
           },
         },
-        productName: item.productName,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        subtotal: item.subtotal,
+        productName: product.name,
+        unitPrice: product.price,
+        quantity,
+        subtotal,
       });
-    }
 
-    await outboxService.createEvent({
-      eventType: EVENT_TYPES.ORDER_CREATED,
-      aggregateType: "order",
-      aggregateId: order.id,
-      payload: {
-        eventId: crypto.randomUUID(),
+      await outboxService.createEvent({
         eventType: EVENT_TYPES.ORDER_CREATED,
-        occurredAt: new Date().toISOString(),
         aggregateType: "order",
         aggregateId: order.id,
-        data: {
-          orderId: order.id,
-          userId,
-          totalAmount: totalAmount.toString(),
-          items: orderItems.map((item) => ({
-            productId: item.productId,
-            productName: item.productName,
-            unitPrice: item.unitPrice.toString(),
-            quantity: item.quantity,
-            subtotal: item.subtotal.toString(),
-          })),
+        payload: {
+          eventId: crypto.randomUUID(),
+          eventType: EVENT_TYPES.ORDER_CREATED,
+          occurredAt: new Date().toISOString(),
+          aggregateType: "order",
+          aggregateId: order.id,
+          data: {
+            orderId: order.id,
+            userId,
+            totalAmount: subtotal.toString(),
+            items: [
+              {
+                productId: product.id,
+                productName: product.name,
+                unitPrice: product.price.toString(),
+                quantity,
+                subtotal: subtotal.toString(),
+              },
+            ],
+          },
         },
-      },
-      repository: transactionOutboxRepository,
+        repository: transactionOutboxRepository,
+      });
+
+      return transactionOrderRepository.getOrderWithItems(order.id);
     });
-
-    await transactionCartRepository.clearItems(cart.id);
-
-    return transactionOrderRepository.getOrderWithItems(order.id);
-  });
-};
-
- const buyNow = async (
-  userId: string,
-  productId: string,
-  quantity: number,
-) => {
-  if (quantity <= 0) {
-    throw new ConflictError("Quantity must be greater than zero");
-  }
-
-  const product = await productRepository.getProductById(productId);
-
-  if (!product) {
-    throw new NotFoundError("Product not found");
-  }
-
-  if (product.status !== "ACTIVE") {
-    throw new ConflictError("Product is not available");
-  }
-
-  const subtotal = product.price.mul(quantity);
-
-  return db.$transaction(async (tx) => {
-    const transactionOrderRepository = createOrderRepository(tx);
-    const transactionOutboxRepository = createOutboxRepository(tx);
-
-    const order = await transactionOrderRepository.create({
-      user: {
-        connect: {
-          id: userId,
-        },
-      },
-      status: "PENDING",
-      totalAmount: subtotal,
-      reservationExpiresAt: getReservationExpiresAt(),
-    });
-
-    await inventoryService.reserveStock(
-      tx,
-      productId,
-      quantity,
-      "Buy now reservation",
-      order.id,
-    );
-
-    await transactionOrderRepository.createOrderItem({
-      order: {
-        connect: {
-          id: order.id,
-        },
-      },
-      product: {
-        connect: {
-          id: productId,
-        },
-      },
-      productName: product.name,
-      unitPrice: product.price,
-      quantity,
-      subtotal,
-    });
-
-    await outboxService.createEvent({
-      eventType: EVENT_TYPES.ORDER_CREATED,
-      aggregateType: "order",
-      aggregateId: order.id,
-      payload: {
-        eventId: crypto.randomUUID(),
-        eventType: EVENT_TYPES.ORDER_CREATED,
-        occurredAt: new Date().toISOString(),
-        aggregateType: "order",
-        aggregateId: order.id,
-        data: {
-          orderId: order.id,
-          userId,
-          totalAmount: subtotal.toString(),
-          items: [
-            {
-              productId: product.id,
-              productName: product.name,
-              unitPrice: product.price.toString(),
-              quantity,
-              subtotal: subtotal.toString(),
-            },
-          ],
-        },
-      },
-      repository: transactionOutboxRepository,
-    });
-
-    return transactionOrderRepository.getOrderWithItems(order.id);
-  });
-};
+  };
 
   const getMyOrders = async (userId: string) => {
     return orderRepository.getUserOrders(userId);
@@ -268,6 +275,8 @@ const checkoutFromCart = async (userId: string) => {
   const cancelOrder = async (userId: string, orderId: string) => {
     return db.$transaction(async (tx) => {
       const transactionOrderRepository = createOrderRepository(tx);
+
+      const transactionOutboxRepository = createOutboxRepository(tx);
 
       const currentOrder =
         await transactionOrderRepository.getOrderWithItems(orderId);
@@ -301,67 +310,62 @@ const checkoutFromCart = async (userId: string) => {
     });
   };
 
-    const expireReservations = async () => {
-  const now = new Date();
+  const expireReservations = async () => {
+    const now = new Date();
 
-  const expiredOrders =
-    await orderRepository.findExpiredPendingOrders(now);
+    const expiredOrders = await orderRepository.findExpiredPendingOrders(now);
 
-  let expiredCount = 0;
+    let expiredCount = 0;
 
-  for (const order of expiredOrders) {
-    const expired = await db.$transaction(async (tx) => {
-      const transactionOrderRepository = createOrderRepository(tx);
+    for (const order of expiredOrders) {
+      const expired = await db.$transaction(async (tx) => {
+        const transactionOrderRepository = createOrderRepository(tx);
 
-      const currentOrder =
-        await transactionOrderRepository.getOrderWithItems(
+        const currentOrder = await transactionOrderRepository.getOrderWithItems(
           order.id,
         );
 
-      if (!currentOrder) {
-        return false;
-      }
+        if (!currentOrder) {
+          return false;
+        }
 
-      if (currentOrder.status !== "PENDING") {
-        return false;
-      }
+        if (currentOrder.status !== "PENDING") {
+          return false;
+        }
 
-      if (
-        !currentOrder.reservationExpiresAt ||
-        currentOrder.reservationExpiresAt > now
-      ) {
-        return false;
-      }
+        if (
+          !currentOrder.reservationExpiresAt ||
+          currentOrder.reservationExpiresAt > now
+        ) {
+          return false;
+        }
 
-      for (const item of currentOrder.items) {
-        await inventoryService.releaseStock(
-          tx,
-          item.productId,
-          item.quantity,
-          "Reservation expired",
-          currentOrder.id,
-        );
-      }
+        for (const item of currentOrder.items) {
+          await inventoryService.releaseStock(
+            tx,
+            item.productId,
+            item.quantity,
+            "Reservation expired",
+            currentOrder.id,
+          );
+        }
 
-      await transactionOrderRepository.updateStatus(
-        currentOrder.id,
-        {
+        await transactionOrderRepository.updateStatus(currentOrder.id, {
           status: "EXPIRED",
-        },
-      );
+        });
 
-      return true;
-    });
+        return true;
+      });
 
-    if (expired) {
-      expiredCount++;
+      if (expired) {
+        expiredCount++;
+      }
     }
-  }
 
-  return {
-    expiredCount,
+    return {
+      expiredCount,
+    };
   };
-};
 
   return {
     checkoutFromCart,

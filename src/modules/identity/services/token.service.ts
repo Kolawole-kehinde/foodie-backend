@@ -6,11 +6,13 @@ import { env } from "../../../config/env.js";
 export type AccessTokenPayload = {
   userId: string;
   sessionId: string;
+  roles: string[];
 };
 
 type JwtAccessTokenPayload = jwt.JwtPayload & {
   sub: string;
   sessionId: string;
+  roles: string[];
 };
 
 export const createTokenService = () => {
@@ -26,15 +28,16 @@ export const createTokenService = () => {
     return crypto.createHash("sha256").update(token).digest("hex");
   };
 
-  // Create access token
   const createAccessToken = ({
     userId,
     sessionId,
+    roles,
   }: AccessTokenPayload): string => {
     return jwt.sign(
       {
         sub: userId,
         sessionId,
+        roles,
       },
       env.jwt.ACCESS_SECRET,
       {
@@ -43,7 +46,6 @@ export const createTokenService = () => {
     );
   };
 
-  // Verify and decode access token
   const verifyAccessToken = (token: string): AccessTokenPayload => {
     const decoded = jwt.verify(token, env.jwt.ACCESS_SECRET);
 
@@ -55,7 +57,9 @@ export const createTokenService = () => {
 
     if (
       typeof payload.sub !== "string" ||
-      typeof payload.sessionId !== "string"
+      typeof payload.sessionId !== "string" ||
+      !Array.isArray(payload.roles) ||
+      !payload.roles.every((role) => typeof role === "string")
     ) {
       throw new Error("Invalid access token payload");
     }
@@ -63,6 +67,7 @@ export const createTokenService = () => {
     return {
       userId: payload.sub,
       sessionId: payload.sessionId,
+      roles: payload.roles,
     };
   };
 

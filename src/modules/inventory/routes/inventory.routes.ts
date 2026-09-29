@@ -15,7 +15,7 @@ export const createInventoryRoutes = ({
   inventoryController,
   authenticate,
   authorizePermission,
-}: InventoryRoutesDependencies) => {
+}: InventoryRoutesDependencies): Router => {
     
   const router = Router();
 

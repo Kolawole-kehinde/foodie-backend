@@ -1,21 +1,31 @@
 import type { RequestHandler } from "express";
-import type { InventoryService } from "../services/inventory.service.js";
+import { asyncHandler } from "../../../shared/utils/async-handler.js";
+import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
 import type {
   AddStockDto,
   InitializeInventoryDto,
   RemoveStockDto,
 } from "../dto/inventory.dto.js";
-import { asyncHandler } from "../../../shared/utils/async-handler.js";
-import { BadRequestError } from "../../../shared/errors/BadRequestError.js";
+import type { InventoryService } from "../services/inventory.service.js";
 
 type InventoryControllerDependencies = {
   inventoryService: InventoryService;
 };
 
+export type InventoryController = {
+  initialize: RequestHandler;
+  getByProductId: RequestHandler;
+  getById: RequestHandler;
+  addStock: RequestHandler;
+  removeStock: RequestHandler;
+  getMovements: RequestHandler;
+};
+
 export const createInventoryController = ({
   inventoryService,
-}: InventoryControllerDependencies) => {
-  const initialize: RequestHandler = asyncHandler(async (req, res) => {
+}: InventoryControllerDependencies): InventoryController => {
+
+  const initialize = asyncHandler(async (req, res) => {
     const dto: InitializeInventoryDto = req.body;
 
     const inventory = await inventoryService.initialize(dto.productId);
@@ -26,7 +36,7 @@ export const createInventoryController = ({
     });
   });
 
-  const getByProductId: RequestHandler = asyncHandler(async (req, res) => {
+  const getByProductId = asyncHandler(async (req, res) => {
     const productId = req.params.productId;
 
     if (typeof productId !== "string" || !productId) {
@@ -41,7 +51,7 @@ export const createInventoryController = ({
     });
   });
 
-  const getById: RequestHandler = asyncHandler(async (req, res) => {
+  const getById = asyncHandler(async (req, res) => {
     const id = req.params.id;
 
     if (typeof id !== "string" || !id) {
@@ -56,7 +66,7 @@ export const createInventoryController = ({
     });
   });
 
-  const addStock: RequestHandler = asyncHandler(async (req, res) => {
+  const addStock = asyncHandler(async (req, res) => {
     const productId = req.params.productId;
     const dto: AddStockDto = req.body;
 
@@ -76,7 +86,7 @@ export const createInventoryController = ({
     });
   });
 
-  const removeStock: RequestHandler = asyncHandler(async (req, res) => {
+  const removeStock = asyncHandler(async (req, res) => {
     const productId = req.params.productId;
     const dto: RemoveStockDto = req.body;
 
@@ -96,11 +106,11 @@ export const createInventoryController = ({
     });
   });
 
-  const getMovements: RequestHandler = asyncHandler(async (req, res) => {
+  const getMovements = asyncHandler(async (req, res) => {
     const id = req.params.id;
 
     if (typeof id !== "string" || !id) {
-      throw new BadRequestError("Product ID is required");
+      throw new BadRequestError("Inventory ID is required");
     }
 
     const movements = await inventoryService.getMovements(id);
@@ -120,5 +130,3 @@ export const createInventoryController = ({
     getMovements,
   };
 };
-
-export type InventoryController = ReturnType<typeof createInventoryController>;

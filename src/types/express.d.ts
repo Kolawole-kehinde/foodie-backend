@@ -1,24 +1,15 @@
-import type { RoleName } from "@prisma/client";
-
 declare global {
   namespace Express {
     interface Request {
-      id: string;
-
-      user: {
+      user: AccessTokenPayload & {
         id: string;
-        sessionId: string;
-        roles: RoleName[];
       };
 
-      context: {
-        requestId: string;
-        startedAt: number;
-        ipAddress?: string;
-        userAgent?: string;
-        deviceName?: string;
-        latitude?: string;
-        longitude?: string;
+      id?: string;
+
+      context?: {
+        requestId?: string;
+        [key: string]: unknown;
       };
     }
   }

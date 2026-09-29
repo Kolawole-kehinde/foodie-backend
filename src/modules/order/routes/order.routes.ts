@@ -15,7 +15,7 @@ type CreateOrderRouteDependencies = {
 export const createOrderRoutes = ({
   orderController,
   authenticate,
-}: CreateOrderRouteDependencies) => {
+}: CreateOrderRouteDependencies): Router => {
   const router = Router();
 
   router.post(

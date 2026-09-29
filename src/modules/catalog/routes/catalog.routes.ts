@@ -15,7 +15,7 @@ export const createCatalogRoutes = ({
   productController,
   authenticate,
   authorizePermission,
-}: CatalogRouteDependencies) => {
+}: CatalogRouteDependencies): Router => {
   
   const router = Router();
 
