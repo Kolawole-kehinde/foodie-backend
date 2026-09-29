@@ -4,7 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../docs/swagger.js";
 import { notFound } from "../middlewares/notFound.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
-import { startJobs } from "../jobs/index.js";
+import { startJobs } from "../jobs/start-jobs.js";
 import {
   authRoutes,
   emailDlqRoutes,
@@ -19,6 +19,7 @@ import {
   inventory,
   cart,
   order,
+  outbox,
 } from "./container.js";
 
 export function createApp(): Express {
@@ -55,9 +56,10 @@ export function createApp(): Express {
   app.use("/api/v1/orders", order.orderRoutes);
 
   // Start all scheduled jobs.
-  startJobs({
-    orderService: order.orderService,
-  });
+ startJobs({
+  orderService: order.orderService,
+  outboxPublisherService: outbox.outboxPublisherService,
+});
 
   // 404 handler must come after all routes.
   app.use(notFound);
