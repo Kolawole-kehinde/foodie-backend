@@ -419,6 +419,7 @@ model OutboxEvent {
   availableAt   DateTime          @default(now())
   publishedAt   DateTime?
   lastError     String?
+  processingAt DateTime?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 

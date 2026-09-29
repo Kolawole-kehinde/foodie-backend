@@ -1,5 +1,6 @@
 import type { OutboxPublisherService } from "../modules/outbox/services/outbox-publisher.service.js";
 
+
 type CreateOutboxPublisherJobDependencies = {
   outboxPublisherService: OutboxPublisherService;
 };
@@ -21,11 +22,13 @@ export const createOutboxPublisherJob = ({
         await outboxPublisherService.publishPendingEvents();
 
       if (result.processedCount > 0) {
-        console.log("[OUTBOX PUBLISHER]", result);
+        console.log("[Outbox] Publisher job completed", result);
       }
+// console.log("[Outbox] Publisher job completed", result);
+
     } catch (error) {
       console.error(
-        "[OUTBOX PUBLISHER] Job failed",
+        "[Outbox] Publisher job failed",
         error,
       );
     } finally {
@@ -34,12 +37,23 @@ export const createOutboxPublisherJob = ({
   };
 
   const start = () => {
-    const interval = setInterval(run, 5_000);
+    console.log(
+      "[Outbox] Publisher job started",
+      {
+        interval: "5 seconds",
+      },
+    );
+
+    const interval = setInterval(() => {
+      void run();
+    }, 5_000);
 
     void run();
 
     return () => {
       clearInterval(interval);
+
+      console.log("[Outbox] Publisher job stopped");
     };
   };
 

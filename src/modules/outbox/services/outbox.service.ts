@@ -3,6 +3,7 @@ import type { OutboxRepository } from "../repositories/outbox.repository.js";
 
 const MAX_ATTEMPTS = 5;
 const BASE_RETRY_DELAY_MS = 5_000;
+const PROCESSING_LEASE_MS = 5 * 60 * 1_000;
 
 type CreateOutboxServiceDependencies = {
   outboxRepository: OutboxRepository;
@@ -16,10 +17,8 @@ type CreateEventInput = {
 export const createOutboxService = ({
   outboxRepository,
 }: CreateOutboxServiceDependencies) => {
-  const createEvent = async ({
-    event,
-    repository,
-  }: CreateEventInput) => {
+  
+  const createEvent = async ({ event, repository }: CreateEventInput) => {
     const targetRepository = repository ?? outboxRepository;
 
     return targetRepository.create({
@@ -30,12 +29,14 @@ export const createOutboxService = ({
     });
   };
 
-  const getPendingEvents = async (limit = 50) => {
-    return outboxRepository.findPendingEvents(limit, new Date());
+  const recoverStaleEvents = async () => {
+    const processingBefore = new Date(Date.now() - PROCESSING_LEASE_MS);
+
+    return outboxRepository.recoverStaleEvents(processingBefore);
   };
 
-  const markProcessing = async (eventId: string) => {
-    return outboxRepository.markProcessing(eventId);
+  const claimPendingEvents = async (limit = 50) => {
+    return outboxRepository.claimPendingEvents(limit, new Date());
   };
 
   const markPublished = async (eventId: string) => {
@@ -56,24 +57,17 @@ export const createOutboxService = ({
       return outboxRepository.markDeadLetter(eventId, lastError);
     }
 
-    const retryDelay =
-      BASE_RETRY_DELAY_MS * 2 ** (event.attempts - 1);
+    const retryDelay = BASE_RETRY_DELAY_MS * 2 ** (event.attempts - 1);
 
-    const availableAt = new Date(
-      Date.now() + retryDelay,
-    );
+    const availableAt = new Date(Date.now() + retryDelay);
 
-    return outboxRepository.markFailed(
-      eventId,
-      availableAt,
-      lastError,
-    );
+    return outboxRepository.markFailed(eventId, availableAt, lastError);
   };
 
   return {
     createEvent,
-    getPendingEvents,
-    markProcessing,
+    recoverStaleEvents,
+    claimPendingEvents,
     markPublished,
     markFailed,
   };
