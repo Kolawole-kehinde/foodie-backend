@@ -1,3 +1,4 @@
+
 import type { RequestHandler } from "express";
 import type { OrderService } from "../services/order.service.js";
 
@@ -14,6 +15,10 @@ export type OrderController = {
   getMyOrders: RequestHandler;
   getMyOrderById: RequestHandler;
   cancelOrder: RequestHandler;
+  confirmOrder: RequestHandler;
+  processOrder: RequestHandler;
+  shipOrder: RequestHandler;
+  deliverOrder: RequestHandler;
 };
 
 export const createOrderController = ({
@@ -33,7 +38,6 @@ export const createOrderController = ({
 
   const buyNow = asyncHandler(async (req, res) => {
     const userId = req.user.id;
-
     const { productId, quantity } = req.body;
 
     const createdOrder = await orderService.buyNow(
@@ -47,8 +51,6 @@ export const createOrderController = ({
       data: createdOrder,
     });
   });
-
-
 
   const getMyOrders = asyncHandler(async (req, res) => {
     const userId = req.user.id;
@@ -84,7 +86,7 @@ export const createOrderController = ({
     const userId = req.user.id;
     const { orderId } = req.params;
 
-     if (typeof orderId !== "string" || !orderId) {
+    if (typeof orderId !== "string" || !orderId) {
       throw new BadRequestError("Order ID is required");
     }
 
@@ -99,11 +101,75 @@ export const createOrderController = ({
     });
   });
 
+  const confirmOrder = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    if (typeof orderId !== "string" || !orderId) {
+      throw new BadRequestError("Order ID is required");
+    }
+
+    const order = await orderService.confirmOrder(orderId);
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  });
+
+  const processOrder = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    if (typeof orderId !== "string" || !orderId) {
+      throw new BadRequestError("Order ID is required");
+    }
+
+    const order = await orderService.processOrder(orderId);
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  });
+
+  const shipOrder = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    if (typeof orderId !== "string" || !orderId) {
+      throw new BadRequestError("Order ID is required");
+    }
+
+    const order = await orderService.shipOrder(orderId);
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  });
+
+  const deliverOrder = asyncHandler(async (req, res) => {
+    const { orderId } = req.params;
+
+    if (typeof orderId !== "string" || !orderId) {
+      throw new BadRequestError("Order ID is required");
+    }
+
+    const order = await orderService.deliverOrder(orderId);
+
+    res.status(200).json({
+      success: true,
+      data: order,
+    });
+  });
+
   return {
     checkout,
     buyNow,
     getMyOrders,
     getMyOrderById,
     cancelOrder,
+    confirmOrder,
+    processOrder,
+    shipOrder,
+    deliverOrder,
   };
 };

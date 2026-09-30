@@ -50,7 +50,7 @@ export const createOrderDependencies = ({
     orderRepository,
     orderService,
     orderController,
-    orderRoutes,
+    orderRoutes
   };
 };
 
