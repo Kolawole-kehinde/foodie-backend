@@ -156,3 +156,96 @@ registry.registerPath({
     },
   },
 });
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/orders/{orderId}/confirm",
+  tags: ["Orders"],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: orderIdParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Order confirmed successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            data: orderWithItemsResponseSchema,
+          }),
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/orders/{orderId}/process",
+  tags: ["Orders"],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: orderIdParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Order processing started successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            data: orderWithItemsResponseSchema,
+          }),
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/orders/{orderId}/ship",
+  tags: ["Orders"],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: orderIdParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Order shipped successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            data: orderWithItemsResponseSchema,
+          }),
+        },
+      },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/v1/orders/{orderId}/deliver",
+  tags: ["Orders"],
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: orderIdParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Order delivered successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            data: orderWithItemsResponseSchema,
+          }),
+        },
+      },
+    },
+  },
+});
+

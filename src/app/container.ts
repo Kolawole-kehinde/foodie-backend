@@ -89,6 +89,7 @@ const order = createOrderDependencies({
   inventoryService: inventory.inventoryService,
   outboxService: outbox.outboxService,
   authenticate,
+  authorizePermission
 });
 
 // Public Dependencies

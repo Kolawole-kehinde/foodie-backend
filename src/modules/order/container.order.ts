@@ -1,13 +1,14 @@
+
 import type { PrismaClient } from "@prisma/client";
 import type { RequestHandler } from "express";
 import type { ProductRepository } from "../catalog/repositories/product.repository.js";
 import type { CartRepository } from "../cart/repositories/cart.repository.js";
 import type { InventoryService } from "../inventory/services/inventory.service.js";
+import type { OutboxService } from "../outbox/services/outbox.service.js";
 import { createOrderRepository } from "./repositories/order.repository.js";
 import { createOrderService } from "./services/order.service.js";
 import { createOrderController } from "./controllers/controller.order.js";
 import { createOrderRoutes } from "./routes/order.routes.js";
-import type { OutboxService } from "../outbox/services/outbox.service.js";
 
 type OrderDependencies = {
   db: PrismaClient;
@@ -16,6 +17,9 @@ type OrderDependencies = {
   inventoryService: InventoryService;
   outboxService: OutboxService;
   authenticate: RequestHandler;
+  authorizePermission: (
+    permission: string,
+  ) => RequestHandler;
 };
 
 export const createOrderDependencies = ({
@@ -25,6 +29,7 @@ export const createOrderDependencies = ({
   inventoryService,
   outboxService,
   authenticate,
+  authorizePermission,
 }: OrderDependencies) => {
   const orderRepository = createOrderRepository(db);
 
@@ -34,7 +39,7 @@ export const createOrderDependencies = ({
     productRepository,
     cartRepository,
     inventoryService,
-    outboxService
+    outboxService,
   });
 
   const orderController = createOrderController({
@@ -44,14 +49,15 @@ export const createOrderDependencies = ({
   const orderRoutes = createOrderRoutes({
     orderController,
     authenticate,
+    authorizePermission,
   });
 
   return {
     orderRepository,
     orderService,
     orderController,
-    orderRoutes
+    orderRoutes,
   };
 };
 
-export type OrderContainer = ReturnType<typeof createOrderDependencies>;
+export type OrderContainer =  ReturnType<typeof createOrderDependencies>;

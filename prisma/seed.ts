@@ -105,6 +105,30 @@ const permissions = [
     action: "refund",
     description: "Refund an order",
   },
+  {
+    name: "orders.confirm",
+    resource: "orders",
+    action: "confirm",
+    description: "Confirm an order",
+  },
+  {
+    name: "orders.process",
+    resource: "orders",
+    action: "process",
+    description: "Process an order",
+  },
+  {
+    name: "orders.ship",
+    resource: "orders",
+    action: "ship",
+    description: "Ship an order",
+  },
+  {
+    name: "orders.deliver",
+    resource: "orders",
+    action: "deliver",
+    description: "Mark an order as delivered",
+  },
 
   // Reviews
   {
@@ -211,35 +235,29 @@ const permissions = [
   },
 
   // Inventory
+  {
+    name: "inventory.read",
+    resource: "inventory",
+    action: "read",
+    description: "View inventory",
+  },
  {
-  name: "inventory.read",
-  resource: "inventory",
-  action: "read",
-  description: "View inventory",
-},
-{
   name: "inventory.create",
   resource: "inventory",
   action: "create",
-  description: "Initialize inventory",
-},
-{
-  name: "inventory.stock_in",
-  resource: "inventory",
-  action: "stock_in",
-  description: "Add stock to inventory",
-},
-{
-  name: "inventory.stock_out",
-  resource: "inventory",
-  action: "stock_out",
-  description: "Remove stock from inventory",
+  description: "Initialize inventory for a product",
 },
   {
-    name: "inventory.create",
+    name: "inventory.stock_in",
     resource: "inventory",
-    action: "create",
-    description: "Create inventory records",
+    action: "stock_in",
+    description: "Add stock to inventory",
+  },
+  {
+    name: "inventory.stock_out",
+    resource: "inventory",
+    action: "stock_out",
+    description: "Remove stock from inventory",
   },
   {
     name: "inventory.update",
@@ -436,6 +454,10 @@ const rolePermissions: Record<RoleName, string[]> = {
     "orders.update",
     "orders.cancel",
     "orders.refund",
+    "orders.confirm",
+    "orders.process",
+    "orders.ship",
+    "orders.deliver",
 
     // Reviews
     "reviews.read",

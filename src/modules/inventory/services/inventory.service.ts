@@ -4,8 +4,8 @@ import { createInventoryRepository } from "../repositories/inventory.repositorie
 import type { ProductRepository } from "../../catalog/repositories/product.repository.js";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
-import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 import { withAvailable } from "../utils/inventory.utils.js";
+import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
 type InventoryServiceDependencies = {
   db: PrismaClient;
