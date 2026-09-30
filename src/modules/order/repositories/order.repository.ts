@@ -2,15 +2,14 @@ import type { Prisma } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 export const createOrderRepository = (db: DatabaseClient) => {
+  
   const create = async (data: Prisma.OrderCreateInput) => {
     return db.order.create({
       data,
     });
   };
 
-  const createOrderItem = async (
-    data: Prisma.OrderItemCreateInput,
-  ) => {
+  const createOrderItem = async (data: Prisma.OrderItemCreateInput) => {
     return db.orderItem.create({
       data,
     });
@@ -22,6 +21,34 @@ export const createOrderRepository = (db: DatabaseClient) => {
         id,
       },
     });
+  };
+
+  const getByIdForUpdate = async (id: string) => {
+    const orders = await db.$queryRaw<
+      Array<{
+        id: string;
+        userId: string;
+        status: string;
+        totalAmount: Prisma.Decimal;
+        reservationExpiresAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >`
+      SELECT
+        "id",
+        "userId",
+        "status",
+        "totalAmount",
+        "reservationExpiresAt",
+        "createdAt",
+        "updatedAt"
+      FROM "Order"
+      WHERE "id" = ${id}
+      FOR UPDATE
+    `;
+
+    return orders[0] ?? null;
   };
 
   const getOrderWithItems = async (id: string) => {
@@ -50,10 +77,7 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const getUserOrderById = async (
-    userId: string,
-    orderId: string,
-  ) => {
+  const getUserOrderById = async (userId: string, orderId: string) => {
     return db.order.findFirst({
       where: {
         id: orderId,
@@ -62,10 +86,7 @@ export const createOrderRepository = (db: DatabaseClient) => {
     });
   };
 
-  const updateStatus = async (
-    id: string,
-    data: Prisma.OrderUpdateInput,
-  ) => {
+  const updateStatus = async (id: string, data: Prisma.OrderUpdateInput) => {
     return db.order.update({
       where: {
         id,
@@ -89,6 +110,7 @@ export const createOrderRepository = (db: DatabaseClient) => {
     create,
     createOrderItem,
     getById,
+    getByIdForUpdate,
     getOrderWithItems,
     getUserOrders,
     getUserOrderById,

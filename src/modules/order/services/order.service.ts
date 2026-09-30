@@ -7,7 +7,7 @@ import type { InventoryService } from "../../inventory/services/inventory.servic
 import type { OutboxService } from "../../outbox/services/outbox.service.js";
 import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
 import {createOrderCancelledEvent,createOrderCreatedEvent,createOrderExpiredEvent,
-} from "../events/order.events.js";
+} from "../events/order-event.factory.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
