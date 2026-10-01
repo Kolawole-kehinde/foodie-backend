@@ -22,16 +22,17 @@ type CreateOrderServiceDependencies = {
   outboxService: OutboxService;
 };
 
-export const createOrderService = (dependencies: CreateOrderServiceDependencies,) => {
-
+export const createOrderService = (
+  dependencies: CreateOrderServiceDependencies,
+) => {
   const checkoutService = createOrderCheckoutService(dependencies);
 
-  const managementService =  createOrderManagementService({
-      db: dependencies.db,
-      orderRepository: dependencies.orderRepository,
-      inventoryService: dependencies.inventoryService,
-      outboxService: dependencies.outboxService,
-    });
+  const managementService = createOrderManagementService({
+    db: dependencies.db,
+    orderRepository: dependencies.orderRepository,
+    inventoryService: dependencies.inventoryService,
+    outboxService: dependencies.outboxService,
+  });
 
   return {
     ...checkoutService,

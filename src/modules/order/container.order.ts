@@ -60,4 +60,5 @@ export const createOrderDependencies = ({
   };
 };
 
-export type OrderContainer =  ReturnType<typeof createOrderDependencies>;
+export type OrderContainer =
+  ReturnType<typeof createOrderDependencies>;
