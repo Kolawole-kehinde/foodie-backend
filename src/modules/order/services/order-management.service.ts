@@ -101,9 +101,7 @@ export const createOrderManagementService = ({
         );
       }
 
-      await transactionOrderRepository.updateStatus(
-        orderId,
-        {
+      await transactionOrderRepository.updateStatus( orderId, {
           status: newStatus,
         },
       );
@@ -169,8 +167,7 @@ export const createOrderManagementService = ({
         );
       }
 
-      const orderWithItems =
-        await transactionOrderRepository.getOrderWithItems(
+      const orderWithItems = await transactionOrderRepository.getOrderWithItems(
           orderId,
         );
 
@@ -342,5 +339,4 @@ export const createOrderManagementService = ({
   };
 };
 
-export type OrderManagementService =
-  ReturnType<typeof createOrderManagementService>;
+export type OrderManagementService = ReturnType<typeof createOrderManagementService>;

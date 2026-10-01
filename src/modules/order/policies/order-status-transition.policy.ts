@@ -20,15 +20,10 @@ const allowedTransitions: Record<OrderStatus, readonly OrderStatus[]> = {
   [OrderStatus.EXPIRED]: [],
 };
 
-export const canTransitionOrderStatus = (
-  currentStatus: OrderStatus,
-  nextStatus: OrderStatus,
-): boolean => {
+export const canTransitionOrderStatus = ( currentStatus: OrderStatus, nextStatus: OrderStatus,): boolean => {
   return allowedTransitions[currentStatus].includes(nextStatus);
 };
 
-export const getAllowedOrderStatusTransitions = (
-  currentStatus: OrderStatus,
-): readonly OrderStatus[] => {
+export const getAllowedOrderStatusTransitions = (currentStatus: OrderStatus,): readonly OrderStatus[] => {
   return allowedTransitions[currentStatus];
 };
