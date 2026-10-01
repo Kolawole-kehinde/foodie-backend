@@ -1,15 +1,13 @@
-
-
-import { canTransitionOrderStatus } from "../policies/order-status-transition.policy.js";
 import { OrderStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import {
-  createOrderRepository,
-  type OrderRepository,
-} from "../repositories/order.repository.js";
+
+import { ConflictError } from "../../../shared/errors/ConflictError.js";
+import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
+
+import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
 import type { InventoryService } from "../../inventory/services/inventory.service.js";
 import type { OutboxService } from "../../outbox/services/outbox.service.js";
-import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
+
 import {
   createOrderCancelledEvent,
   createOrderConfirmedEvent,
@@ -18,9 +16,13 @@ import {
   createOrderProcessingEvent,
   createOrderShippedEvent,
 } from "../events/order-event.factory.js";
-import { ConflictError } from "../../../shared/errors/ConflictError.js";
-import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
 
+import {
+  createOrderRepository,
+  type OrderRepository,
+} from "../repositories/order.repository.js";
+
+import { canTransitionOrderStatus } from "../policies/order-status-transition.policy.js";
 
 type CreateOrderManagementServiceDependencies = {
   db: PrismaClient;
@@ -35,8 +37,6 @@ export const createOrderManagementService = ({
   inventoryService,
   outboxService,
 }: CreateOrderManagementServiceDependencies) => {
-
-  // Creates the appropriate event for a normal order status transition.
   const createStatusEvent = (
     orderId: string,
     userId: string,
@@ -70,41 +70,29 @@ export const createOrderManagementService = ({
     }
   };
 
-  /*
-   * Handles normal order lifecycle transitions.
-   *
-   * The order row is locked before checking the current status
-   * so competing transitions cannot both succeed.
-   */
-  const changeOrderStatus = async ( orderId: string, newStatus: OrderStatus,) => {
+  const changeOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     return db.$transaction(async (tx) => {
-
-      const transactionOrderRepository =createOrderRepository(tx);
-
+      const transactionOrderRepository = createOrderRepository(tx);
       const transactionOutboxRepository = createOutboxRepository(tx);
 
-      const currentOrder = await transactionOrderRepository.getByIdForUpdate(
-          orderId,
-        );
+      const currentOrder =
+        await transactionOrderRepository.getByIdForUpdate(orderId);
 
       if (!currentOrder) {
         throw new NotFoundError("Order not found");
       }
 
-      const currentStatus =  currentOrder.status as OrderStatus;
-      if ( !canTransitionOrderStatus(
-          currentStatus,
-          newStatus,
-        )) {
+      const currentStatus = currentOrder.status as OrderStatus;
+
+      if (!canTransitionOrderStatus(currentStatus, newStatus)) {
         throw new ConflictError(
           `Order cannot transition from ${currentStatus} to ${newStatus}`,
         );
       }
 
-      await transactionOrderRepository.updateStatus( orderId, {
-          status: newStatus,
-        },
-      );
+      await transactionOrderRepository.updateStatus(orderId, {
+        status: newStatus,
+      });
 
       const event = createStatusEvent(
         currentOrder.id,
@@ -118,9 +106,7 @@ export const createOrderManagementService = ({
         repository: transactionOutboxRepository,
       });
 
-      return transactionOrderRepository.getOrderWithItems(
-        orderId,
-      );
+      return transactionOrderRepository.getOrderWithItems(orderId);
     });
   };
 
@@ -129,10 +115,7 @@ export const createOrderManagementService = ({
   };
 
   const getMyOrderById = async (userId: string, orderId: string) => {
-    const order = await orderRepository.getUserOrderById(
-        userId,
-        orderId,
-      );
+    const order = await orderRepository.getUserOrderById(userId, orderId);
 
     if (!order) {
       throw new NotFoundError("Order not found");
@@ -141,35 +124,26 @@ export const createOrderManagementService = ({
     return order;
   };
 
-  const cancelOrder = async (userId: string, orderId: string,) => {
-
+  const cancelOrder = async (userId: string, orderId: string) => {
     return db.$transaction(async (tx) => {
       const transactionOrderRepository = createOrderRepository(tx);
+      const transactionOutboxRepository = createOutboxRepository(tx);
 
-      const transactionOutboxRepository =  createOutboxRepository(tx);
+      const currentOrder =
+        await transactionOrderRepository.getByIdForUpdate(orderId);
 
-      const currentOrder = await transactionOrderRepository.getByIdForUpdate(
-          orderId,
-        );
-
-      if ( !currentOrder || currentOrder.userId !== userId) {
+      if (!currentOrder || currentOrder.userId !== userId) {
         throw new NotFoundError("Order not found");
       }
 
-      const currentStatus =  currentOrder.status as OrderStatus;
+      const currentStatus = currentOrder.status as OrderStatus;
 
-      if ( !canTransitionOrderStatus(
-          currentStatus,
-          OrderStatus.CANCELLED,
-        )) {
-        throw new ConflictError(
-          "Order cannot be cancelled",
-        );
+      if (!canTransitionOrderStatus(currentStatus, OrderStatus.CANCELLED)) {
+        throw new ConflictError("Order cannot be cancelled");
       }
 
-      const orderWithItems = await transactionOrderRepository.getOrderWithItems(
-          orderId,
-        );
+      const orderWithItems =
+        await transactionOrderRepository.getOrderWithItems(orderId);
 
       if (!orderWithItems) {
         throw new NotFoundError("Order not found");
@@ -185,18 +159,14 @@ export const createOrderManagementService = ({
         );
       }
 
-      await transactionOrderRepository.updateStatus(
-        orderWithItems.id,
-        {
-          status: OrderStatus.CANCELLED,
-        },
-      );
+      await transactionOrderRepository.updateStatus(orderWithItems.id, {
+        status: OrderStatus.CANCELLED,
+      });
 
       const event = createOrderCancelledEvent({
         orderId: orderWithItems.id,
         userId: orderWithItems.userId,
-        totalAmount:
-          orderWithItems.totalAmount.toString(),
+        totalAmount: orderWithItems.totalAmount.toString(),
       });
 
       await outboxService.createEvent({
@@ -204,92 +174,74 @@ export const createOrderManagementService = ({
         repository: transactionOutboxRepository,
       });
 
-      return transactionOrderRepository.getOrderWithItems(
-        orderWithItems.id,
-      );
+      return transactionOrderRepository.getOrderWithItems(orderWithItems.id);
     });
   };
 
   const expireReservations = async () => {
     const now = new Date();
 
-    const expiredOrders =
-      await orderRepository.findExpiredPendingOrders(
-        now,
-      );
+    const expiredOrders = await orderRepository.findExpiredPendingOrders(now);
 
     let expiredCount = 0;
 
     for (const order of expiredOrders) {
-      const expired = await db.$transaction(
-        async (tx) => {
-          const transactionOrderRepository =
-            createOrderRepository(tx);
+      const expired = await db.$transaction(async (tx) => {
+        const transactionOrderRepository = createOrderRepository(tx);
+        const transactionOutboxRepository = createOutboxRepository(tx);
 
-          const transactionOutboxRepository =
-            createOutboxRepository(tx);
+        const currentOrder = await transactionOrderRepository.getByIdForUpdate(
+          order.id,
+        );
 
-          const currentOrder =
-            await transactionOrderRepository.getByIdForUpdate(
-              order.id,
-            );
+        if (!currentOrder) {
+          return false;
+        }
 
-          if (!currentOrder) {
-            return false;
-          }
+        const currentStatus = currentOrder.status as OrderStatus;
 
-          const currentStatus =
-            currentOrder.status as OrderStatus;
+        if (
+          currentStatus !== OrderStatus.PENDING ||
+          !currentOrder.reservationExpiresAt ||
+          currentOrder.reservationExpiresAt > now
+        ) {
+          return false;
+        }
 
-          if (
-            currentStatus !== OrderStatus.PENDING ||
-            !currentOrder.reservationExpiresAt ||
-            currentOrder.reservationExpiresAt > now
-          ) {
-            return false;
-          }
+        const orderWithItems =
+          await transactionOrderRepository.getOrderWithItems(order.id);
 
-          const orderWithItems =
-            await transactionOrderRepository.getOrderWithItems(
-              order.id,
-            );
+        if (!orderWithItems) {
+          return false;
+        }
 
-          if (!orderWithItems) {
-            return false;
-          }
-
-          for (const item of orderWithItems.items) {
-            await inventoryService.releaseStock(
-              tx,
-              item.productId,
-              item.quantity,
-              "Reservation expired",
-              orderWithItems.id,
-            );
-          }
-
-          await transactionOrderRepository.updateStatus(
+        for (const item of orderWithItems.items) {
+          await inventoryService.releaseStock(
+            tx,
+            item.productId,
+            item.quantity,
+            "Reservation expired",
             orderWithItems.id,
-            {
-              status: OrderStatus.EXPIRED,
-            },
           );
+        }
 
-          const event = createOrderExpiredEvent({
-            orderId: orderWithItems.id,
-            userId: orderWithItems.userId,
-            totalAmount:
-              orderWithItems.totalAmount.toString(),
-          });
+        await transactionOrderRepository.updateStatus(orderWithItems.id, {
+          status: OrderStatus.EXPIRED,
+        });
 
-          await outboxService.createEvent({
-            event,
-            repository: transactionOutboxRepository,
-          });
+        const event = createOrderExpiredEvent({
+          orderId: orderWithItems.id,
+          userId: orderWithItems.userId,
+          totalAmount: orderWithItems.totalAmount.toString(),
+        });
 
-          return true;
-        },
-      );
+        await outboxService.createEvent({
+          event,
+          repository: transactionOutboxRepository,
+        });
+
+        return true;
+      });
 
       if (expired) {
         expiredCount++;
@@ -299,33 +251,17 @@ export const createOrderManagementService = ({
     return { expiredCount };
   };
 
-  const confirmOrder = async (orderId: string) => {
-    return changeOrderStatus(
-      orderId,
-      OrderStatus.CONFIRMED,
-    );
-  };
+  const confirmOrder = (orderId: string) =>
+    changeOrderStatus(orderId, OrderStatus.CONFIRMED);
 
-  const processOrder = async (orderId: string) => {
-    return changeOrderStatus(
-      orderId,
-      OrderStatus.PROCESSING,
-    );
-  };
+  const processOrder = (orderId: string) =>
+    changeOrderStatus(orderId, OrderStatus.PROCESSING);
 
-  const shipOrder = async (orderId: string) => {
-    return changeOrderStatus(
-      orderId,
-      OrderStatus.SHIPPED,
-    );
-  };
+  const shipOrder = (orderId: string) =>
+    changeOrderStatus(orderId, OrderStatus.SHIPPED);
 
-  const deliverOrder = async (orderId: string) => {
-    return changeOrderStatus(
-      orderId,
-      OrderStatus.DELIVERED,
-    );
-  };
+  const deliverOrder = (orderId: string) =>
+    changeOrderStatus(orderId, OrderStatus.DELIVERED);
 
   return {
     getMyOrders,
@@ -339,4 +275,4 @@ export const createOrderManagementService = ({
   };
 };
 
-export type OrderManagementService = ReturnType<typeof createOrderManagementService>;
+export type OrderManagementService = ReturnType< typeof createOrderManagementService>;
