@@ -5,17 +5,20 @@ import { createOutboxRepository } from "../../outbox/repositories/outbox.reposit
 import { createOrderCreatedEvent } from "../events/order-event.factory.js";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
 import { NotFoundError } from "../../../shared/errors/NotFoundError.js";
-
 import { Prisma, OrderStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
   createOrderRepository,
   type OrderRepository,
 } from "../repositories/order.repository.js";
+
 import {
   createCartRepository,
   type CartRepository,
 } from "../../cart/repositories/cart.repository.js";
+import type { ShippingAddressDto } from "../dtos/order.dto.js";
+
+
 
 type CreateOrderCheckoutServiceDependencies = {
   db: PrismaClient;
@@ -36,7 +39,10 @@ export const createOrderCheckoutService = ({
     return new Date(Date.now() + 15 * 60 * 1000);
   };
 
-  const checkoutFromCart = async (userId: string) => {
+  const checkoutFromCart = async (
+    userId: string,
+    shippingAddress: ShippingAddressDto,
+  ) => {
     return db.$transaction(async (tx) => {
       const transactionOrderRepository = createOrderRepository(tx);
       const transactionCartRepository = createCartRepository(tx);
@@ -86,6 +92,8 @@ export const createOrderCheckoutService = ({
         });
       }
 
+      const shippingFee = new Prisma.Decimal(0);
+
       const order = await transactionOrderRepository.create({
         user: {
           connect: {
@@ -93,8 +101,21 @@ export const createOrderCheckoutService = ({
           },
         },
         status: OrderStatus.PENDING,
-        totalAmount,
+        totalAmount: totalAmount.add(shippingFee),
+        shippingFee,
         reservationExpiresAt: getReservationExpiresAt(),
+        shippingAddress: {
+          create: {
+            recipientName: shippingAddress.recipientName,
+            phone: shippingAddress.phone,
+            addressLine1: shippingAddress.addressLine1,
+            addressLine2: shippingAddress.addressLine2,
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            postalCode: shippingAddress.postalCode,
+            country: shippingAddress.country,
+          },
+        },
       });
 
       for (const item of orderItems) {
@@ -127,7 +148,7 @@ export const createOrderCheckoutService = ({
       const event = createOrderCreatedEvent({
         orderId: order.id,
         userId,
-        totalAmount: totalAmount.toString(),
+        totalAmount: totalAmount.add(shippingFee).toString(),
         items: orderItems.map((item) => ({
           productId: item.productId,
           productName: item.productName,
@@ -152,6 +173,7 @@ export const createOrderCheckoutService = ({
     userId: string,
     productId: string,
     quantity: number,
+    shippingAddress: ShippingAddressDto,
   ) => {
     if (quantity <= 0) {
       throw new ConflictError("Quantity must be greater than zero");
@@ -168,6 +190,8 @@ export const createOrderCheckoutService = ({
     }
 
     const subtotal = product.price.mul(quantity);
+    const shippingFee = new Prisma.Decimal(0);
+    const totalAmount = subtotal.add(shippingFee);
 
     return db.$transaction(async (tx) => {
       const transactionOrderRepository = createOrderRepository(tx);
@@ -180,8 +204,21 @@ export const createOrderCheckoutService = ({
           },
         },
         status: OrderStatus.PENDING,
-        totalAmount: subtotal,
+        totalAmount,
+        shippingFee,
         reservationExpiresAt: getReservationExpiresAt(),
+        shippingAddress: {
+          create: {
+            recipientName: shippingAddress.recipientName,
+            phone: shippingAddress.phone,
+            addressLine1: shippingAddress.addressLine1,
+            addressLine2: shippingAddress.addressLine2,
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            postalCode: shippingAddress.postalCode,
+            country: shippingAddress.country,
+          },
+        },
       });
 
       await inventoryService.reserveStock(
@@ -212,7 +249,7 @@ export const createOrderCheckoutService = ({
       const event = createOrderCreatedEvent({
         orderId: order.id,
         userId,
-        totalAmount: subtotal.toString(),
+        totalAmount: totalAmount.toString(),
         items: [
           {
             productId: product.id,

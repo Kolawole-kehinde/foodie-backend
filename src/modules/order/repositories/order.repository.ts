@@ -2,7 +2,6 @@ import type { Prisma } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 export const createOrderRepository = (db: DatabaseClient) => {
-  
   const create = async (data: Prisma.OrderCreateInput) => {
     return db.order.create({
       data,
@@ -62,6 +61,7 @@ export const createOrderRepository = (db: DatabaseClient) => {
             product: true,
           },
         },
+        shippingAddress: true,
       },
     });
   };
@@ -82,6 +82,14 @@ export const createOrderRepository = (db: DatabaseClient) => {
       where: {
         id: orderId,
         userId,
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        shippingAddress: true,
       },
     });
   };

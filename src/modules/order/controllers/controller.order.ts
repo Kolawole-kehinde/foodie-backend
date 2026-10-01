@@ -1,4 +1,3 @@
-
 import type { RequestHandler } from "express";
 import type { OrderService } from "../services/order.service.js";
 
@@ -26,9 +25,12 @@ export const createOrderController = ({
 }: CreateOrderControllerDependencies): OrderController => {
   const checkout = asyncHandler(async (req, res) => {
     const userId = req.user.id;
+    const { shippingAddress } = req.body;
 
-    const createdOrder =
-      await orderService.checkoutFromCart(userId);
+    const createdOrder = await orderService.checkoutFromCart(
+      userId,
+      shippingAddress,
+    );
 
     res.status(201).json({
       success: true,
@@ -38,12 +40,13 @@ export const createOrderController = ({
 
   const buyNow = asyncHandler(async (req, res) => {
     const userId = req.user.id;
-    const { productId, quantity } = req.body;
+    const { productId, quantity, shippingAddress } = req.body;
 
     const createdOrder = await orderService.buyNow(
       userId,
       productId,
       quantity,
+      shippingAddress,
     );
 
     res.status(201).json({
@@ -71,10 +74,7 @@ export const createOrderController = ({
       throw new BadRequestError("Order ID is required");
     }
 
-    const order = await orderService.getMyOrderById(
-      userId,
-      orderId,
-    );
+    const order = await orderService.getMyOrderById(userId, orderId);
 
     res.status(200).json({
       success: true,
@@ -90,10 +90,7 @@ export const createOrderController = ({
       throw new BadRequestError("Order ID is required");
     }
 
-    const order = await orderService.cancelOrder(
-      userId,
-      orderId,
-    );
+    const order = await orderService.cancelOrder(userId, orderId);
 
     res.status(200).json({
       success: true,
