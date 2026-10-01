@@ -1,9 +1,12 @@
-
 import { Router, type RequestHandler } from "express";
+
 import type { OrderController } from "../controllers/controller.order.js";
+
 import { validate } from "../../../shared/middleware/validate.middleware.js";
+
 import {
   buyNowSchema,
+  checkoutSchema,
   orderIdParamsSchema,
 } from "../validators/validator.order.js";
 
@@ -20,13 +23,13 @@ export const createOrderRoutes = ({
   authenticate,
   authorizePermission,
 }: CreateOrderRouteDependencies): Router => {
-  
   const router = Router();
 
   // Customer routes
   router.post(
     "/",
     authenticate,
+    validate(checkoutSchema),
     orderController.checkout,
   );
 
