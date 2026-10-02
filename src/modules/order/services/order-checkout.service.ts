@@ -35,6 +35,7 @@ export const createOrderCheckoutService = ({
   inventoryService,
   outboxService,
 }: CreateOrderCheckoutServiceDependencies) => {
+  
   const getReservationExpiresAt = () => {
     return new Date(Date.now() + 15 * 60 * 1000);
   };

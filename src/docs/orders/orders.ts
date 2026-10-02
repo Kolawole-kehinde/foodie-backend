@@ -1,7 +1,10 @@
 import { registry } from "../registry.js";
 import { z } from "../zod-openapi.js";
 
-import { buyNowSchema } from "../../modules/order/validators/validator.order.js";
+import {
+  buyNowSchema,
+  checkoutSchema,
+} from "../../modules/order/validators/validator.order.js";
 
 const orderStatusSchema = z.enum([
   "PENDING",
@@ -12,6 +15,20 @@ const orderStatusSchema = z.enum([
   "CANCELLED",
   "EXPIRED",
 ]);
+
+const shippingAddressResponseSchema = z.object({
+  id: z.string(),
+  orderId: z.string(),
+  recipientName: z.string(),
+  phone: z.string(),
+  addressLine1: z.string(),
+  addressLine2: z.string().nullable(),
+  city: z.string(),
+  state: z.string(),
+  postalCode: z.string().nullable(),
+  country: z.string(),
+  createdAt: z.string(),
+});
 
 const orderItemResponseSchema = z.object({
   id: z.string(),
@@ -29,6 +46,7 @@ const orderResponseSchema = z.object({
   userId: z.string(),
   status: orderStatusSchema,
   totalAmount: z.string(),
+  shippingFee: z.string(),
   reservationExpiresAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -36,6 +54,7 @@ const orderResponseSchema = z.object({
 
 const orderWithItemsResponseSchema = orderResponseSchema.extend({
   items: z.array(orderItemResponseSchema),
+  shippingAddress: shippingAddressResponseSchema.nullable(),
 });
 
 const orderIdParamsSchema = z.object({
@@ -47,6 +66,15 @@ registry.registerPath({
   path: "/api/v1/orders",
   tags: ["Orders"],
   security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: checkoutSchema,
+        },
+      },
+    },
+  },
   responses: {
     201: {
       description: "Order created successfully from cart",
@@ -126,7 +154,7 @@ registry.registerPath({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            data: orderResponseSchema,
+            data: orderWithItemsResponseSchema,
           }),
         },
       },
@@ -149,7 +177,7 @@ registry.registerPath({
         "application/json": {
           schema: z.object({
             success: z.literal(true),
-            data: orderResponseSchema,
+            data: orderWithItemsResponseSchema,
           }),
         },
       },
@@ -248,4 +276,3 @@ registry.registerPath({
     },
   },
 });
-
