@@ -1,7 +1,5 @@
 import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
-
 import { createPaymentRepository } from "../repositories/payment.repository.js";
-
 import type {
   InitializePaymentInput,
   PaymentServiceDependencies,
@@ -13,9 +11,8 @@ export const createPaymentService = ({
   paymentProviderRegistry,
 }: PaymentServiceDependencies) => {
   const initializePayment = async (input: InitializePaymentInput) => {
-   
     // 1. Prevent duplicate payment for the same order
-  const existingPayment = await paymentRepository.getByOrderId(input.orderId);
+    const existingPayment = await paymentRepository.getByOrderId(input.orderId);
 
     if (existingPayment) {
       if (existingPayment.status === PaymentStatus.SUCCESS) {
@@ -30,13 +27,10 @@ export const createPaymentService = ({
       }
     }
 
-
     // 2. Create payment and payment attempt
     // The transaction only handles database work.
-    // The external provider is called after the transactionhas completed.
+    // The external provider is called after the transaction has completed.
     const { payment, attempt } = await db.$transaction(async (tx) => {
-      // Create a repository using the transaction client.
-      // This keeps database access inside the repository layer.
       const transactionRepository = createPaymentRepository(tx);
 
       const createdPayment = await transactionRepository.createPayment({
@@ -74,19 +68,12 @@ export const createPaymentService = ({
       };
     });
 
-    
     // 3. Resolve the configured payment provider
     const provider = paymentProviderRegistry.getProvider(input.provider);
 
     try {
-      // ------------------------------------------------
       // 4. Initialize payment with the provider
-      //
-      // IMPORTANT:
       // This happens outside the database transaction.
-      // External API calls should never hold database locks.
-      // ------------------------------------------------
-
       const result = await provider.initializePayment({
         paymentId: payment.id,
         attemptId: attempt.id,
@@ -96,7 +83,6 @@ export const createPaymentService = ({
         callbackUrl: input.callbackUrl,
       });
 
-
       // 5. Persist provider reference and processing state
       await paymentRepository.updatePayment(payment.id, {
         status: PaymentStatus.PROCESSING,
@@ -105,9 +91,9 @@ export const createPaymentService = ({
 
       await paymentRepository.updatePaymentAttempt(attempt.id, {
         status: PaymentAttemptStatus.PROCESSING,
+        providerReference: result.providerReference,
       });
 
-  
       // 6. Return payment initialization result
       return {
         paymentId: payment.id,
@@ -118,8 +104,8 @@ export const createPaymentService = ({
         status: PaymentStatus.PROCESSING,
       };
     } catch (error) {
-     
-      // 7. Provider initialization failed, Mark both our payment and attempt as failed.
+      // 7. Provider initialization failed.
+      // Mark both the payment and attempt as failed.
       const failureReason =
         error instanceof Error
           ? error.message
