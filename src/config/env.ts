@@ -85,6 +85,18 @@ const envSchema = z.object({
   SMTP_FROM: z.string().min(1, "SMTP_FROM is required"),
   APP_URL: z.string().url(),
 
+
+  //Payment
+    // Payments
+  PAYSTACK_SECRET_KEY: z
+    .string()
+    .min(1, "PAYSTACK_SECRET_KEY is required"),
+
+  PAYSTACK_BASE_URL: z
+    .string()
+    .url()
+    .default("https://api.paystack.co"),
+
   // Logging
   LOG_LEVEL: z.enum([
     "fatal",
@@ -150,6 +162,14 @@ export const env = {
   secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
   bucketName: config.AWS_S3_BUCKET_NAME,
 },
+
+
+  payment: {
+    paystack: {
+      secretKey: config.PAYSTACK_SECRET_KEY,
+      baseUrl: config.PAYSTACK_BASE_URL,
+    },
+  },
 
   // cookie: {
   //   SECRET: config.COOKIE_SECRET,
