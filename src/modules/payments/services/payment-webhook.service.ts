@@ -1,12 +1,13 @@
-import {
-  PaymentAttemptStatus,
-  PaymentStatus,
-  type PaymentProvider,
-} from "@prisma/client";
 
 import type { PaymentProviderRegistry } from "../providers/payment-provider.registry.js";
 import type { PaymentRepository } from "../repositories/payment.repository.js";
 import { canTransitionPaymentStatus } from "../policies/payment-status-transition.policy.js";
+import {
+  PaymentAttemptStatus,
+  PaymentStatus,
+  Prisma,
+  type PaymentProvider,
+} from "@prisma/client";
 
 
 type HandlePaymentWebhookInput = {
@@ -57,7 +58,7 @@ export const createPaymentWebhookService = ({
       provider: providerName,
       eventId: webhook.eventId,
       eventType: webhook.eventType,
-      payload: webhook.payload,
+     payload: webhook.payload as Prisma.InputJsonValue,
     });
 
     // 5. Webhook must contain a provider reference
@@ -229,14 +230,18 @@ const mapPaymentStatusToAttemptStatus = (
   }
 };
 
-const isTerminalPaymentStatus = (status: PaymentStatus): boolean => {
-  return [
+const isTerminalPaymentStatus = (
+  status: PaymentStatus,
+): boolean => {
+  const terminalStatuses: PaymentStatus[] = [
     PaymentStatus.SUCCESS,
     PaymentStatus.FAILED,
     PaymentStatus.CANCELLED,
     PaymentStatus.EXPIRED,
     PaymentStatus.REFUNDED,
-  ].includes(status);
+  ];
+
+  return terminalStatuses.includes(status);
 };
 
 export type PaymentWebhookService = ReturnType<

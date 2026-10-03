@@ -1,8 +1,6 @@
 import { PaymentProvider } from "@prisma/client";
 import type { PaymentProviderClient } from "./payment-provider.js";
 
-
-
 type PaymentProviderRegistryDependencies = {
   paystack: PaymentProviderClient;
 };
@@ -10,23 +8,18 @@ type PaymentProviderRegistryDependencies = {
 export const createPaymentProviderRegistry = ({
   paystack,
 }: PaymentProviderRegistryDependencies) => {
-  const providers: Record<PaymentProvider, PaymentProviderClient> = {
+  const providers: Partial<Record<PaymentProvider, PaymentProviderClient>> = {
     [PaymentProvider.PAYSTACK]: paystack,
-   
 
     // Flutterwave will be added here later.
     // [PaymentProvider.FLUTTERWAVE]: flutterwave,
   };
 
-  const getProvider = (
-    provider: PaymentProvider,
-  ): PaymentProviderClient => {
+  const getProvider = (provider: PaymentProvider): PaymentProviderClient => {
     const paymentProvider = providers[provider];
 
     if (!paymentProvider) {
-      throw new Error(
-        `Payment provider is not configured: ${provider}`,
-      );
+      throw new Error(`Payment provider is not configured: ${provider}`);
     }
 
     return paymentProvider;
