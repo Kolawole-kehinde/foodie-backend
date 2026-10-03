@@ -1,6 +1,7 @@
 import { PaymentProvider } from "@prisma/client";
+import type { PaymentProviderClient } from "./payment-provider.js";
 
-import type { PaymentProviderClient } from "../interfaces/payment-provider.js";
+
 
 type PaymentProviderRegistryDependencies = {
   paystack: PaymentProviderClient;
