@@ -12,6 +12,7 @@ export const createPaymentProviderRegistry = ({
 }: PaymentProviderRegistryDependencies) => {
   const providers: Record<PaymentProvider, PaymentProviderClient> = {
     [PaymentProvider.PAYSTACK]: paystack,
+   
 
     // Flutterwave will be added here later.
     // [PaymentProvider.FLUTTERWAVE]: flutterwave,

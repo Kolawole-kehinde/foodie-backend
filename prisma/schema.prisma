@@ -581,7 +581,7 @@ enum PaymentAttemptStatus {
 
 enum PaymentProvider {
   PAYSTACK
-  FLUTTERWAVE
+  // FLUTTERWAVE
 }
 
 enum RefundStatus {
