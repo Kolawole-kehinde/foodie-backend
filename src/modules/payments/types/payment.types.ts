@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PaymentProvider, PrismaClient } from "@prisma/client";
+
 import type { PaymentProviderRegistry } from "../providers/payment-provider.registry.js";
 import type { PaymentRepository } from "../repositories/payment.repository.js";
 
@@ -9,7 +10,7 @@ export type InitializePaymentInput = {
   currency: string;
   customerEmail: string;
   callbackUrl?: string;
-  provider: Parameters<PaymentProviderRegistry["getProvider"]>[0];
+  provider: PaymentProvider;
 };
 
 export type PaymentServiceDependencies = {

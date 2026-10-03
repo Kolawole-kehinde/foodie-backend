@@ -1,18 +1,21 @@
-import { PaymentAttemptStatus, PaymentStatus, PrismaClient } from "@prisma/client";
-import type { InitializePaymentInput, PaymentServiceDependencies } from "../types/payment.types.js";
+import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
 
+import { createPaymentRepository } from "../repositories/payment.repository.js";
 
+import type {
+  InitializePaymentInput,
+  PaymentServiceDependencies,
+} from "../types/payment.types.js";
 
 export const createPaymentService = ({
   db,
   paymentRepository,
   paymentProviderRegistry,
 }: PaymentServiceDependencies) => {
-
   const initializePayment = async (input: InitializePaymentInput) => {
-  
+   
     // 1. Prevent duplicate payment for the same order
-    const existingPayment = await paymentRepository.getByOrderId(input.orderId);
+  const existingPayment = await paymentRepository.getByOrderId(input.orderId);
 
     if (existingPayment) {
       if (existingPayment.status === PaymentStatus.SUCCESS) {
@@ -28,49 +31,41 @@ export const createPaymentService = ({
     }
 
 
-    // 2. Create our payment and payment attempt
-    // The external provider must NOT be called inside this transaction.
+    // 2. Create payment and payment attempt
+    // The transaction only handles database work.
+    // The external provider is called after the transactionhas completed.
     const { payment, attempt } = await db.$transaction(async (tx) => {
-      const transactionRepository =
-        // Reuse the same repository factory with the
-        // transaction client.
-        // This keeps database access inside the repository.
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        undefined;
+      // Create a repository using the transaction client.
+      // This keeps database access inside the repository layer.
+      const transactionRepository = createPaymentRepository(tx);
 
-      void transactionRepository;
-
-      const createdPayment = await tx.payment.create({
-        data: {
-          order: {
-            connect: {
-              id: input.orderId,
-            },
+      const createdPayment = await transactionRepository.createPayment({
+        order: {
+          connect: {
+            id: input.orderId,
           },
-          user: {
-            connect: {
-              id: input.userId,
-            },
-          },
-          amount: input.amount,
-          currency: input.currency,
-          provider: input.provider,
-          status: PaymentStatus.PENDING,
         },
+        user: {
+          connect: {
+            id: input.userId,
+          },
+        },
+        amount: input.amount,
+        currency: input.currency,
+        provider: input.provider,
+        status: PaymentStatus.PENDING,
       });
 
-      const createdAttempt = await tx.paymentAttempt.create({
-        data: {
-          payment: {
-            connect: {
-              id: createdPayment.id,
-            },
+      const createdAttempt = await transactionRepository.createPaymentAttempt({
+        payment: {
+          connect: {
+            id: createdPayment.id,
           },
-          provider: input.provider,
-          amount: input.amount,
-          currency: input.currency,
-          status: PaymentAttemptStatus.INITIATED,
         },
+        provider: input.provider,
+        amount: input.amount,
+        currency: input.currency,
+        status: PaymentAttemptStatus.INITIATED,
       });
 
       return {
@@ -79,18 +74,17 @@ export const createPaymentService = ({
       };
     });
 
-    // --------------------------------------------------
-    // 3. Resolve the configured provider
-    // --------------------------------------------------
-
+    
+    // 3. Resolve the configured payment provider
     const provider = paymentProviderRegistry.getProvider(input.provider);
 
     try {
       // ------------------------------------------------
-      // 4. Initialize the payment with the provider
+      // 4. Initialize payment with the provider
       //
-      // This is intentionally outside the DB transaction.
-      // External API calls should never hold DB locks.
+      // IMPORTANT:
+      // This happens outside the database transaction.
+      // External API calls should never hold database locks.
       // ------------------------------------------------
 
       const result = await provider.initializePayment({
@@ -102,8 +96,8 @@ export const createPaymentService = ({
         callbackUrl: input.callbackUrl,
       });
 
-    
-      // 5. Persist provider information
+
+      // 5. Persist provider reference and processing state
       await paymentRepository.updatePayment(payment.id, {
         status: PaymentStatus.PROCESSING,
         providerReference: result.providerReference,
@@ -113,6 +107,8 @@ export const createPaymentService = ({
         status: PaymentAttemptStatus.PROCESSING,
       });
 
+  
+      // 6. Return payment initialization result
       return {
         paymentId: payment.id,
         attemptId: attempt.id,
@@ -122,28 +118,22 @@ export const createPaymentService = ({
         status: PaymentStatus.PROCESSING,
       };
     } catch (error) {
-      // ------------------------------------------------
-      // Provider initialization failed.
-      //
-      // Keep our database state consistent with what
-      // happened externally.
-      // ------------------------------------------------
+     
+      // 7. Provider initialization failed, Mark both our payment and attempt as failed.
+      const failureReason =
+        error instanceof Error
+          ? error.message
+          : "Payment initialization failed";
 
       await paymentRepository.updatePayment(payment.id, {
         status: PaymentStatus.FAILED,
         failedAt: new Date(),
-        failureReason:
-          error instanceof Error
-            ? error.message
-            : "Payment initialization failed",
+        failureReason,
       });
 
       await paymentRepository.updatePaymentAttempt(attempt.id, {
         status: PaymentAttemptStatus.FAILED,
-        failureReason:
-          error instanceof Error
-            ? error.message
-            : "Payment initialization failed",
+        failureReason,
         completedAt: new Date(),
       });
 

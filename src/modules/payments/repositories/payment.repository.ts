@@ -1,7 +1,8 @@
 import type { Prisma, PaymentProvider, PrismaClient  } from "@prisma/client";
+import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 
-export const createPaymentRepository = (db: PrismaClient) => {
+export const createPaymentRepository = (db: DatabaseClient) => {
   const createPayment = async (data: Prisma.PaymentCreateInput) => {
     return db.payment.create({
       data,
