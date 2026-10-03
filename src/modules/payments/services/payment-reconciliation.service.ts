@@ -6,6 +6,7 @@ import { canTransitionPaymentStatus } from "../policies/payment-status-transitio
 
 type ReconcilePaymentInput = {
   paymentId: string;
+  userId: string;
 };
 
 type PaymentReconciliationServiceDependencies = {
@@ -17,13 +18,25 @@ export const createPaymentReconciliationService = ({
   paymentRepository,
   paymentProviderRegistry,
 }: PaymentReconciliationServiceDependencies) => {
-  const reconcilePayment = async ({ paymentId }: ReconcilePaymentInput) => {
-    // 1. Find our payment
-    const payment = await paymentRepository.getById(paymentId);
 
-    if (!payment) {
-      throw new Error("Payment not found");
-    }
+
+ const reconcilePayment = async ({
+  paymentId,
+  userId,
+}: ReconcilePaymentInput) => {
+  const payment = await paymentRepository.getById(paymentId);
+
+  if (!payment) {
+    throw new Error("Payment not found");
+  }
+
+  if (payment.userId !== userId) {
+    throw new Error("You cannot verify this payment");
+  }
+
+  if (!payment.providerReference) {
+    throw new Error("Payment does not have a provider reference");
+  }
 
     // 2. A provider reference is required for verification
     if (!payment.providerReference) {

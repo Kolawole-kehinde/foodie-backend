@@ -1,5 +1,7 @@
 import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
+
 import { createPaymentRepository } from "../repositories/payment.repository.js";
+
 import type {
   InitializePaymentInput,
   PaymentServiceDependencies,
@@ -9,9 +11,17 @@ export const createPaymentService = ({
   db,
   paymentRepository,
   paymentProviderRegistry,
+  paymentProcessingService,
 }: PaymentServiceDependencies) => {
   const initializePayment = async (input: InitializePaymentInput) => {
-    // 1. Prevent duplicate payment for the same order
+    // 1. Prepare trusted payment context from the order
+    const paymentContext = await paymentProcessingService.preparePayment({
+      orderId: input.orderId,
+      userId: input.userId,
+      provider: input.provider,
+    });
+
+    // 2. Prevent duplicate payment for the same order
     const existingPayment = await paymentRepository.getByOrderId(input.orderId);
 
     if (existingPayment) {
@@ -27,25 +37,25 @@ export const createPaymentService = ({
       }
     }
 
-    // 2. Create payment and payment attempt
+    // 3. Create payment and payment attempt
     // The transaction only handles database work.
-    // The external provider is called after the transaction has completed.
+    // The external provider is called after the transaction completes.
     const { payment, attempt } = await db.$transaction(async (tx) => {
       const transactionRepository = createPaymentRepository(tx);
 
       const createdPayment = await transactionRepository.createPayment({
         order: {
           connect: {
-            id: input.orderId,
+            id: paymentContext.orderId,
           },
         },
         user: {
           connect: {
-            id: input.userId,
+            id: paymentContext.userId,
           },
         },
-        amount: input.amount,
-        currency: input.currency,
+        amount: paymentContext.amount,
+        currency: paymentContext.currency,
         provider: input.provider,
         status: PaymentStatus.PENDING,
       });
@@ -57,8 +67,8 @@ export const createPaymentService = ({
           },
         },
         provider: input.provider,
-        amount: input.amount,
-        currency: input.currency,
+        amount: paymentContext.amount,
+        currency: paymentContext.currency,
         status: PaymentAttemptStatus.INITIATED,
       });
 
@@ -68,22 +78,22 @@ export const createPaymentService = ({
       };
     });
 
-    // 3. Resolve the configured payment provider
+    // 4. Resolve configured payment provider
     const provider = paymentProviderRegistry.getProvider(input.provider);
 
     try {
-      // 4. Initialize payment with the provider
-      // This happens outside the database transaction.
+      // 5. Initialize payment with provider
+      // External API call happens outside the DB transaction.
       const result = await provider.initializePayment({
         paymentId: payment.id,
         attemptId: attempt.id,
-        amount: input.amount,
-        currency: input.currency,
-        customerEmail: input.customerEmail,
+        amount: paymentContext.amount,
+        currency: paymentContext.currency,
+        customerEmail: paymentContext.customerEmail,
         callbackUrl: input.callbackUrl,
       });
 
-      // 5. Persist provider reference and processing state
+      // 6. Persist provider reference and processing state
       await paymentRepository.updatePayment(payment.id, {
         status: PaymentStatus.PROCESSING,
         providerReference: result.providerReference,
@@ -94,7 +104,7 @@ export const createPaymentService = ({
         providerReference: result.providerReference,
       });
 
-      // 6. Return payment initialization result
+      // 7. Return payment initialization result
       return {
         paymentId: payment.id,
         attemptId: attempt.id,
@@ -104,8 +114,7 @@ export const createPaymentService = ({
         status: PaymentStatus.PROCESSING,
       };
     } catch (error) {
-      // 7. Provider initialization failed.
-      // Mark both the payment and attempt as failed.
+      // 8. Provider initialization failed
       const failureReason =
         error instanceof Error
           ? error.message

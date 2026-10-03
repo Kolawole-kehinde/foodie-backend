@@ -142,6 +142,26 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
+  const getRefundedAmount = async (paymentId: string) => {
+  const result = await db.paymentRefund.aggregate({
+    where: {
+      paymentId,
+      status: {
+        in: [
+          "PENDING",
+          "PROCESSING",
+          "SUCCESS",
+        ],
+      },
+    },
+    _sum: {
+      amount: true,
+    },
+  });
+
+  return result._sum.amount ?? 0;
+};
+
   const updateRefund = async (
     refundId: string,
     data: Prisma.PaymentRefundUpdateInput,
@@ -153,6 +173,7 @@ export const createPaymentRepository = (db: DatabaseClient) => {
       data,
     });
   };
+
 
   return {
     createPayment,
@@ -170,6 +191,7 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     createRefund,
     getRefundById,
     getRefundByProviderReference,
+    getRefundedAmount,
     updateRefund,
   };
 };
