@@ -162,6 +162,16 @@ export const createPaymentRepository = (db: DatabaseClient) => {
   return result._sum.amount ?? 0;
 };
 
+const getRefundsByPaymentId = async (paymentId: string) =>
+  db.paymentRefund.findMany({
+    where: {
+      paymentId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
   const updateRefund = async (
     refundId: string,
     data: Prisma.PaymentRefundUpdateInput,
@@ -193,6 +203,7 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     getRefundByProviderReference,
     getRefundedAmount,
     updateRefund,
+    getRefundsByPaymentId
   };
 };
 
