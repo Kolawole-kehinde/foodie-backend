@@ -7,6 +7,7 @@ type PaymentQueryServiceDependencies = {
 export const createPaymentQueryService = ({
   paymentRepository,
 }: PaymentQueryServiceDependencies) => {
+    
   const getPaymentById = async ({
     paymentId,
     userId,
