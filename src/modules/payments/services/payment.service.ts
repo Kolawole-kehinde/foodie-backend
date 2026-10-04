@@ -1,9 +1,8 @@
 import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
-
 import { createPaymentRepository } from "../repositories/payment.repository.js";
-
+import { PaymentProviderError } from "../errors/payment-provider.error.js";
 import type {
-  InitializePaymentInput,
+  InitializePaymentServiceInput,
   PaymentServiceDependencies,
 } from "../types/payment.types.js";
 
@@ -13,15 +12,19 @@ export const createPaymentService = ({
   paymentProviderRegistry,
   paymentProcessingService,
 }: PaymentServiceDependencies) => {
-  const initializePayment = async (input: InitializePaymentInput) => {
-    // 1. Prepare trusted payment context from the order
+  const initializePayment = async (input: InitializePaymentServiceInput) => {
+    // 1. Prepare trusted payment context from the order.
     const paymentContext = await paymentProcessingService.preparePayment({
       orderId: input.orderId,
       userId: input.userId,
       provider: input.provider,
     });
 
-    // 2. Prevent duplicate payment for the same order
+    // 2. Resolve the configured provider before creating
+    // any payment records.
+    const provider = paymentProviderRegistry.get(input.provider);
+
+    // 3. Prevent an already completed payment.
     const existingPayment = await paymentRepository.getByOrderId(input.orderId);
 
     if (existingPayment) {
@@ -35,11 +38,14 @@ export const createPaymentService = ({
       ) {
         throw new Error("A payment already exists for this order");
       }
+
+      // A previous FAILED payment can be retried.
     }
 
-    // 3. Create payment and payment attempt
-    // The transaction only handles database work.
-    // The external provider is called after the transaction completes.
+    // 4. Create the payment aggregate and attempt atomically.
+    //
+    // The external provider is deliberately NOT called
+    // inside this transaction.
     const { payment, attempt } = await db.$transaction(async (tx) => {
       const transactionRepository = createPaymentRepository(tx);
 
@@ -56,7 +62,6 @@ export const createPaymentService = ({
         },
         amount: paymentContext.amount,
         currency: paymentContext.currency,
-        provider: input.provider,
         status: PaymentStatus.PENDING,
       });
 
@@ -78,12 +83,11 @@ export const createPaymentService = ({
       };
     });
 
-    // 4. Resolve configured payment provider
-    const provider = paymentProviderRegistry.getProvider(input.provider);
-
     try {
-      // 5. Initialize payment with provider
-      // External API call happens outside the DB transaction.
+      // 5. Initialize the payment with the external provider.
+      //
+      // This happens outside the DB transaction because
+      // external network calls should not hold DB locks.
       const result = await provider.initializePayment({
         paymentId: payment.id,
         attemptId: attempt.id,
@@ -93,18 +97,19 @@ export const createPaymentService = ({
         callbackUrl: input.callbackUrl,
       });
 
-      // 6. Persist provider reference and processing state
-      await paymentRepository.updatePayment(payment.id, {
-        status: PaymentStatus.PROCESSING,
-        providerReference: result.providerReference,
-      });
-
+      // 6. Persist the provider reference on the attempt.
+      //
+      // PaymentAttempt owns provider-specific information.
       await paymentRepository.updatePaymentAttempt(attempt.id, {
         status: PaymentAttemptStatus.PROCESSING,
         providerReference: result.providerReference,
       });
 
-      // 7. Return payment initialization result
+      await paymentRepository.updatePayment(payment.id, {
+        status: PaymentStatus.PROCESSING,
+      });
+
+      // 7. Return the initialization result.
       return {
         paymentId: payment.id,
         attemptId: attempt.id,
@@ -114,23 +119,59 @@ export const createPaymentService = ({
         status: PaymentStatus.PROCESSING,
       };
     } catch (error) {
-      // 8. Provider initialization failed
-      const failureReason =
-        error instanceof Error
-          ? error.message
-          : "Payment initialization failed";
+      /*
+       * Provider failures need to be classified carefully.
+       *
+       * A timeout/network/5xx can mean:
+       *
+       *   our request → Paystack → payment created
+       *                              ↓
+       *                         response lost
+       *
+       * Therefore we must NOT automatically mark the
+       * payment as FAILED when the outcome is uncertain.
+       */
 
-      await paymentRepository.updatePayment(payment.id, {
-        status: PaymentStatus.FAILED,
-        failedAt: new Date(),
-        failureReason,
-      });
+      if (error instanceof PaymentProviderError) {
+        if (error.uncertain) {
+          await paymentRepository.updatePayment(payment.id, {
+            failureReason: error.message,
+          });
 
-      await paymentRepository.updatePaymentAttempt(attempt.id, {
-        status: PaymentAttemptStatus.FAILED,
-        failureReason,
-        completedAt: new Date(),
-      });
+          await paymentRepository.updatePaymentAttempt(attempt.id, {
+            failureReason: error.message,
+          });
+        } else {
+          await paymentRepository.updatePayment(payment.id, {
+            status: PaymentStatus.FAILED,
+            failedAt: new Date(),
+            failureReason: error.message,
+          });
+
+          await paymentRepository.updatePaymentAttempt(attempt.id, {
+            status: PaymentAttemptStatus.FAILED,
+            failureReason: error.message,
+            completedAt: new Date(),
+          });
+        }
+      } else {
+        // Unknown application error.
+        //
+        // We cannot safely assume the provider rejected
+        // the request.
+        const failureReason =
+          error instanceof Error
+            ? error.message
+            : "Payment initialization failed";
+
+        await paymentRepository.updatePayment(payment.id, {
+          failureReason,
+        });
+
+        await paymentRepository.updatePaymentAttempt(attempt.id, {
+          failureReason,
+        });
+      }
 
       throw error;
     }

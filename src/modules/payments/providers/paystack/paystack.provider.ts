@@ -1,121 +1,48 @@
-// Its responsibility is simply:
-// Communicate with Paystack and translate Paystack's API
-// into our provider-independent contract.
-
 import crypto from "node:crypto";
+
 import { PaymentProvider } from "@prisma/client";
 
+import { createAxiosClient } from "../../../../infrastructure/axios/axios.client.js";
+import { PaymentProviderError } from "../../errors/payment-provider.error.js";
 import type {
   InitializePaymentInput,
   InitializePaymentResult,
-  PaymentProviderClient,
-  ProviderPaymentStatus,
   RefundPaymentInput,
   RefundPaymentResult,
   VerifyPaymentInput,
   VerifyPaymentResult,
   VerifyWebhookInput,
   VerifyWebhookResult,
-} from "../payment-provider.js";
-import { createAxiosClient } from "../../../../infrastructure/axios/axios.client.js";
+} from "../../types/payment.types.js";
+
+import {
+  fromSubunit,
+  getRefundProviderReference,
+  getResourceType,
+  getStringMetadata,
+  mapPaymentStatus,
+  normalizeCurrency,
+  toSubunit,
+} from "./paystack-mappers.js";
+
+import type {
+  PaystackInitializeResponse,
+  PaystackRefundResponse,
+  PaystackVerifyResponse,
+} from "./paystack.types.js";
+import type { PaymentProviderClient } from "../payment-provider.js";
+import { createPaystackHttpHelper } from "../helpers/paystack-http.helper.js";
+import { assertPaystackResponse } from "../helpers/paystack-response.helper.js";
 
 type PaystackProviderDependencies = {
   secretKey: string;
   baseUrl: string;
 };
 
-// Small helper for converting our application amount into
-// Paystack's expected subunit amount.
-//
-// Example:
-// NGN 5,000.00 -> 500000 kobo
-//
-// We keep this conversion inside the adapter because
-// Paystack-specific amount representation should not leak
-// into the rest of the payment module.
-const toSubunit = (amount: string): number => {
-  const value = Number(amount);
-
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error("Invalid payment amount");
-  }
-
-  return Math.round(value * 100);
-};
-
-// Convert Paystack's transaction status into our
-// provider-independent payment status.
-const mapPaymentStatus = (status: string): ProviderPaymentStatus => {
-  switch (status.toLowerCase()) {
-    case "success":
-      return "SUCCESS";
-
-    case "failed":
-    case "reversed":
-      return "FAILED";
-
-    case "abandoned":
-      return "CANCELLED";
-
-    case "pending":
-    case "processing":
-    case "ongoing":
-    case "queued":
-    default:
-      return "PROCESSING";
-  }
-};
-
-// Paystack API response shape for transaction initialization.
-// We only define the fields our application actually needs.
-type PaystackInitializeResponse = {
-  status: boolean;
-  message: string;
-  data?: {
-    authorization_url: string;
-    access_code: string;
-    reference: string;
-  };
-};
-
-// Paystack API response shape for transaction verification.
-type PaystackVerifyResponse = {
-  status: boolean;
-  message: string;
-  data?: {
-    amount: number;
-    currency: string;
-    reference: string;
-    status: string;
-  };
-};
-
-// Paystack API response shape for refunds.
-type PaystackRefundResponse = {
-  status: boolean;
-  message: string;
-  data?: {
-    amount: number;
-    currency: string;
-    transaction: string;
-    status: string;
-    id: number;
-  };
-};
-
-// Creates the Paystack implementation of our common
-// PaymentProviderClient interface.
-//
-// The rest of the application depends on the interface,
-// not directly on Paystack.
 export const createPaystackProvider = ({
   secretKey,
   baseUrl,
 }: PaystackProviderDependencies): PaymentProviderClient => {
-  // Paystack-specific Axios client.
-  //
-  // Authentication and base URL are configured once here
-  // instead of being repeated on every request.
   const client = createAxiosClient({
     baseUrl,
     headers: {
@@ -123,187 +50,255 @@ export const createPaystackProvider = ({
     },
   });
 
-  // Initialize a transaction on Paystack.
-  //
-  // Paystack expects the amount in the smallest currency unit.
-  // For example, NGN 5,000 becomes 500000 kobo.
+  const http = createPaystackHttpHelper(client);
+
   const initializePayment = async (
     input: InitializePaymentInput,
   ): Promise<InitializePaymentResult> => {
-    const response = await client.post<PaystackInitializeResponse>(
-      "/transaction/initialize",
-      {
-        amount: toSubunit(input.amount),
-        currency: input.currency,
+    const amount = toSubunit(input.amount);
+    const currency = normalizeCurrency(input.currency);
+
+    const metadata = {
+      ...(input.metadata ?? {}),
+      paymentId: input.paymentId,
+      attemptId: input.attemptId,
+    };
+
+    const response = await http.request<PaystackInitializeResponse>({
+      method: "POST",
+      url: "/transaction/initialize",
+      data: {
+        amount,
+        currency,
         email: input.customerEmail,
-
-        // We provide our internal payment/attempt identifiers
-        // as metadata so the provider transaction can be
-        // correlated with our system when necessary.
-        metadata: {
-          paymentId: input.paymentId,
-          attemptId: input.attemptId,
-          ...input.metadata,
-        },
-
         callback_url: input.callbackUrl,
+        metadata,
       },
+    });
+
+    const data = assertPaystackResponse(
+      response.data,
+      "payment initialization",
     );
-
-    const data = response.data;
-
-    if (!data.status || !data.data) {
-      throw new Error(
-        data.message || "Failed to initialize Paystack payment",
-      );
-    }
 
     return {
       provider: PaymentProvider.PAYSTACK,
-      providerReference: data.data.reference,
-      authorizationUrl: data.data.authorization_url,
+      providerReference: data.reference,
+      authorizationUrl: data.authorization_url,
+      accessCode: data.access_code,
       status: "PROCESSING",
-      metadata: {
-        accessCode: data.data.access_code,
-      },
+      providerStatus: "initialized",
+      metadata,
     };
   };
 
-  // Verify an existing Paystack transaction.
-  //
-  // This is important because the customer's browser/callback
-  // is not authoritative proof of payment.
   const verifyPayment = async (
     input: VerifyPaymentInput,
   ): Promise<VerifyPaymentResult> => {
-    const response = await client.get<PaystackVerifyResponse>(
-      `/transaction/verify/${encodeURIComponent(input.providerReference)}`,
-    );
+    const reference = encodeURIComponent(input.providerReference);
 
-    const data = response.data;
+    const response = await http.request<PaystackVerifyResponse>({
+      method: "GET",
+      url: `/transaction/verify/${reference}`,
+    });
 
-    if (!data.status || !data.data) {
-      throw new Error(
-        data.message || "Failed to verify Paystack payment",
-      );
-    }
+    const data = assertPaystackResponse(response.data, "payment verification");
+
+    const currency = normalizeCurrency(data.currency);
 
     return {
       provider: PaymentProvider.PAYSTACK,
-      providerReference: data.data.reference,
-      status: mapPaymentStatus(data.data.status),
-      amount: (data.data.amount / 100).toFixed(2),
-      currency: data.data.currency,
+      providerReference: data.reference,
+      amount: fromSubunit(data.amount),
+      currency,
+      status: mapPaymentStatus(data.status),
+      providerStatus: data.status,
+      paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
+      failureReason:
+        data.status.toLowerCase() === "failed"
+          ? (data.gateway_response ?? undefined)
+          : undefined,
+      metadata: getStringMetadata(data.metadata),
     };
   };
 
-  // Request a refund from Paystack.
-  //
-  // This method only communicates with Paystack.
-  // It does NOT update our PaymentRefund database record.
-  // That responsibility belongs to the payment processing layer.
   const refundPayment = async (
     input: RefundPaymentInput,
   ): Promise<RefundPaymentResult> => {
-    const response = await client.post<PaystackRefundResponse>(
-      "/refund",
-      {
+    const amount = toSubunit(input.amount);
+    const currency = normalizeCurrency(input.currency);
+
+    const response = await http.request<PaystackRefundResponse>({
+      method: "POST",
+      url: "/refund",
+      data: {
         transaction: input.providerReference,
-        amount: toSubunit(input.amount),
-        currency: input.currency,
+        amount,
+        currency,
         merchant_note: input.reason,
       },
-    );
+    });
 
-    const data = response.data;
+    const data = assertPaystackResponse(response.data, "payment refund");
 
-    if (!data.status || !data.data) {
-      throw new Error(
-        data.message || "Failed to initialize Paystack refund",
-      );
+    const normalizedStatus = data.status.trim().toLowerCase();
+
+    let status: RefundPaymentResult["status"];
+
+    switch (normalizedStatus) {
+      case "processed":
+        status = "SUCCESS";
+        break;
+
+      case "pending":
+      case "processing":
+      case "needs-attention":
+        status = "PROCESSING";
+        break;
+
+      case "failed":
+        status = "FAILED";
+        break;
+
+      default:
+        status = "UNKNOWN";
     }
 
     return {
       provider: PaymentProvider.PAYSTACK,
       providerReference: input.providerReference,
-      refundReference: String(data.data.id),
-      status:
-        data.data.status.toLowerCase() === "processed"
-          ? "SUCCESS"
-          : "PROCESSING",
-      amount: (data.data.amount / 100).toFixed(2),
-      currency: data.data.currency,
+      providerRefundReference: String(data.id),
+      amount: fromSubunit(data.amount),
+      currency: normalizeCurrency(data.currency),
+      status,
+      providerStatus: data.status,
+      failureReason:
+        normalizedStatus === "failed" ? (data.reason ?? undefined) : undefined,
+      metadata: {
+        transactionReference: getRefundProviderReference(data.transaction),
+      },
     };
   };
 
-  // Verify that a webhook actually came from Paystack.
-  //
-  // Paystack signs the raw request body with HMAC-SHA512
-  // using the secret key.
   const verifyWebhook = async (
     input: VerifyWebhookInput,
   ): Promise<VerifyWebhookResult> => {
+    const signature = input.headers["x-paystack-signature"];
+
+    if (!signature) {
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "UNAUTHORIZED",
+        message: "Missing Paystack webhook signature",
+        retryable: false,
+        uncertain: false,
+      });
+    }
+
     const expectedSignature = crypto
       .createHmac("sha512", secretKey)
       .update(input.rawBody)
       .digest("hex");
 
-    const receivedSignature = input.signature;
-
-    // Avoid a simple string comparison when possible.
-    // timingSafeEqual helps prevent timing-based comparisons.
-    const expectedBuffer = Buffer.from(expectedSignature, "utf8");
-    const receivedBuffer = Buffer.from(receivedSignature, "utf8");
+    const provided = Buffer.from(signature, "utf8");
+    const expected = Buffer.from(expectedSignature, "utf8");
 
     if (
-      expectedBuffer.length !== receivedBuffer.length ||
-      !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)
+      provided.length !== expected.length ||
+      !crypto.timingSafeEqual(provided, expected)
     ) {
-      throw new Error("Invalid Paystack webhook signature");
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "UNAUTHORIZED",
+        message: "Invalid Paystack webhook signature",
+        retryable: false,
+        uncertain: false,
+      });
     }
 
-    const payload = JSON.parse(input.rawBody) as Record<string, unknown>;
+    let payload: Record<string, unknown>;
 
-    const eventId = String(payload.id ?? payload.event_id ?? "");
+    try {
+      const parsed: unknown = JSON.parse(input.rawBody.toString("utf8"));
 
-    const eventType = String(payload.event ?? "");
+      if (
+        typeof parsed !== "object" ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        throw new Error("Invalid webhook payload");
+      }
+
+      payload = parsed as Record<string, unknown>;
+    } catch (error) {
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "INVALID_RESPONSE",
+        message: "Invalid Paystack webhook payload",
+        retryable: false,
+        uncertain: false,
+        cause: error,
+      });
+    }
+
+    const eventType =
+      typeof payload.event === "string" ? payload.event : undefined;
+
+    if (!eventType) {
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "INVALID_RESPONSE",
+        message: "Paystack webhook event is missing",
+        retryable: false,
+        uncertain: false,
+      });
+    }
 
     const data =
-      typeof payload.data === "object" && payload.data !== null
+      typeof payload.data === "object" &&
+      payload.data !== null &&
+      !Array.isArray(payload.data)
         ? (payload.data as Record<string, unknown>)
         : {};
 
-    const providerReference =
-      typeof data.reference === "string"
-        ? data.reference
-        : undefined;
+    const resourceType = getResourceType(eventType);
 
-    const status =
-      typeof data.status === "string"
-        ? mapPaymentStatus(data.status)
-        : "PROCESSING";
+    const providerReference =
+      typeof data.reference === "string" ? data.reference : undefined;
+
+    const providerRefundReference =
+      resourceType === "REFUND" && typeof data.id === "number"
+        ? String(data.id)
+        : undefined;
 
     const amount =
-      typeof data.amount === "number"
-        ? (data.amount / 100).toFixed(2)
-        : undefined;
+      typeof data.amount === "number" ? fromSubunit(data.amount) : undefined;
 
     const currency =
       typeof data.currency === "string"
-        ? data.currency
+        ? normalizeCurrency(data.currency)
         : undefined;
 
-    if (!eventId || !eventType) {
-      throw new Error("Invalid Paystack webhook payload");
-    }
+    const providerStatus =
+      typeof data.status === "string" ? data.status : undefined;
+
+    const paidAt =
+      typeof data.paid_at === "string" ? new Date(data.paid_at) : undefined;
+
+    const metadata = getStringMetadata(data.metadata);
 
     return {
-      eventId,
+      provider: PaymentProvider.PAYSTACK,
+      resourceType,
       eventType,
       providerReference,
-      status,
+      providerRefundReference,
       amount,
       currency,
+      status: providerStatus ? mapPaymentStatus(providerStatus) : "UNKNOWN",
+      providerStatus,
+      paidAt,
+      metadata,
       payload,
     };
   };
@@ -311,7 +306,7 @@ export const createPaystackProvider = ({
   return {
     initializePayment,
     verifyPayment,
-    refundPayment,
     verifyWebhook,
+    refundPayment,
   };
 };

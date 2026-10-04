@@ -1,4 +1,4 @@
-import type { Prisma, PaymentProvider, PrismaClient  } from "@prisma/client";
+import type { Prisma, PaymentProvider } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 
@@ -25,14 +25,7 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
-  const getByProviderReference = async (providerReference: string) => {
-    return db.payment.findUnique({
-      where: {
-        providerReference,
-      },
-    });
-  };
-
+  
   const updatePayment = async (paymentId: string,data: Prisma.PaymentUpdateInput,) => {
     return db.payment.update({
       where: {
@@ -189,7 +182,6 @@ const getRefundsByPaymentId = async (paymentId: string) =>
     createPayment,
     getById,
     getByOrderId,
-    getByProviderReference,
     updatePayment,
     createPaymentAttempt,
     getPaymentAttemptById,
