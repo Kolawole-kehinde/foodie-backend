@@ -177,6 +177,20 @@ const getRefundsByPaymentId = async (paymentId: string) =>
     });
   };
 
+  const getPaymentAttemptByIdempotencyKey = async (
+  paymentId: string,
+  idempotencyKey: string,
+) => {
+  return db.paymentAttempt.findUnique({
+    where: {
+      paymentId_idempotencyKey: {
+        paymentId,
+        idempotencyKey,
+      },
+    },
+  });
+};
+
 
   return {
     createPayment,
@@ -195,7 +209,8 @@ const getRefundsByPaymentId = async (paymentId: string) =>
     getRefundByProviderReference,
     getRefundedAmount,
     updateRefund,
-    getRefundsByPaymentId
+    getRefundsByPaymentId,
+    getPaymentAttemptByIdempotencyKey
   };
 };
 

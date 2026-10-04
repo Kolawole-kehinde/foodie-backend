@@ -33,6 +33,7 @@ export interface InitializePaymentServiceInput {
   orderId: string;
   userId: string;
   provider: PaymentProvider;
+  idempotencyKey: string;
   callbackUrl?: string;
 }
 

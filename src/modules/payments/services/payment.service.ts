@@ -1,10 +1,18 @@
-import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
+import { PaymentAttemptStatus, PaymentStatus, Prisma } from "@prisma/client";
 import { createPaymentRepository } from "../repositories/payment.repository.js";
 import { PaymentProviderError } from "../errors/payment-provider.error.js";
 import type {
   InitializePaymentServiceInput,
   PaymentServiceDependencies,
 } from "../types/payment.types.js";
+import { createPaymentAttemptHelper } from "../helper/payment-attempt.helper.js";
+
+const isUniqueConstraintError = (error: unknown): boolean => {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+};
 
 export const createPaymentService = ({
   db,
@@ -12,6 +20,10 @@ export const createPaymentService = ({
   paymentProviderRegistry,
   paymentProcessingService,
 }: PaymentServiceDependencies) => {
+  const paymentAttemptHelper = createPaymentAttemptHelper({
+    paymentRepository,
+  });
+
   const initializePayment = async (input: InitializePaymentServiceInput) => {
     // 1. Prepare trusted payment context from the order.
     const paymentContext = await paymentProcessingService.preparePayment({
@@ -24,7 +36,10 @@ export const createPaymentService = ({
     // any payment records.
     const provider = paymentProviderRegistry.get(input.provider);
 
-    // 3. Prevent an already completed payment.
+    // 3. Check whether a payment already exists for this order.
+    //
+    // This handles the normal case. The database unique constraint
+    // on Payment.orderId protects us from concurrent first attempts.
     const existingPayment = await paymentRepository.getByOrderId(input.orderId);
 
     if (existingPayment) {
@@ -38,56 +53,133 @@ export const createPaymentService = ({
       ) {
         throw new Error("A payment already exists for this order");
       }
-
-      // A previous FAILED payment can be retried.
     }
 
-    // 4. Create the payment aggregate and attempt atomically.
+    let payment;
+    let attempt;
+
+    // 4. Handle an existing failed payment.
     //
-    // The external provider is deliberately NOT called
-    // inside this transaction.
-    const { payment, attempt } = await db.$transaction(async (tx) => {
-      const transactionRepository = createPaymentRepository(tx);
+    // A Payment represents the payment aggregate for the order.
+    // A retry creates a new PaymentAttempt under that Payment.
+    if (existingPayment?.status === PaymentStatus.FAILED) {
+      payment = existingPayment;
 
-      const createdPayment = await transactionRepository.createPayment({
-        order: {
-          connect: {
-            id: paymentContext.orderId,
-          },
-        },
-        user: {
-          connect: {
-            id: paymentContext.userId,
-          },
-        },
-        amount: paymentContext.amount,
-        currency: paymentContext.currency,
-        status: PaymentStatus.PENDING,
-      });
+   const result =
+  await paymentAttemptHelper.createOrGetPaymentAttempt({
+    paymentId: payment.id,
+    provider: input.provider,
+    amount: paymentContext.amount,
+    currency: paymentContext.currency,
+    idempotencyKey: input.idempotencyKey,
+  });
 
-      const createdAttempt = await transactionRepository.createPaymentAttempt({
-        payment: {
-          connect: {
-            id: createdPayment.id,
-          },
-        },
-        provider: input.provider,
-        amount: paymentContext.amount,
-        currency: paymentContext.currency,
-        status: PaymentAttemptStatus.INITIATED,
-      });
+  attempt = result.attempt;
 
+  if (result.isExisting) {
+    /*
+     * The same idempotency key has already been processed.
+     *
+     * Do not call the provider again.
+     */
+    if (
+      attempt.status === PaymentAttemptStatus.PROCESSING ||
+      attempt.status === PaymentAttemptStatus.SUCCESS
+    ) {
       return {
-        payment: createdPayment,
-        attempt: createdAttempt,
+        paymentId: payment.id,
+        attemptId: attempt.id,
+        provider: attempt.provider,
+        providerReference:
+          attempt.providerReference ?? undefined,
+        status:
+          attempt.status === PaymentAttemptStatus.SUCCESS
+            ? PaymentStatus.SUCCESS
+            : PaymentStatus.PROCESSING,
       };
-    });
+    }
 
-    try {
-      // 5. Initialize the payment with the external provider.
+    if (attempt.status === PaymentAttemptStatus.INITIATED) {
+      throw new Error(
+        "Payment initialization is already in progress",
+      );
+    }
+  } else {
+    await paymentRepository.updatePayment(payment.id, {
+      status: PaymentStatus.PENDING,
+      failureReason: null,
+      failedAt: null,
+    });
+  }
+    } else {
+      // 5. First payment attempt.
       //
-      // This happens outside the DB transaction because
-      // external network calls should not hold DB locks.
+      // Payment + PaymentAttempt must be created atomically.
+      //
+      // The external provider is deliberately NOT called
+      // inside this transaction.
+      try {
+        const result = await db.$transaction(async (tx) => {
+          const transactionRepository = createPaymentRepository(tx);
+
+          const createdPayment = await transactionRepository.createPayment({
+            order: {
+              connect: {
+                id: paymentContext.orderId,
+              },
+            },
+            user: {
+              connect: {
+                id: paymentContext.userId,
+              },
+            },
+            amount: paymentContext.amount,
+            currency: paymentContext.currency,
+            status: PaymentStatus.PENDING,
+          });
+
+          const createdAttempt =
+            await transactionRepository.createPaymentAttempt({
+              payment: {
+                connect: {
+                  id: createdPayment.id,
+                },
+              },
+              provider: input.provider,
+              amount: paymentContext.amount,
+              currency: paymentContext.currency,
+              status: PaymentAttemptStatus.INITIATED,
+              idempotencyKey: input.idempotencyKey,
+            });
+
+          return {
+            payment: createdPayment,
+            attempt: createdAttempt,
+          };
+        });
+
+        payment = result.payment;
+        attempt = result.attempt;
+      } catch (error) {
+        // Two concurrent requests can both pass getByOrderId().
+        //
+        // Payment.orderId is UNIQUE, so the database allows
+        // only one Payment to be created.
+        if (isUniqueConstraintError(error)) {
+          throw new Error(
+            "A payment is already being initialized for this order",
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    // 6. Initialize the payment with the external provider.
+    //
+    // This happens outside the DB transaction because
+    // external network calls should not hold DB locks.
+    try {
       const result = await provider.initializePayment({
         paymentId: payment.id,
         attemptId: attempt.id,
@@ -97,7 +189,7 @@ export const createPaymentService = ({
         callbackUrl: input.callbackUrl,
       });
 
-      // 6. Persist the provider reference on the attempt.
+      // 7. Persist the provider reference on the attempt.
       //
       // PaymentAttempt owns provider-specific information.
       await paymentRepository.updatePaymentAttempt(attempt.id, {
@@ -109,7 +201,7 @@ export const createPaymentService = ({
         status: PaymentStatus.PROCESSING,
       });
 
-      // 7. Return the initialization result.
+      // 8. Return the initialization result.
       return {
         paymentId: payment.id,
         attemptId: attempt.id,
