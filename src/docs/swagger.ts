@@ -31,6 +31,9 @@ import "./cart/cart.js";
 // Order Documentation
 import "./orders/orders.js";
 
+// Payment Documentation
+import "./payments/payment.js";
+
 // Role documentation
 import "./role/roles.js";
 import "./role/role-permissions.js";
@@ -89,6 +92,12 @@ export const swaggerSpec = generator.generateDocument({
     {
       name: "Orders",
       description: "Order creation, retrieval, and cancellation endpoints",
+    },
+
+    {
+      name: "Payments",
+      description:
+        "Payment initialization, verification, refunds, and webhook endpoints",
     },
     {
       name: "Profile",

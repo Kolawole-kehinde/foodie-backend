@@ -22,7 +22,7 @@ export const createPaymentRoutes = ({
   paymentRefundController,
   paymentRefundQueryController,
   authenticate,
-}: PaymentRoutesDependencies) => {
+}: PaymentRoutesDependencies): Router => {
   const router = Router();
 
   // Initialize payment POST /payments

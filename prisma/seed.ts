@@ -383,6 +383,39 @@ const permissions = [
     action: "delete",
     description: "Deactivate a category",
   },
+
+
+    // Payments
+  {
+    name: "payments.read",
+    resource: "payments",
+    action: "read",
+    description: "View payment details",
+  },
+  {
+    name: "payments.create",
+    resource: "payments",
+    action: "create",
+    description: "Initialize a payment",
+  },
+  {
+    name: "payments.verify",
+    resource: "payments",
+    action: "verify",
+    description: "Verify a payment with the payment provider",
+  },
+  {
+    name: "payments.refund",
+    resource: "payments",
+    action: "refund",
+    description: "Process a payment refund",
+  },
+  {
+    name: "payments.refunds.read",
+    resource: "payments.refunds",
+    action: "read",
+    description: "View payment refunds",
+  },
 ];
 
 const rolePermissions: Record<RoleName, string[]> = {
@@ -403,6 +436,18 @@ const rolePermissions: Record<RoleName, string[]> = {
     "reviews.create",
     "reviews.update",
     "reviews.delete",
+
+
+      // Payments
+  "payments.read",
+  "payments.create",
+  "payments.verify",
+  "payments.refunds.read",
+
+  "reviews.read",
+  "reviews.create",
+  "reviews.update",
+  "reviews.delete",
   ],
 
   [RoleName.CUSTOMER_SUPPORT]: [
@@ -413,83 +458,95 @@ const rolePermissions: Record<RoleName, string[]> = {
     "orders.update",
     "orders.cancel",
 
+    // Payments
+  "payments.read",
+  "payments.verify",
+  "payments.refunds.read",
+
+
     "reviews.read",
   ],
 
-  [RoleName.ADMIN]: [
-    // Profile
-    "profile.read",
-    "profile.update",
+    [RoleName.ADMIN]: [
+  // Profile
+  "profile.read",
+  "profile.update",
 
-    // Email
-    "email-dlq.replay",
+  // Email
+  "email-dlq.replay",
 
-    // Users
-    "users.read",
-    "users.create",
-    "users.update",
-    "users.suspend",
-    "users.delete",
+  // Users
+  "users.read",
+  "users.create",
+  "users.update",
+  "users.suspend",
+  "users.delete",
 
-    // User roles
-    "users.roles.assign",
-    "users.roles.read",
-    "users.roles.remove",
+  // User roles
+  "users.roles.assign",
+  "users.roles.read",
+  "users.roles.remove",
 
-    // Products
-    "products.read",
-    "products.create",
-    "products.update",
-    "products.delete",
+  // Products
+  "products.read",
+  "products.create",
+  "products.update",
+  "products.delete",
 
-    // Inventory
+  // Inventory
+  "inventory.read",
+  "inventory.create",
+  "inventory.stock_in",
+  "inventory.stock_out",
 
-    "inventory.read",
-    "inventory.create",
-    "inventory.stock_in",
-    "inventory.stock_out",
+  // Orders
+  "orders.read",
+  "orders.update",
+  "orders.cancel",
+  "orders.refund",
+  "orders.confirm",
+  "orders.process",
+  "orders.ship",
+  "orders.deliver",
 
-    // Orders
-    "orders.read",
-    "orders.update",
-    "orders.cancel",
-    "orders.refund",
-    "orders.confirm",
-    "orders.process",
-    "orders.ship",
-    "orders.deliver",
+  // Payments
+  "payments.read",
+  "payments.create",
+  "payments.verify",
+  "payments.refund",
+  "payments.refunds.read",
 
-    // Reviews
-    "reviews.read",
-    "reviews.delete",
+  // Reviews
+  "reviews.read",
+  "reviews.delete",
 
-    // Roles
-    "roles.read",
-    "roles.create",
-    "roles.update",
-    "roles.delete",
+  // Roles
+  "roles.read",
+  "roles.create",
+  "roles.update",
+  "roles.delete",
 
-    // Role permissions
-    "roles.permissions.assign",
-    "roles.permissions.read",
-    "roles.permissions.remove",
+  // Role permissions
+  "roles.permissions.assign",
+  "roles.permissions.read",
+  "roles.permissions.remove",
 
-    // Permissions
-    "permissions.read",
-    "permissions.create",
-    "permissions.update",
-    "permissions.delete",
+  // Permissions
+  "permissions.read",
+  "permissions.create",
+  "permissions.update",
+  "permissions.delete",
 
-    // Audit & Security
-    "audit.read",
-    "security-events.read",
+  // Audit & Security
+  "audit.read",
+  "security-events.read",
 
-    //Categories
-    "categories.read",
-    "categories.create",
-    "categories.update",
-    "categories.delete",
-  ],
+  // Categories
+  "categories.read",
+  "categories.create",
+  "categories.update",
+  "categories.delete",
+],
 
   // Reserved for future features
   [RoleName.EDITOR]: [],

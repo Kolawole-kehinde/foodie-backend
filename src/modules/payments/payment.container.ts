@@ -1,16 +1,34 @@
-import type { DatabaseClient } from "../../database/prisma/types.js";
+import type { PrismaClient } from "@prisma/client";
 import { env } from "../../config/env.js";
 import { createPaystackProvider } from "./providers/paystack.provider.js";
 import { createPaymentProviderRegistry } from "./providers/payment-provider.registry.js";
 import { createPaymentRepository } from "./repositories/payment.repository.js";
-import type { PrismaClient } from "@prisma/client";
+import { createPaymentProcessingService } from "./services/payment-processing.service.js";
+import { createPaymentService } from "./services/payment.service.js";
+import { createPaymentWebhookService } from "./services/payment-webhook.service.js";
+import { createPaymentReconciliationService } from "./services/payment-reconciliation.service.js";
+import { createPaymentQueryService } from "./services/payment-query.service.js";
+import { createPaymentRefundService } from "./services/payment-refund.service.js";
+import { createPaymentRefundQueryService } from "./services/payment-refund-query.service.js";
+import { createPaymentController } from "./controllers/payment.controller.js";
+import { createPaymentQueryController } from "./controllers/payment-query.controller.js";
+import { createPaymentReconciliationController } from "./controllers/payment-reconciliation.controller.js";
+import { createPaymentRefundController } from "./controllers/payment-refund.controller.js";
+import { createPaymentRefundQueryController } from "./controllers/payment-refund-query.controller.js";
+
+import { createPaymentRoutes } from "./routes/payment.routes.js";
+
+import type { RequestHandler } from "express";
 
 type PaymentDependencies = {
   db: PrismaClient;
+  authenticate: RequestHandler;
 };
 
-export const createPaymentDependencies = ({db}: PaymentDependencies) => {
- 
+export const createPaymentDependencies = ({
+  db,
+  authenticate,
+}: PaymentDependencies) => {
   // Repository
   const paymentRepository = createPaymentRepository(db);
 
@@ -20,16 +38,106 @@ export const createPaymentDependencies = ({db}: PaymentDependencies) => {
     baseUrl: env.payment.paystack.baseUrl,
   });
 
-  
   // Provider Registry
-  const paymentProviderRegistry =
-    createPaymentProviderRegistry({
-      paystack: paystackProvider,
-    });
+  const paymentProviderRegistry = createPaymentProviderRegistry({
+    paystack: paystackProvider,
+  });
+
+  // Processing Service
+  const paymentProcessingService = createPaymentProcessingService({
+    db,
+  });
+
+  // Payment Service
+  const paymentService = createPaymentService({
+    db,
+    paymentRepository,
+    paymentProviderRegistry,
+    paymentProcessingService,
+  });
+
+  // Webhook Service
+  const paymentWebhookService = createPaymentWebhookService({
+    paymentRepository,
+    paymentProviderRegistry,
+  });
+
+  // Reconciliation Service
+  const paymentReconciliationService = createPaymentReconciliationService({
+    paymentRepository,
+    paymentProviderRegistry,
+  });
+
+  // Query Service
+  const paymentQueryService = createPaymentQueryService({
+    paymentRepository,
+  });
+
+  // Refund Service
+  const paymentRefundService = createPaymentRefundService({
+    paymentRepository,
+    paymentProviderRegistry,
+  });
+
+  // Refund Query Service
+  const paymentRefundQueryService = createPaymentRefundQueryService({
+    paymentRepository,
+  });
+
+  // Controllers
+  const paymentController = createPaymentController({
+    paymentService,
+    paymentWebhookService,
+  });
+
+  const paymentQueryController = createPaymentQueryController({
+    paymentQueryService,
+  });
+
+  const paymentReconciliationController = createPaymentReconciliationController(
+    {
+      paymentReconciliationService,
+    },
+  );
+
+  const paymentRefundController = createPaymentRefundController({
+    paymentRefundService,
+  });
+
+  const paymentRefundQueryController = createPaymentRefundQueryController({
+    paymentRefundQueryService,
+  });
+
+  // Routes
+  const paymentRoutes = createPaymentRoutes({
+    paymentController,
+    paymentQueryController,
+    paymentReconciliationController,
+    paymentRefundController,
+    paymentRefundQueryController,
+    authenticate,
+  });
 
   return {
     paymentRepository,
+    paystackProvider,
     paymentProviderRegistry,
+
+    paymentProcessingService,
+    paymentService,
+    paymentWebhookService,
+    paymentReconciliationService,
+    paymentQueryService,
+    paymentRefundService,
+    paymentRefundQueryService,
+
+    paymentController,
+    paymentQueryController,
+    paymentReconciliationController,
+    paymentRefundController,
+    paymentRefundQueryController,
+
+    paymentRoutes,
   };
 };
 
