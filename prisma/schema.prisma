@@ -387,7 +387,7 @@ model Order {
   user            User                  @relation(fields: [userId], references: [id])
   items           OrderItem[]
   shippingAddress OrderShippingAddress?
-  payments        Payment[]
+  payment         Payment?
 
   @@index([userId])
   @@index([status])
@@ -413,9 +413,8 @@ model OrderItem {
 }
 
 model OrderShippingAddress {
-  id      String @id @default(cuid())
-  orderId String @unique
-
+  id            String   @id @default(cuid())
+  orderId       String   @unique
   recipientName String
   phone         String
   addressLine1  String
@@ -424,8 +423,7 @@ model OrderShippingAddress {
   state         String
   postalCode    String?
   country       String
-
-  createdAt DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
@@ -435,20 +433,19 @@ model Payment {
   orderId String @unique
   userId  String
 
-  amount   Decimal         @db.Decimal(12, 2)
-  currency String          @db.VarChar(3)
-  status   PaymentStatus   @default(PENDING)
-  provider PaymentProvider
-
-  providerReference String? @unique
+  amount   Decimal       @db.Decimal(12, 2)
+  currency String        @db.VarChar(3)
+  status   PaymentStatus @default(PENDING)
 
   paidAt        DateTime?
   failedAt      DateTime?
   refundedAt    DateTime?
   failureReason String?
 
-  order    Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  user     User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
   attempts PaymentAttempt[]
   refunds  PaymentRefund[]
 
@@ -457,7 +454,6 @@ model Payment {
 
   @@index([userId])
   @@index([status])
-  @@index([provider])
 }
 
 model PaymentAttempt {
@@ -467,15 +463,21 @@ model PaymentAttempt {
   provider PaymentProvider
 
   providerReference String?
+  providerStatus    String?
+  providerMetadata  Json?
 
-  amount   Decimal              @db.Decimal(12, 2)
-  currency String               @db.VarChar(3)
-  status   PaymentAttemptStatus @default(INITIATED)
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @db.VarChar(3)
+
+  status PaymentAttemptStatus @default(INITIATED)
+
+  idempotencyKey String?
 
   failureReason String?
 
-  initiatedAt DateTime  @default(now())
-  completedAt DateTime?
+  initiatedAt    DateTime  @default(now())
+  completedAt    DateTime?
+  lastVerifiedAt DateTime?
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
@@ -483,25 +485,40 @@ model PaymentAttempt {
   updatedAt DateTime @updatedAt
 
   @@unique([provider, providerReference])
+  @@unique([paymentId, idempotencyKey])
   @@index([paymentId])
   @@index([status])
+  @@index([provider, providerReference])
+  @@index([lastVerifiedAt])
 }
 
 model PaymentWebhookEvent {
   id String @id @default(cuid())
 
-  provider PaymentProvider
-
-  eventId   String
+  provider  PaymentProvider
+  eventKey  String
   eventType String
-  payload   Json
 
-  processedAt DateTime?
+  providerEventId String?
+  payload         Json
+  payloadHash     String
+
+  attempts Int @default(0)
+
+  receivedAt   DateTime  @default(now())
+  processingAt DateTime?
+  processedAt  DateTime?
+  failedAt     DateTime?
+
+  lastError String?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([provider, eventId])
+  @@unique([provider, eventKey])
   @@index([provider])
+  @@index([eventType])
+  @@index([processedAt])
   @@index([createdAt])
 }
 
@@ -512,10 +529,15 @@ model PaymentRefund {
   amount   Decimal @db.Decimal(12, 2)
   currency String  @db.VarChar(3)
 
-  providerReference String? @unique
+  providerRefundReference String?
+  providerStatus          String?
 
   status RefundStatus @default(PENDING)
-  reason String?
+
+  idempotencyKey String?
+
+  reason        String?
+  failureReason String?
 
   completedAt DateTime?
 
@@ -524,24 +546,28 @@ model PaymentRefund {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([providerRefundReference])
+  @@unique([paymentId, idempotencyKey])
   @@index([paymentId])
   @@index([status])
 }
 
 model OutboxEvent {
-  id            String            @id @default(cuid())
+  id            String @id @default(cuid())
   eventType     String
   aggregateType String
   aggregateId   String
   payload       Json
-  status        OutboxEventStatus @default(PENDING)
-  attempts      Int               @default(0)
-  availableAt   DateTime          @default(now())
-  publishedAt   DateTime?
-  lastError     String?
-  processingAt  DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+
+  status       OutboxEventStatus @default(PENDING)
+  attempts     Int               @default(0)
+  availableAt  DateTime          @default(now())
+  publishedAt  DateTime?
+  lastError    String?
+  processingAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status, availableAt])
   @@index([aggregateType, aggregateId])
@@ -581,7 +607,7 @@ enum PaymentAttemptStatus {
 
 enum PaymentProvider {
   PAYSTACK
-  // FLUTTERWAVE
+  FLUTTERWAVE
 }
 
 enum RefundStatus {

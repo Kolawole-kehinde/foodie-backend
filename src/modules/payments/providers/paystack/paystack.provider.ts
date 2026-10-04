@@ -16,8 +16,8 @@ import type {
   VerifyPaymentResult,
   VerifyWebhookInput,
   VerifyWebhookResult,
-} from "./payment-provider.js";
-import { createAxiosClient } from "../../../infrastructure/axios/axios.client.js";
+} from "../payment-provider.js";
+import { createAxiosClient } from "../../../../infrastructure/axios/axios.client.js";
 
 type PaystackProviderDependencies = {
   secretKey: string;

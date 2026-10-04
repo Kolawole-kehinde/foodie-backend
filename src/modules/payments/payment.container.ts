@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { env } from "../../config/env.js";
-import { createPaystackProvider } from "./providers/paystack.provider.js";
+import { createPaystackProvider } from "./providers/paystack/paystack.provider.js";
 import { createPaymentProviderRegistry } from "./providers/payment-provider.registry.js";
 import { createPaymentRepository } from "./repositories/payment.repository.js";
 import { createPaymentProcessingService } from "./services/payment-processing.service.js";
