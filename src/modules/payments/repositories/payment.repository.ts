@@ -1,6 +1,6 @@
 import type { Prisma, PaymentProvider } from "@prisma/client";
-import type { DatabaseClient } from "../../../database/prisma/types.js";
 
+import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 export const createPaymentRepository = (db: DatabaseClient) => {
   const createPayment = async (data: Prisma.PaymentCreateInput) => {
@@ -25,8 +25,25 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
-  
-  const updatePayment = async (paymentId: string,data: Prisma.PaymentUpdateInput,) => {
+  const getByOrderIdForUpdate = async (orderId: string) => {
+    await db.$queryRaw`
+      SELECT "id"
+      FROM "Payment"
+      WHERE "orderId" = ${orderId}
+      FOR UPDATE
+    `;
+
+    return db.payment.findUnique({
+      where: {
+        orderId,
+      },
+    });
+  };
+
+  const updatePayment = async (
+    paymentId: string,
+    data: Prisma.PaymentUpdateInput,
+  ) => {
     return db.payment.update({
       where: {
         id: paymentId,
@@ -35,7 +52,9 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
-  const createPaymentAttempt = async ( data: Prisma.PaymentAttemptCreateInput, ) => {
+  const createPaymentAttempt = async (
+    data: Prisma.PaymentAttemptCreateInput,
+  ) => {
     return db.paymentAttempt.create({
       data,
     });
@@ -50,7 +69,7 @@ export const createPaymentRepository = (db: DatabaseClient) => {
   };
 
   const getPaymentAttemptByProviderReference = async (
-   provider: PaymentProvider,
+    provider: PaymentProvider,
     providerReference: string,
   ) => {
     return db.paymentAttempt.findUnique({
@@ -75,6 +94,26 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
+  const getPaymentAttemptByIdempotencyKey = async (
+    paymentId: string,
+    idempotencyKey: string,
+  ) => {
+    return db.paymentAttempt.findUnique({
+      where: {
+        paymentId_idempotencyKey: {
+          paymentId,
+          idempotencyKey,
+        },
+      },
+    });
+  };
+
+  /*
+   * ------------------------------------------------------------
+   * Webhook
+   * ------------------------------------------------------------
+   */
+
   const createWebhookEvent = async (
     data: Prisma.PaymentWebhookEventCreateInput,
   ) => {
@@ -84,14 +123,14 @@ export const createPaymentRepository = (db: DatabaseClient) => {
   };
 
   const getWebhookEvent = async (
-   provider: PaymentProvider,
-    eventId: string,
+    provider: PaymentProvider,
+    eventKey: string,
   ) => {
     return db.paymentWebhookEvent.findUnique({
       where: {
-        provider_eventId: {
+        provider_eventKey: {
           provider,
-          eventId,
+          eventKey,
         },
       },
     });
@@ -111,6 +150,12 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
+  /*
+   * ------------------------------------------------------------
+   * Refunds
+   * ------------------------------------------------------------
+   */
+
   const createRefund = async (data: Prisma.PaymentRefundCreateInput) => {
     return db.paymentRefund.create({
       data,
@@ -125,45 +170,42 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
-  const getRefundByProviderReference = async (
-    providerReference: string,
+  const getRefundByProviderRefundReference = async (
+    providerRefundReference: string,
   ) => {
-    return db.paymentRefund.findUnique({
+    return db.paymentRefund.findFirst({
       where: {
-        providerReference,
+        providerRefundReference,
       },
     });
   };
 
   const getRefundedAmount = async (paymentId: string) => {
-  const result = await db.paymentRefund.aggregate({
-    where: {
-      paymentId,
-      status: {
-        in: [
-          "PENDING",
-          "PROCESSING",
-          "SUCCESS",
-        ],
+    const result = await db.paymentRefund.aggregate({
+      where: {
+        paymentId,
+        status: {
+          in: ["PENDING", "PROCESSING", "SUCCESS"],
+        },
       },
-    },
-    _sum: {
-      amount: true,
-    },
-  });
+      _sum: {
+        amount: true,
+      },
+    });
 
-  return result._sum.amount ?? 0;
-};
+    return result._sum.amount ?? 0;
+  };
 
-const getRefundsByPaymentId = async (paymentId: string) =>
-  db.paymentRefund.findMany({
-    where: {
-      paymentId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  const getRefundsByPaymentId = async (paymentId: string) => {
+    return db.paymentRefund.findMany({
+      where: {
+        paymentId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  };
 
   const updateRefund = async (
     refundId: string,
@@ -177,40 +219,29 @@ const getRefundsByPaymentId = async (paymentId: string) =>
     });
   };
 
-  const getPaymentAttemptByIdempotencyKey = async (
-  paymentId: string,
-  idempotencyKey: string,
-) => {
-  return db.paymentAttempt.findUnique({
-    where: {
-      paymentId_idempotencyKey: {
-        paymentId,
-        idempotencyKey,
-      },
-    },
-  });
-};
-
-
   return {
     createPayment,
     getById,
     getByOrderId,
+    getByOrderIdForUpdate,
     updatePayment,
+
     createPaymentAttempt,
     getPaymentAttemptById,
     getPaymentAttemptByProviderReference,
+    getPaymentAttemptByIdempotencyKey,
     updatePaymentAttempt,
+
     createWebhookEvent,
     getWebhookEvent,
     markWebhookProcessed,
+
     createRefund,
     getRefundById,
-    getRefundByProviderReference,
+    getRefundByProviderRefundReference,
     getRefundedAmount,
-    updateRefund,
     getRefundsByPaymentId,
-    getPaymentAttemptByIdempotencyKey
+    updateRefund,
   };
 };
 

@@ -27,6 +27,8 @@ export interface InitializePaymentInput {
   callbackUrl?: string;
 
   metadata?: Record<string, unknown>;
+  
+  reference?: string;
 }
 
 export interface InitializePaymentServiceInput {
