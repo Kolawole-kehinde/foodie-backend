@@ -149,6 +149,22 @@ export interface RefundPaymentResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface VerifyRefundInput {
+  providerRefundReference: string;
+}
+
+export interface VerifyRefundResult {
+  provider: PaymentProvider;
+  providerRefundReference: string;
+  providerReference?: string;
+  amount: string;
+  currency: string;
+  status: PaymentProviderStatus;
+  providerStatus?: string;
+  failureReason?: string;
+  completedAt?: Date;
+  metadata?: Record<string, unknown>;
+}
 
 export type PaymentServiceDependencies = {
   db: PrismaClient;

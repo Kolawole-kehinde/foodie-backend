@@ -426,10 +426,324 @@ export const createPaymentRefundService = ({
     }
   };
 
+    const reconcileRefund = async ({
+    refundId,
+  }: {
+    refundId: string;
+  }) => {
+    /*
+     * ------------------------------------------------------------
+     * 1. Find refund
+     * ------------------------------------------------------------
+     */
+    const refund = await paymentRepository.getRefundById(refundId);
+
+    if (!refund) {
+      throw new Error("Refund not found");
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 2. Only PROCESSING refunds need reconciliation
+     * ------------------------------------------------------------
+     */
+    if (refund.status !== RefundStatus.PROCESSING) {
+      return refund;
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 3. Find payment
+     * ------------------------------------------------------------
+     */
+    const payment = await paymentRepository.getById(refund.paymentId);
+
+    if (!payment) {
+      throw new Error("Payment not found for refund");
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 4. Find provider refund reference
+     * ------------------------------------------------------------
+     *
+     * Without this reference we cannot ask the provider for the
+     * current refund status.
+     */
+    if (!refund.providerRefundReference) {
+      throw new Error(
+        "Refund does not have a provider refund reference",
+      );
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 5. Find latest payment attempt
+     * ------------------------------------------------------------
+     *
+     * We need the provider used for the original payment.
+     */
+    const attempt = await paymentRepository.getLatestPaymentAttempt(
+      payment.id,
+    );
+
+    if (!attempt) {
+      throw new Error("Payment attempt not found");
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 6. Resolve provider
+     * ------------------------------------------------------------
+     */
+    const provider = paymentProviderRegistry.get(attempt.provider);
+
+    /*
+     * ------------------------------------------------------------
+     * 7. Ask provider for current refund status
+     * ------------------------------------------------------------
+     */
+    const result = await provider.verifyRefund({
+      providerRefundReference: refund.providerRefundReference,
+    });
+
+    /*
+     * ------------------------------------------------------------
+     * 8. Validate refund amount
+     * ------------------------------------------------------------
+     */
+    if (result.amount !== refund.amount.toFixed(2)) {
+      throw new Error(
+        "Provider refund amount does not match refund amount",
+      );
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 9. Validate refund currency
+     * ------------------------------------------------------------
+     */
+    if (
+      result.currency.trim().toUpperCase() !==
+      refund.currency.trim().toUpperCase()
+    ) {
+      throw new Error(
+        "Provider refund currency does not match refund currency",
+      );
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 10. Map provider status
+     * ------------------------------------------------------------
+     */
+    const finalStatus = mapProviderRefundStatus(result.status);
+
+    /*
+     * ------------------------------------------------------------
+     * 11. Still processing
+     * ------------------------------------------------------------
+     *
+     * PROCESSING -> PROCESSING is not a state transition.
+     * Simply refresh provider information and leave the refund
+     * in PROCESSING.
+     */
+    if (finalStatus === RefundStatus.PROCESSING) {
+      return db.$transaction(async (tx) => {
+        const transactionRepository = createPaymentRepository(tx);
+
+        const refundRecord =
+          await transactionRepository.getRefundById(refund.id);
+
+        if (!refundRecord) {
+          throw new Error("Refund not found during reconciliation");
+        }
+
+        if (refundRecord.status !== RefundStatus.PROCESSING) {
+          return refundRecord;
+        }
+
+        return transactionRepository.updateRefund(refund.id, {
+          providerRefundReference:
+            result.providerRefundReference ??
+            refundRecord.providerRefundReference,
+        });
+      });
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 12. Validate terminal transition
+     * ------------------------------------------------------------
+     */
+    if (!canTransitionRefundStatus(refund.status, finalStatus)) {
+      throw new Error(
+        `Invalid refund status transition: ${refund.status} -> ${finalStatus}`,
+      );
+    }
+
+    const now = new Date();
+
+    /*
+     * ------------------------------------------------------------
+     * 13. Update refund + payment + outbox atomically
+     * ------------------------------------------------------------
+     */
+    return db.$transaction(async (tx) => {
+      const transactionRepository = createPaymentRepository(tx);
+      const transactionOutboxRepository = createOutboxRepository(tx);
+
+      /*
+       * Lock payment.
+       */
+      const lockedPayment = await transactionRepository.getByIdForUpdate(
+        payment.id,
+      );
+
+      if (!lockedPayment) {
+        throw new Error(
+          "Payment not found during refund reconciliation",
+        );
+      }
+
+      /*
+       * Find current refund state.
+       */
+      const refundRecord = await transactionRepository.getRefundById(
+        refund.id,
+      );
+
+      if (!refundRecord) {
+        throw new Error(
+          "Refund not found during refund reconciliation",
+        );
+      }
+
+      /*
+       * Another process may already have completed the refund.
+       */
+      if (refundRecord.status !== RefundStatus.PROCESSING) {
+        return refundRecord;
+      }
+
+      if (!canTransitionRefundStatus(refundRecord.status, finalStatus)) {
+        throw new Error(
+          `Invalid refund status transition: ${refundRecord.status} -> ${finalStatus}`,
+        );
+      }
+
+      /*
+       * ----------------------------------------------------------
+       * 14. Build refund update
+       * ----------------------------------------------------------
+       */
+      const refundUpdate: Prisma.PaymentRefundUpdateInput = {
+        status: finalStatus,
+        providerRefundReference:
+          result.providerRefundReference ??
+          refundRecord.providerRefundReference,
+      };
+
+      if (finalStatus === RefundStatus.SUCCESS) {
+        refundUpdate.completedAt = result.completedAt ?? now;
+        refundUpdate.failureReason = null;
+      }
+
+      if (finalStatus === RefundStatus.FAILED) {
+        refundUpdate.failureReason =
+          result.failureReason ?? "Refund failed";
+      }
+
+      if (finalStatus === RefundStatus.CANCELLED) {
+        refundUpdate.failureReason =
+          result.failureReason ?? "Refund cancelled";
+      }
+
+      /*
+       * ----------------------------------------------------------
+       * 15. Update refund
+       * ----------------------------------------------------------
+       */
+      const updatedRefund = await transactionRepository.updateRefund(
+        refund.id,
+        refundUpdate,
+      );
+
+      /*
+       * ----------------------------------------------------------
+       * 16. Successful refund updates Payment status
+       * ----------------------------------------------------------
+       */
+      if (finalStatus === RefundStatus.SUCCESS) {
+        const totalRefunded =
+          await transactionRepository.getRefundedAmount(payment.id);
+
+        const isFullRefund =
+          Number(totalRefunded) >= Number(lockedPayment.amount);
+
+        const nextPaymentStatus = isFullRefund
+          ? PaymentStatus.REFUNDED
+          : PaymentStatus.PARTIALLY_REFUNDED;
+
+        if (lockedPayment.status !== nextPaymentStatus) {
+          if (
+            !canTransitionPaymentStatus(
+              lockedPayment.status,
+              nextPaymentStatus,
+            )
+          ) {
+            throw new Error(
+              `Invalid payment status transition: ${lockedPayment.status} -> ${nextPaymentStatus}`,
+            );
+          }
+
+          await transactionRepository.updatePayment(payment.id, {
+            status: nextPaymentStatus,
+            refundedAt: isFullRefund ? now : undefined,
+          });
+
+          /*
+           * ------------------------------------------------------
+           * 17. Create Payment domain event
+           * ------------------------------------------------------
+           */
+          const paymentEvent = paymentEventFactory.create({
+            paymentId: payment.id,
+            orderId: payment.orderId,
+            userId: payment.userId,
+            provider: attempt.provider,
+            providerReference: attempt.providerReference ?? undefined,
+            amount: payment.amount.toFixed(2),
+            currency: payment.currency,
+            status: nextPaymentStatus,
+            occurredAt: now,
+          });
+
+          /*
+           * ------------------------------------------------------
+           * 18. Store event in Outbox
+           * ------------------------------------------------------
+           */
+          await outboxService.createEvent({
+            event: paymentEvent,
+            repository: transactionOutboxRepository,
+          });
+        }
+      }
+
+      return updatedRefund;
+    });
+  };
+
   return {
     createRefund,
+    reconcileRefund
   };
 };
+
+
+
+
 
 const mapProviderRefundStatus = (
   status: PaymentProviderStatus,

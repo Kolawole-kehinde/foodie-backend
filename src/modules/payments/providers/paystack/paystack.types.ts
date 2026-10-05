@@ -39,6 +39,7 @@ export type PaystackRefundResponse = {
           reference?: string;
         };
     reason?: string | null;
+    refunded_at?: string | null;
   };
 };
 

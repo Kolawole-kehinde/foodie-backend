@@ -5,6 +5,8 @@ import type {
   RefundPaymentResult,
   VerifyPaymentInput,
   VerifyPaymentResult,
+  VerifyRefundInput,
+  VerifyRefundResult,
   VerifyWebhookInput,
   VerifyWebhookResult,
 } from "../types/payment.types.js";
@@ -18,6 +20,10 @@ export interface PaymentProviderClient {
     input: VerifyPaymentInput,
   ): Promise<VerifyPaymentResult>;
 
+    verifyRefund(
+  input: VerifyRefundInput,
+): Promise<VerifyRefundResult>;
+
   verifyWebhook(
     input: VerifyWebhookInput,
   ): Promise<VerifyWebhookResult>;
@@ -25,4 +31,6 @@ export interface PaymentProviderClient {
   refundPayment(
     input: RefundPaymentInput,
   ): Promise<RefundPaymentResult>;
+
+
 }
