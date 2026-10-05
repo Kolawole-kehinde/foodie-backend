@@ -1,14 +1,9 @@
 import express, { type Express } from "express";
-
 import cookieParser from "cookie-parser";
-
 import swaggerUi from "swagger-ui-express";
-
 import { swaggerSpec } from "../docs/swagger.js";
-
 import { notFound } from "../middlewares/notFound.js";
 import { errorHandler } from "../middlewares/errorHandler.js";
-
 import { startJobs } from "../jobs/start-jobs.js";
 
 import {
@@ -97,13 +92,19 @@ export function createApp(): Express {
    */
   app.use("/api/v1/payments", payment.paymentRoutes);
 
-  /*
-   * Start all scheduled jobs.
-   */
-  startJobs({
-    orderService: order.orderService,
-    outboxPublisherService: outbox.outboxPublisherService,
-  });
+ /*
+ * Start all scheduled jobs.
+ */
+startJobs({
+  orderService: order.orderService,
+  outboxPublisherService: outbox.outboxPublisherService,
+
+  paymentRepository: payment.paymentRepository,
+  paymentRefundRepository: payment.paymentRepository,
+  paymentReconciliationService:
+    payment.paymentReconciliationService,
+  paymentRefundService: payment.paymentRefundService,
+});
 
   /*
    * 404 handler must come after all routes.
