@@ -84,6 +84,27 @@ export const createPaymentRefundRepository = (
     });
   };
 
+  const getRefundsForReconciliation = async ({
+  staleBefore,
+  limit = 50,
+}: {
+  staleBefore: Date;
+  limit?: number;
+}) => {
+  return db.paymentRefund.findMany({
+    where: {
+      status: "PROCESSING",
+      updatedAt: {
+        lt: staleBefore,
+      },
+    },
+    orderBy: {
+      updatedAt: "asc",
+    },
+    take: limit,
+  });
+};
+
   return {
     createRefund,
     getRefundById,
@@ -91,6 +112,7 @@ export const createPaymentRefundRepository = (
     getRefundedAmount,
     getRefundsByPaymentId,
     updateRefund,
+    getRefundsForReconciliation,
   };
 };
 
