@@ -8,9 +8,14 @@ type PaymentRefundQueryControllerDependencies = {
   paymentRefundQueryService: PaymentRefundQueryService;
 };
 
+export type PaymentRefundQueryController = {
+  getByPaymentId: RequestHandler;
+};
+
+
 export const createPaymentRefundQueryController = ({
   paymentRefundQueryService,
-}: PaymentRefundQueryControllerDependencies) => {
+}: PaymentRefundQueryControllerDependencies): PaymentRefundQueryController => {
   const getByPaymentId: RequestHandler = asyncHandler(
     async (req, res) => {
       const paymentId = req.params.paymentId;
@@ -50,6 +55,3 @@ export const createPaymentRefundQueryController = ({
     getByPaymentId,
   };
 };
-
-export type PaymentRefundQueryController =
-  ReturnType<typeof createPaymentRefundQueryController>;

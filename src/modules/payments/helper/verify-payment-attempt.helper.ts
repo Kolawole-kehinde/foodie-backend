@@ -1,5 +1,6 @@
 import type { PaymentProviderClient } from "../providers/payment-provider.js";
-import type { PaymentRepository } from "../repositories/payment.repository.js";
+import type { PaymentRepository } from "../repositories/index.js";
+
 
 type VerifyPaymentAttemptInput = {
   paymentId: string;

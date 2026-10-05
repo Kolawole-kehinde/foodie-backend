@@ -1,36 +1,14 @@
+import crypto from "node:crypto";
+
 import type { PaymentStatus } from "@prisma/client";
 
-export type PaymentEventType =
-  | "PAYMENT_PROCESSING"
-  | "PAYMENT_SUCCEEDED"
-  | "PAYMENT_FAILED"
-  | "PAYMENT_CANCELLED"
-  | "PAYMENT_EXPIRED"
-  | "PAYMENT_REFUNDED"
-  | "PAYMENT_PARTIALLY_REFUNDED";
+import {
+  EVENT_TYPES,
+  type PaymentEvent,
+  type PaymentEventData,
+} from "../../../shared/events/event.types.js";
 
-export type PaymentEvent = {
-  type: PaymentEventType;
-  paymentId: string;
-  orderId: string;
-  userId: string;
-  provider: string;
-  providerReference?: string;
-  amount: string;
-  currency: string;
-  status: PaymentStatus;
-  occurredAt: Date;
-};
-
-type CreatePaymentEventInput = {
-  paymentId: string;
-  orderId: string;
-  userId: string;
-  provider: string;
-  providerReference?: string;
-  amount: string;
-  currency: string;
-  status: PaymentStatus;
+type CreatePaymentEventInput = PaymentEventData & {
   occurredAt?: Date;
 };
 
@@ -47,16 +25,21 @@ export const createPaymentEventFactory = () => {
     occurredAt = new Date(),
   }: CreatePaymentEventInput): PaymentEvent => {
     return {
-      type: mapPaymentStatusToEventType(status),
-      paymentId,
-      orderId,
-      userId,
-      provider,
-      providerReference,
-      amount,
-      currency,
-      status,
-      occurredAt,
+      eventId: crypto.randomUUID(),
+      eventType: mapPaymentStatusToEventType(status),
+      occurredAt: occurredAt.toISOString(),
+      aggregateType: "payment",
+      aggregateId: paymentId,
+      data: {
+        paymentId,
+        orderId,
+        userId,
+        provider,
+        providerReference,
+        amount,
+        currency,
+        status,
+      },
     };
   };
 
@@ -67,32 +50,35 @@ export const createPaymentEventFactory = () => {
 
 const mapPaymentStatusToEventType = (
   status: PaymentStatus,
-): PaymentEventType => {
+): PaymentEvent["eventType"] => {
   switch (status) {
     case "PROCESSING":
-      return "PAYMENT_PROCESSING";
+      return EVENT_TYPES.PAYMENT_PROCESSING;
 
     case "SUCCESS":
-      return "PAYMENT_SUCCEEDED";
+      return EVENT_TYPES.PAYMENT_SUCCEEDED;
 
     case "FAILED":
-      return "PAYMENT_FAILED";
+      return EVENT_TYPES.PAYMENT_FAILED;
 
     case "CANCELLED":
-      return "PAYMENT_CANCELLED";
+      return EVENT_TYPES.PAYMENT_CANCELLED;
 
     case "EXPIRED":
-      return "PAYMENT_EXPIRED";
+      return EVENT_TYPES.PAYMENT_EXPIRED;
 
     case "REFUNDED":
-      return "PAYMENT_REFUNDED";
+      return EVENT_TYPES.PAYMENT_REFUNDED;
 
     case "PARTIALLY_REFUNDED":
-      return "PAYMENT_PARTIALLY_REFUNDED";
+      return EVENT_TYPES.PAYMENT_PARTIALLY_REFUNDED;
 
     case "PENDING":
-      throw new Error("PENDING payment status cannot create a payment event");
+      throw new Error(
+        "PENDING payment status cannot create a payment event",
+      );
   }
 };
 
-export type PaymentEventFactory = ReturnType<typeof createPaymentEventFactory>;
+export type PaymentEventFactory =
+  ReturnType<typeof createPaymentEventFactory>;

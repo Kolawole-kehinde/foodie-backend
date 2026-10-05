@@ -42,7 +42,7 @@ const paymentIdParamsSchema = z.object({
 });
 
 const providerParamsSchema = z.object({
-  provider: z.string().min(1, "Payment provider is required"),
+  provider: paymentProviderSchema,
 });
 
 const paymentAttemptResponseSchema = z.object({

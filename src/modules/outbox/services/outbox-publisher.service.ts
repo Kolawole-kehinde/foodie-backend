@@ -10,6 +10,23 @@ type StoredEventPayload = {
   eventId: string;
 };
 
+const isStoredEventPayload = (
+  payload: unknown,
+): payload is StoredEventPayload => {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("eventId" in payload)
+  ) {
+    return false;
+  }
+
+  return (
+    typeof payload.eventId === "string" &&
+    payload.eventId.length > 0
+  );
+};
+
 export const createOutboxPublisherService = ({
   outboxService,
   eventPublisher,
@@ -24,16 +41,14 @@ export const createOutboxPublisherService = ({
 
     for (const event of events) {
       try {
-        const payload = event.payload as StoredEventPayload;
-
-        if (!payload.eventId) {
+        if (!isStoredEventPayload(event.payload)) {
           throw new Error(
             `Outbox event payload is missing eventId: ${event.id}`,
           );
         }
 
         await eventPublisher.publish({
-          eventId: payload.eventId,
+          eventId: event.payload.eventId,
           eventType: event.eventType,
           payload: event.payload,
         });
@@ -44,7 +59,10 @@ export const createOutboxPublisherService = ({
       } catch (error) {
         failedCount++;
 
-        await outboxService.markFailed(event.id, error);
+        await outboxService.markFailed(
+          event.id,
+          error,
+        );
       }
     }
 
@@ -60,6 +78,5 @@ export const createOutboxPublisherService = ({
   };
 };
 
-export type OutboxPublisherService = ReturnType<
-  typeof createOutboxPublisherService
->;
+export type OutboxPublisherService =
+  ReturnType<typeof createOutboxPublisherService>;

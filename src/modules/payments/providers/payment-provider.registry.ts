@@ -1,9 +1,10 @@
 import type { PaymentProvider } from "@prisma/client";
 import type { PaymentProviderClient } from "./payment-provider.js";
 
-type PaymentProviderRegistryDependencies = {
-  [PaymentProvider.PAYSTACK]: PaymentProviderClient;
-};
+
+type PaymentProviderRegistryDependencies = Partial<
+  Record<PaymentProvider, PaymentProviderClient>
+>;
 
 export const createPaymentProviderRegistry = (
   providers: PaymentProviderRegistryDependencies,

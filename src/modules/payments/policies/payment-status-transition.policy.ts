@@ -25,7 +25,7 @@ const allowedTransitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
     PaymentStatus.REFUNDED,
   ],
 
-  [PaymentStatus.FAILED]: [PaymentStatus.PROCESSING],
+  [PaymentStatus.FAILED]: [PaymentStatus.PENDING, PaymentStatus.PROCESSING],
 
   [PaymentStatus.CANCELLED]: [PaymentStatus.PROCESSING],
 

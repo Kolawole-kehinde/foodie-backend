@@ -21,6 +21,7 @@ import { createInventoryDependencies } from "../modules/inventory/inventory.cont
 import { createCartDependencies } from "../modules/cart/cart.container.js";
 import { createOrderDependencies } from "../modules/order/container.order.js";
 import { createOutboxDependencies } from "../modules/outbox/outbox.container.js";
+import { createPaymentDependencies } from "../modules/payments/payment.container.js";
 
 
 // Infrastructure
@@ -29,6 +30,13 @@ const s3Service = createS3Service();
 
 // Outbox Pattern
 const outbox = createOutboxDependencies(prisma);
+
+// Payment
+const payment = createPaymentDependencies({
+  db: prisma,
+  authenticate,
+  outboxService: outbox.outboxService,
+});
 
 // Email DLQ
 const emailDlqService = createEmailDlqService();
@@ -92,6 +100,8 @@ const order = createOrderDependencies({
   authorizePermission
 });
 
+
+
 // Public Dependencies
 export {
   prisma,
@@ -114,6 +124,7 @@ export {
   inventory,
   cart,
   outbox,
+  payment,
   order,
 
 };

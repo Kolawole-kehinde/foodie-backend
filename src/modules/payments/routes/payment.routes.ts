@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
+
 import type { PaymentController } from "../controllers/payment.controller.js";
 import type { PaymentQueryController } from "../controllers/payment-query.controller.js";
 import type { PaymentReconciliationController } from "../controllers/payment-reconciliation.controller.js";
@@ -25,47 +26,58 @@ export const createPaymentRoutes = ({
 }: PaymentRoutesDependencies): Router => {
   const router = Router();
 
-  // Initialize payment POST /payments
- 
-  router.post(
-    "/", 
-    authenticate,
-    paymentController.initialize);
+  /*
+   * Initialize payment
+   * POST /payments
+   *
+   * Requires authentication.
+   * Idempotency-Key is required by the controller.
+   */
+  router.post("/", authenticate, paymentController.initialize);
 
+  /*
+   * Payment provider webhook
+   * POST /payments/webhook/:provider
+   *
+   * Authentication is intentionally omitted.
+   * Provider signature verification happens inside
+   * the payment webhook service.
+   *
+   * Raw body parsing is configured at the application
+   * level before express.json().
+   */
+  router.post("/webhook/:provider", paymentController.webhook);
 
-  //  Payment provider webhook
-  // POST /payments/webhook/:provider
-  // Authentication is intentionally omitted.
-  // Provider signature verification happens inside the payment webhook service.
-  router.post(
-    "/webhook/:provider", 
-    paymentController.webhook);
+  /*
+   * Get payment
+   * GET /payments/:paymentId
+   */
+  router.get("/:paymentId", authenticate, paymentQueryController.getById);
 
-  // Get payment GET /payments/:paymentId
-  router.get(
-    "/:paymentId", 
-    authenticate, 
-    paymentQueryController.getById);
-
-  // Verify payment with provider POST /payments/:paymentId/verify
+  /*
+   * Verify/reconcile payment with provider
+   * POST /payments/:paymentId/verify
+   */
   router.post(
     "/:paymentId/verify",
     authenticate,
     paymentReconciliationController.verify,
   );
 
-  // Initiate refund
-   // POST /payments/:paymentId/refund
-   
+  /*
+   * Initiate refund
+   * POST /payments/:paymentId/refund
+   */
   router.post(
     "/:paymentId/refund",
     authenticate,
     paymentRefundController.createRefund,
   );
 
-
-   // Get payment refunds
-   // GET /payments/:paymentId/refunds
+  /*
+   * Get payment refunds
+   * GET /payments/:paymentId/refunds
+   */
   router.get(
     "/:paymentId/refunds",
     authenticate,

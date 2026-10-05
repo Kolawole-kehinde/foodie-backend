@@ -8,9 +8,17 @@ type PaymentReconciliationControllerDependencies = {
   paymentReconciliationService: PaymentReconciliationService;
 };
 
+
+export type PaymentReconciliationController = {
+  verify: RequestHandler;
+};
+
+
 export const createPaymentReconciliationController = ({
   paymentReconciliationService,
-}: PaymentReconciliationControllerDependencies) => {
+}: PaymentReconciliationControllerDependencies): PaymentReconciliationController => {
+
+
   const verify: RequestHandler = asyncHandler(
     async (req, res) => {
 
@@ -52,5 +60,3 @@ const result =
   };
 };
 
-export type PaymentReconciliationController =
-  ReturnType<typeof createPaymentReconciliationController>;

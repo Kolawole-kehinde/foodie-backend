@@ -1,4 +1,5 @@
-import type { PaymentRepository } from "../repositories/payment.repository.js";
+import type { PaymentRepository } from "../repositories/index.js";
+
 
 type PaymentRefundQueryServiceDependencies = {
   paymentRepository: PaymentRepository;

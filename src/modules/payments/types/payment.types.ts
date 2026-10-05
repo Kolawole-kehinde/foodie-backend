@@ -1,5 +1,5 @@
 import type { PaymentProvider, PrismaClient } from "@prisma/client";
-import type { PaymentRepository } from "../repositories/payment.repository.js";
+import type { PaymentRepository } from "../repositories/index.js";
 import type { PaymentProviderRegistry } from "../providers/payment-provider.registry.js";
 import type { PaymentProcessingService } from "../services/payment-processing.service.js";
 

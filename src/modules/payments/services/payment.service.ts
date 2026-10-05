@@ -3,11 +3,9 @@ import {
   PaymentStatus,
   Prisma,
 } from "@prisma/client";
-
-import { createPaymentRepository } from "../repositories/payment.repository.js";
 import { createInitializePaymentAttemptHelper } from "../helper/initialize-payment-attempt.helper.js";
 import { createVerifyPaymentAttemptHelper } from "../helper/verify-payment-attempt.helper.js";
-
+import { createPaymentRepository } from "../repositories/index.js";
 import type {
   InitializePaymentServiceInput,
   PaymentServiceDependencies,
@@ -55,7 +53,6 @@ export const createPaymentService = ({
      */
     const initializePaymentAttemptHelper =
       createInitializePaymentAttemptHelper({
-        paymentRepository,
         provider,
       });
 

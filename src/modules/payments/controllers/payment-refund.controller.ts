@@ -7,9 +7,14 @@ type PaymentRefundControllerDependencies = {
   paymentRefundService: PaymentRefundService;
 };
 
+export type PaymentRefundController = {
+  createRefund: RequestHandler;
+};
+
+
 export const createPaymentRefundController = ({
   paymentRefundService,
-}: PaymentRefundControllerDependencies) => {
+}: PaymentRefundControllerDependencies): PaymentRefundController => {
   const createRefund: RequestHandler = asyncHandler(
     async (req, res) => {
       const paymentId = req.params.paymentId;
@@ -53,7 +58,3 @@ export const createPaymentRefundController = ({
     createRefund,
   };
 };
-
-export type PaymentRefundController = ReturnType<
-  typeof createPaymentRefundController
->;

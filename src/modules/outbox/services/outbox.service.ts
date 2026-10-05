@@ -1,4 +1,4 @@
-import type { OrderEvent } from "../../../shared/events/event.types.js";
+import type { DomainEvent } from "../../../shared/events/event.types.js";
 import type { OutboxRepository } from "../repositories/outbox.repository.js";
 
 const MAX_ATTEMPTS = 5;
@@ -10,7 +10,7 @@ type CreateOutboxServiceDependencies = {
 };
 
 type CreateEventInput = {
-  event: OrderEvent;
+  event: DomainEvent;
   repository?: OutboxRepository;
 };
 
