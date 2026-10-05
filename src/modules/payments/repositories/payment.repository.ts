@@ -66,6 +66,27 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     });
   };
 
+
+  const getPaymentsForReconciliation = async ({
+  staleBefore,
+  limit = 50,
+}: {
+  staleBefore: Date;
+  limit?: number;
+}) => {
+  return db.payment.findMany({
+    where: {
+      status: "PROCESSING",
+      updatedAt: {
+        lt: staleBefore,
+      },
+    },
+    orderBy: {
+      updatedAt: "asc",
+    },
+    take: limit,
+  });
+};
   return {
     createPayment,
     getById,
@@ -73,6 +94,7 @@ export const createPaymentRepository = (db: DatabaseClient) => {
     getByOrderId,
     getByOrderIdForUpdate,
     updatePayment,
+    getPaymentsForReconciliation,
   };
 };
 

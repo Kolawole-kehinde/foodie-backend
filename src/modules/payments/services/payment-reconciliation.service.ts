@@ -24,6 +24,10 @@ type ReconcilePaymentInput = {
   userId: string;
 };
 
+type ReconcilePaymentForJobInput = {
+  paymentId: string;
+};
+
 type PaymentReconciliationServiceDependencies = {
   db: PrismaClient;
   paymentRepository: PaymentRepository;
@@ -39,104 +43,135 @@ export const createPaymentReconciliationService = ({
   outboxService,
   paymentEventFactory,
 }: PaymentReconciliationServiceDependencies) => {
+  /**
+   * User-facing reconciliation.
+   *
+   * Used when an authenticated user wants to verify
+   * the status of their own payment.
+   */
   const reconcilePayment = async ({
     paymentId,
     userId,
   }: ReconcilePaymentInput) => {
-    /*
-     * ------------------------------------------------------------
-     * 1. Find payment
-     * ------------------------------------------------------------
-     */
     const payment = await paymentRepository.getById(paymentId);
 
     if (!payment) {
       throw new Error("Payment not found");
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 2. Verify ownership
-     * ------------------------------------------------------------
-     */
     if (payment.userId !== userId) {
       throw new Error("You cannot verify this payment");
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 3. Find latest payment attempt
-     * ------------------------------------------------------------
+    return reconcilePaymentInternal(paymentId);
+  };
+
+  /**
+   * Background reconciliation.
+   *
+   * Used by the scheduled payment reconciliation job.
+   *
+   * No user ownership check is required because this is
+   * an internal system operation.
+   */
+  const reconcilePaymentForJob = async ({
+    paymentId,
+  }: ReconcilePaymentForJobInput) => {
+    const payment = await paymentRepository.getById(paymentId);
+
+    if (!payment) {
+      throw new Error("Payment not found");
+    }
+
+    /**
+     * The job should only reconcile payments that are
+     * currently processing.
+     *
+     * This also protects against a payment being changed
+     * between selecting it for reconciliation and actually
+     * processing it.
      */
-    const attempt = await paymentRepository.getLatestPaymentAttempt(payment.id);
+    if (payment.status !== PaymentStatus.PROCESSING) {
+      return {
+        paymentId: payment.id,
+        status: payment.status,
+        changed: false,
+        skipped: true,
+      };
+    }
+
+    return reconcilePaymentInternal(paymentId);
+  };
+
+  /**
+   * Shared reconciliation logic.
+   *
+   * This is used by both:
+   *
+   * - reconcilePayment()
+   * - reconcilePaymentForJob()
+   */
+  const reconcilePaymentInternal = async (paymentId: string) => {
+    const payment = await paymentRepository.getById(paymentId);
+
+    if (!payment) {
+      throw new Error("Payment not found");
+    }
+
+    const attempt = await paymentRepository.getLatestPaymentAttempt(
+      payment.id,
+    );
 
     if (!attempt) {
       throw new Error("Payment attempt not found");
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 4. Provider reference is required
-     * ------------------------------------------------------------
-     */
     const providerReference = attempt.providerReference;
 
     if (!providerReference) {
-      throw new Error("Payment attempt does not have a provider reference");
+      throw new Error(
+        "Payment attempt does not have a provider reference",
+      );
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 5. Resolve provider
-     * ------------------------------------------------------------
-     */
     const provider = paymentProviderRegistry.get(attempt.provider);
 
-    /*
-     * ------------------------------------------------------------
-     * 6. Ask provider for authoritative status
-     * ------------------------------------------------------------
-     */
     const result = await provider.verifyPayment({
       providerReference,
     });
 
-    /*
-     * ------------------------------------------------------------
-     * 7. Validate amount
-     * ------------------------------------------------------------
+    /**
+     * Never trust the provider blindly.
+     *
+     * The amount and currency returned by the provider
+     * must match what we originally stored.
      */
     if (result.amount !== payment.amount.toFixed(2)) {
-      throw new Error("Provider payment amount does not match stored payment");
+      throw new Error(
+        "Provider payment amount does not match stored payment",
+      );
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 8. Validate currency
-     * ------------------------------------------------------------
-     */
-    if (result.currency.toUpperCase() !== payment.currency.toUpperCase()) {
+    if (
+      result.currency.toUpperCase() !==
+      payment.currency.toUpperCase()
+    ) {
       throw new Error(
         "Provider payment currency does not match stored payment",
       );
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 9. Map provider status
-     * ------------------------------------------------------------
-     */
-    const nextStatus = mapProviderStatusToPaymentStatus(result.status);
+    const nextStatus = mapProviderStatusToPaymentStatus(
+      result.status,
+    );
 
     const now = new Date();
 
-    /*
-     * ------------------------------------------------------------
-     * 10. Payment already has this status
-     * ------------------------------------------------------------
+    /**
+     * Provider returned the same status we already have.
      *
-     * We update verification metadata but DO NOT create
-     * another domain event because there was no state change.
+     * We still update verification metadata so we know
+     * the payment was checked successfully.
      */
     if (payment.status === nextStatus) {
       await paymentRepository.updatePaymentAttempt(attempt.id, {
@@ -155,10 +190,9 @@ export const createPaymentReconciliationService = ({
       };
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 11. Protect payment state machine
-     * ------------------------------------------------------------
+    /**
+     * Make sure the provider result represents a legal
+     * payment state transition.
      */
     if (!canTransitionPaymentStatus(payment.status, nextStatus)) {
       throw new Error(
@@ -166,34 +200,29 @@ export const createPaymentReconciliationService = ({
       );
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 12. Build payment update
-     * ------------------------------------------------------------
-     */
     const paymentUpdate: Prisma.PaymentUpdateInput = {
       status: nextStatus,
     };
 
+    /**
+     * Successful payment.
+     */
     if (nextStatus === PaymentStatus.SUCCESS) {
       paymentUpdate.paidAt = result.paidAt ?? now;
-
       paymentUpdate.failedAt = null;
       paymentUpdate.failureReason = null;
     }
 
+    /**
+     * Failed payment.
+     */
     if (nextStatus === PaymentStatus.FAILED) {
       paymentUpdate.failedAt = now;
-
       paymentUpdate.failureReason =
-        result.failureReason ?? "Payment provider reported failure";
+        result.failureReason ??
+        "Payment provider reported failure";
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 13. Build payment attempt update
-     * ------------------------------------------------------------
-     */
     const attemptUpdate: Prisma.PaymentAttemptUpdateInput = {
       status: mapPaymentStatusToAttemptStatus(nextStatus),
       providerReference: result.providerReference,
@@ -201,83 +230,99 @@ export const createPaymentReconciliationService = ({
       lastVerifiedAt: now,
     };
 
+    /**
+     * Mark the attempt as completed when the payment
+     * reaches a terminal state.
+     */
     if (isTerminalPaymentStatus(nextStatus)) {
       attemptUpdate.completedAt = result.paidAt ?? now;
     }
 
+    /**
+     * Clear any previous failure reason after success.
+     */
     if (nextStatus === PaymentStatus.SUCCESS) {
       attemptUpdate.failureReason = null;
     }
 
+    /**
+     * Store provider failure reason.
+     */
     if (nextStatus === PaymentStatus.FAILED) {
       attemptUpdate.failureReason =
-        result.failureReason ?? "Payment provider reported failure";
+        result.failureReason ??
+        "Payment provider reported failure";
     }
 
-    /*
-     * ------------------------------------------------------------
-     * 14. Update payment + attempt + outbox atomically
-     * ------------------------------------------------------------
+    /**
+     * Payment state change, attempt update and outbox
+     * event must happen atomically.
      */
     await db.$transaction(async (tx) => {
       const transactionRepository = createPaymentRepository(tx);
 
-      const transactionOutboxRepository = createOutboxRepository(tx);
+      const transactionOutboxRepository =
+        createOutboxRepository(tx);
 
-      /*
-       * Lock payment before changing its state.
+      /**
+       * Lock the payment row so concurrent webhook,
+       * reconciliation or retry operations cannot
+       * incorrectly overwrite each other.
        */
-      const lockedPayment = await transactionRepository.getByIdForUpdate(
-        payment.id,
-      );
+      const lockedPayment =
+        await transactionRepository.getByIdForUpdate(payment.id);
 
       if (!lockedPayment) {
-        throw new Error("Payment not found during reconciliation");
+        throw new Error(
+          "Payment not found during reconciliation",
+        );
       }
 
-      /*
-       * Re-check the transition after acquiring the lock.
-       *
-       * Another request may have changed the payment
-       * while reconciliation was calling the provider.
+      /**
+       * Another process may have changed the payment
+       * while we were calling the provider.
        */
       if (lockedPayment.status !== payment.status) {
-        /*
-         * Another request already moved it to the
-         * status we were trying to reach.
+        /**
+         * Another process already moved the payment to
+         * the status we were trying to reach.
+         *
+         * Nothing else needs to be done.
          */
         if (lockedPayment.status === nextStatus) {
           return;
         }
 
-        if (!canTransitionPaymentStatus(lockedPayment.status, nextStatus)) {
+        /**
+         * The current database status has changed into
+         * another state, so validate the new transition
+         * before continuing.
+         */
+        if (
+          !canTransitionPaymentStatus(
+            lockedPayment.status,
+            nextStatus,
+          )
+        ) {
           throw new Error(
             `Invalid reconciliation transition: ${lockedPayment.status} -> ${nextStatus}`,
           );
         }
       }
 
-      /*
-       * ----------------------------------------------------------
-       * 15. Update payment
-       * ----------------------------------------------------------
-       */
-      await transactionRepository.updatePayment(payment.id, paymentUpdate);
+      await transactionRepository.updatePayment(
+        payment.id,
+        paymentUpdate,
+      );
 
-      /*
-       * ----------------------------------------------------------
-       * 16. Update payment attempt
-       * ----------------------------------------------------------
-       */
       await transactionRepository.updatePaymentAttempt(
         attempt.id,
         attemptUpdate,
       );
 
-      /*
-       * ----------------------------------------------------------
-       * 17. Create payment domain event
-       * ----------------------------------------------------------
+      /**
+       * Create the domain event from the final payment
+       * state we just reconciled.
        */
       const paymentEvent = paymentEventFactory.create({
         paymentId: payment.id,
@@ -291,14 +336,16 @@ export const createPaymentReconciliationService = ({
         occurredAt: now,
       });
 
-      /*
-       * ----------------------------------------------------------
-       * 18. Store event in Outbox
-       * ----------------------------------------------------------
+      /**
+       * Outbox event is stored inside the same transaction.
        *
-       * IMPORTANT:
-       * transactionOutboxRepository uses the same Prisma
-       * transaction as the payment update.
+       * Therefore:
+       *
+       * payment update succeeds
+       * +
+       * event creation succeeds
+       *
+       * or neither happens.
        */
       await outboxService.createEvent({
         event: paymentEvent,
@@ -306,11 +353,6 @@ export const createPaymentReconciliationService = ({
       });
     });
 
-    /*
-     * ------------------------------------------------------------
-     * 19. Return reconciliation result
-     * ------------------------------------------------------------
-     */
     return {
       paymentId: payment.id,
       attemptId: attempt.id,
@@ -323,14 +365,10 @@ export const createPaymentReconciliationService = ({
 
   return {
     reconcilePayment,
+    reconcilePaymentForJob,
   };
 };
 
-/*
- * --------------------------------------------------------------
- * Provider status → Payment status
- * --------------------------------------------------------------
- */
 const mapProviderStatusToPaymentStatus = (
   status:
     | "PENDING"
@@ -362,11 +400,6 @@ const mapProviderStatusToPaymentStatus = (
   }
 };
 
-/*
- * --------------------------------------------------------------
- * Payment status → PaymentAttempt status
- * --------------------------------------------------------------
- */
 const mapPaymentStatusToAttemptStatus = (
   status: PaymentStatus,
 ): PaymentAttemptStatus => {
@@ -390,12 +423,9 @@ const mapPaymentStatusToAttemptStatus = (
   }
 };
 
-/*
- * --------------------------------------------------------------
- * Terminal payment status
- * --------------------------------------------------------------
- */
-const isTerminalPaymentStatus = (status: PaymentStatus): boolean => {
+const isTerminalPaymentStatus = (
+  status: PaymentStatus,
+): boolean => {
   const terminalStatuses: PaymentStatus[] = [
     PaymentStatus.SUCCESS,
     PaymentStatus.FAILED,
