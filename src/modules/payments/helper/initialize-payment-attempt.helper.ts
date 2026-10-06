@@ -1,5 +1,8 @@
+import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
+
 import type { PaymentProviderClient } from "../providers/payment-provider.js";
 import { PaymentProviderError } from "../errors/payment-provider.error.js";
+import type { PaymentRepository } from "../repositories/index.js";
 
 type InitializePaymentAttemptInput = {
   paymentId: string;
@@ -12,10 +15,12 @@ type InitializePaymentAttemptInput = {
 
 type InitializePaymentAttemptDependencies = {
   provider: PaymentProviderClient;
+  paymentRepository: PaymentRepository;
 };
 
 export const createInitializePaymentAttemptHelper = ({
   provider,
+  paymentRepository,
 }: InitializePaymentAttemptDependencies) => {
   const initializePaymentAttempt = async ({
     paymentId,
@@ -42,6 +47,27 @@ export const createInitializePaymentAttemptHelper = ({
         callbackUrl,
       });
 
+      /*
+       * Persist the provider result before returning the response.
+       *
+       * This is important for idempotency:
+       *
+       * First request:
+       * INITIATED -> PROCESSING
+       *
+       * Second request with the same idempotency key:
+       * finds the existing PROCESSING attempt and returns it.
+       */
+      await paymentRepository.updatePaymentAttempt(attemptId, {
+  providerReference: result.providerReference,
+  providerStatus: result.providerStatus,
+  status: PaymentAttemptStatus.PROCESSING,
+});
+
+await paymentRepository.updatePayment(paymentId, {
+  status: PaymentStatus.PROCESSING,
+});
+
       return {
         paymentId,
         attemptId,
@@ -56,9 +82,6 @@ export const createInitializePaymentAttemptHelper = ({
       /*
        * The provider error is intentionally allowed to bubble
        * back to the Payment Service.
-       *
-       * The Service owns the business transaction and decides
-       * whether the failure is definitive or uncertain.
        */
       if (error instanceof PaymentProviderError) {
         throw error;
@@ -73,7 +96,6 @@ export const createInitializePaymentAttemptHelper = ({
   };
 };
 
-export type InitializePaymentAttemptHelper =
-  ReturnType<
-    typeof createInitializePaymentAttemptHelper
-  >;
+export type InitializePaymentAttemptHelper = ReturnType<
+  typeof createInitializePaymentAttemptHelper
+>;

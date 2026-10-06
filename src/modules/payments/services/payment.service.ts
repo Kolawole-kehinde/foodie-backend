@@ -54,6 +54,7 @@ export const createPaymentService = ({
     const initializePaymentAttemptHelper =
       createInitializePaymentAttemptHelper({
         provider,
+        paymentRepository
       });
 
     const verifyPaymentAttemptHelper =

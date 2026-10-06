@@ -109,15 +109,19 @@ registry.registerPath({
   tags: ["Payments"],
   security: [{ bearerAuth: [] }],
 
-  request: {
-    body: {
-      content: {
-        "application/json": {
-          schema: initializePaymentSchema,
-        },
+request: {
+  headers: z.object({
+    "Idempotency-Key": z.string().min(1),
+  }),
+
+  body: {
+    content: {
+      "application/json": {
+        schema: initializePaymentSchema,
       },
     },
   },
+},
 
   responses: {
     201: {
