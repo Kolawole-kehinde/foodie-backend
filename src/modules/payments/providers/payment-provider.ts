@@ -1,6 +1,7 @@
 import type {
   InitializePaymentInput,
   InitializePaymentResult,
+  ListRefundsResult,
   RefundPaymentInput,
   RefundPaymentResult,
   VerifyPaymentInput,
@@ -20,9 +21,9 @@ export interface PaymentProviderClient {
     input: VerifyPaymentInput,
   ): Promise<VerifyPaymentResult>;
 
-    verifyRefund(
-  input: VerifyRefundInput,
-): Promise<VerifyRefundResult>;
+  verifyRefund(
+    input: VerifyRefundInput,
+  ): Promise<VerifyRefundResult>;
 
   verifyWebhook(
     input: VerifyWebhookInput,
@@ -32,5 +33,7 @@ export interface PaymentProviderClient {
     input: RefundPaymentInput,
   ): Promise<RefundPaymentResult>;
 
-
+  listRefunds(
+    transactionReference: string,
+  ): Promise<ListRefundsResult>;
 }

@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 
-import type { PaymentRefundQueryService } from "../services/payment-refund-query.service.js";
+import type { PaymentRefundQueryService } from "../services/payment-refund/payment-refund-query.service.js";
 
 type PaymentRefundQueryControllerDependencies = {
   paymentRefundQueryService: PaymentRefundQueryService;

@@ -50,3 +50,24 @@ export type PaystackRefundTransaction =
       id?: number;
       reference?: string;
     };
+
+
+    export type PaystackRefundListResponse = {
+  status: boolean;
+  message: string;
+  data?: Array<{
+    id: number;
+    amount: number;
+    currency: string;
+    status: string;
+    transaction:
+      | number
+      | string
+      | {
+          id?: number;
+          reference?: string;
+        };
+    reason?: string | null;
+    refunded_at?: string | null;
+  }>;
+};

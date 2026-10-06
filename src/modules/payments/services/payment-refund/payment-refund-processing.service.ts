@@ -54,6 +54,7 @@ export const createPaymentRefundProcessingService = () => {
     const finalStatus = mapProviderRefundStatus(result.status);
 
     if (
+      finalStatus !== RefundStatus.PROCESSING &&
       !canTransitionRefundStatus(
         RefundStatus.PROCESSING,
         finalStatus,

@@ -1,9 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { PaymentProviderRegistry } from "../../providers/payment-provider.registry.js";
-import {
-  createPaymentRepository,
-  type PaymentRepository,
-} from "../../repositories/index.js";
+import { createPaymentRepository, type PaymentRepository} from "../../repositories/index.js";
 import type { OutboxService } from "../../../outbox/services/outbox.service.js";
 import type { PaymentEventFactory } from "../../events/payment-event.factory.js";
 import { createPaymentRefundCreationService } from "./payment-refund-creation.service.js";
@@ -34,6 +31,7 @@ export const createPaymentRefundService = ({
   outboxService,
   paymentEventFactory,
 }: PaymentRefundServiceDependencies) => {
+
   const creationService = createPaymentRefundCreationService({
     db,
     paymentRepository,
@@ -49,14 +47,10 @@ export const createPaymentRefundService = ({
     paymentEventFactory,
   });
 
-  const createRefund = async ({
-    paymentId,
-    userId,
-    amount,
-    reason,
-  }: CreateRefundInput) => {
-    const { payment, refund, refundAmount } =
-      await creationService.createRefundRecord({
+
+  const createRefund = async ({paymentId, userId, amount, reason}: CreateRefundInput) => {
+
+  const { payment, refund, refundAmount } = await creationService.createRefundRecord({
         paymentId,
         userId,
         amount,
@@ -191,6 +185,4 @@ export const createPaymentRefundService = ({
   };
 };
 
-export type PaymentRefundService = ReturnType<
-  typeof createPaymentRefundService
->;
+export type PaymentRefundService = ReturnType <typeof createPaymentRefundService>;

@@ -7,6 +7,7 @@ import { PaymentProviderError } from "../../errors/payment-provider.error.js";
 import type {
   InitializePaymentInput,
   InitializePaymentResult,
+  ListRefundsResult,
   RefundPaymentInput,
   RefundPaymentResult,
   VerifyPaymentInput,
@@ -29,6 +30,7 @@ import {
 
 import type {
   PaystackInitializeResponse,
+  PaystackRefundListResponse,
   PaystackRefundResponse,
   PaystackVerifyResponse,
 } from "./paystack.types.js";
@@ -182,6 +184,131 @@ export const createPaystackProvider = ({
       },
     };
   };
+
+const listRefunds = async (
+  transactionReference: string,
+): Promise<ListRefundsResult> => {
+  /*
+   * Paystack's List Refunds endpoint expects the
+   * transaction ID, not the transaction reference.
+   *
+   * Our application stores the provider reference,
+   * so first resolve the reference to Paystack's
+   * numeric transaction ID.
+   */
+  const transactionResponse =
+    await http.request<PaystackVerifyResponse>({
+      method: "GET",
+      url: `/transaction/verify/${encodeURIComponent(
+        transactionReference,
+      )}`,
+    });
+
+  const transactionData = assertPaystackResponse(
+    transactionResponse.data,
+    "transaction verification",
+  );
+
+  if (!transactionData) {
+    throw new Error(
+      "Unable to resolve Paystack transaction",
+    );
+  }
+
+  /*
+   * The transaction ID is returned by Paystack as a number.
+   */
+  const transactionId = transactionData.id;
+
+  if (!transactionId) {
+    throw new Error(
+      "Paystack transaction ID is missing",
+    );
+  }
+
+  /*
+   * Now retrieve refunds belonging to this transaction.
+   */
+  const response =
+    await http.request<PaystackRefundListResponse>({
+      method: "GET",
+      url: "/refund",
+      params: {
+        transaction: transactionId,
+      },
+    });
+
+  const data = assertPaystackResponse(
+    response.data,
+    "refund listing",
+  );
+
+  return {
+    provider: PaymentProvider.PAYSTACK,
+    refunds: data.map((refund) => ({
+      providerRefundReference:
+        String(refund.id),
+
+      providerReference:
+        getRefundProviderReference(
+          refund.transaction,
+        ),
+
+      amount:
+        fromSubunit(refund.amount),
+
+      currency:
+        normalizeCurrency(refund.currency),
+
+      status: (() => {
+        switch (
+          refund.status
+            .trim()
+            .toLowerCase()
+        ) {
+          case "processed":
+            return "SUCCESS" as const;
+
+          case "pending":
+          case "processing":
+          case "needs-attention":
+            return "PROCESSING" as const;
+
+          case "failed":
+          case "reversed":
+            return "FAILED" as const;
+
+          default:
+            return "UNKNOWN" as const;
+        }
+      })(),
+
+      providerStatus:
+        refund.status,
+
+      failureReason:
+        refund.status
+          .trim()
+          .toLowerCase() === "failed"
+          ? (refund.reason ?? undefined)
+          : undefined,
+
+      completedAt:
+        refund.refunded_at
+          ? new Date(refund.refunded_at)
+          : undefined,
+
+      metadata: {
+        transactionReference:
+          getRefundProviderReference(
+            refund.transaction,
+          ),
+
+        transactionId,
+      },
+    })),
+  };
+};
 
   const verifyRefund = async (
   input: VerifyRefundInput,
@@ -374,6 +501,7 @@ export const createPaystackProvider = ({
     verifyPayment,
     verifyWebhook,
     refundPayment,
-    verifyRefund
+    verifyRefund,
+    listRefunds
   };
 };
