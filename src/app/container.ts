@@ -22,6 +22,8 @@ import { createCartDependencies } from "../modules/cart/cart.container.js";
 import { createOrderDependencies } from "../modules/order/container.order.js";
 import { createOutboxDependencies } from "../modules/outbox/outbox.container.js";
 import { createPaymentDependencies } from "../modules/payments/payment.container.js";
+import { createPaymentSucceededHandler } from "../modules/payments/handlers/payment-succeeded.handler.js";
+import { EVENT_TYPES } from "../shared/events/event.types.js";
 
 
 // Infrastructure
@@ -99,6 +101,15 @@ const order = createOrderDependencies({
   authenticate,
   authorizePermission
 });
+
+const paymentSucceededHandler = createPaymentSucceededHandler({
+  orderService: order.orderService,
+});
+
+outbox.eventBus.subscribe(
+  EVENT_TYPES.PAYMENT_SUCCEEDED,
+  paymentSucceededHandler.handle,
+);
 
 
 

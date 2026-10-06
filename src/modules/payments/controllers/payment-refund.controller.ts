@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 import { asyncHandler } from "../../../shared/utils/async-handler.js";
 import type { CreatePaymentRefundDto } from "../dto/payment-refund.dto.js";
-import type { PaymentRefundService } from "../services/payment-refund.service.js";
+import type { PaymentRefundService } from "../services/payment-refund/payment-refund.service.js";
 
 type PaymentRefundControllerDependencies = {
   paymentRefundService: PaymentRefundService;

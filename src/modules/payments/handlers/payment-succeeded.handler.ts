@@ -11,7 +11,13 @@ export const createPaymentSucceededHandler = ({
   const handle = async (event: PaymentSucceededEvent) => {
     const { orderId } = event.data;
 
-    await orderService.confirmOrder(orderId);
+    const result = await orderService.confirmOrderFromPayment(orderId);
+
+    if (result.action === "REFUND_REQUIRED") {
+      console.log(
+        `[Payment] Order ${orderId} expired before payment was confirmed. Refund required.`,
+      );
+    }
   };
 
   return {

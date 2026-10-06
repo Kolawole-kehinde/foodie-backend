@@ -8,7 +8,7 @@ import type { PaymentRefundRepository } from "../modules/payments/repositories/p
 
 import type { PaymentReconciliationService } from "../modules/payments/services/payment-reconciliation.service.js";
 
-import type { PaymentRefundService } from "../modules/payments/services/payment-refund.service.js";
+import type { PaymentRefundService } from "../modules/payments/services/payment-refund/payment-refund.service.js";
 
 import { createCleanupContainer } from "./cleanup/cleanup.container.js";
 

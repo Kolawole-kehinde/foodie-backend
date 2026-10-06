@@ -1,11 +1,11 @@
-import type { DomainEvent } from "../../../shared/events/event.types.js";
+import type { DomainEvent, EventType } from "../../../shared/events/event.types.js";
 
 type EventHandler<TEvent extends DomainEvent = DomainEvent> = (
   event: TEvent,
 ) => Promise<void>;
 
 export const createEventBus = () => {
-  const handlers = new Map<string, EventHandler<DomainEvent>[]>();
+  const handlers = new Map<string, EventHandler[]>();
 
   const subscribe = <TEvent extends DomainEvent>(
     eventType: TEvent["eventType"],
@@ -13,7 +13,7 @@ export const createEventBus = () => {
   ) => {
     const existingHandlers = handlers.get(eventType) ?? [];
 
-    existingHandlers.push(handler as EventHandler<DomainEvent>);
+    existingHandlers.push(handler as EventHandler);
 
     handlers.set(eventType, existingHandlers);
   };

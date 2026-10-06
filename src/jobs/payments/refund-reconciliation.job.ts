@@ -2,7 +2,7 @@ import cron from "node-cron";
 
 import { logger } from "../../config/logger.js";
 import type { PaymentRefundRepository } from "../../modules/payments/repositories/payment-refund.repository.js";
-import type { PaymentRefundService } from "../../modules/payments/services/payment-refund.service.js";
+import type { PaymentRefundService } from "../../modules/payments/services/payment-refund/payment-refund.service.js";
 
 const REFUND_RECONCILIATION_SCHEDULE = "* * * * *";
 

@@ -15,7 +15,7 @@ import { createPaymentService } from "./services/payment.service.js";
 import { createPaymentWebhookService } from "./services/payment-webhook.service.js";
 import { createPaymentReconciliationService } from "./services/payment-reconciliation.service.js";
 import { createPaymentQueryService } from "./services/payment-query.service.js";
-import { createPaymentRefundService } from "./services/payment-refund.service.js";
+import { createPaymentRefundService } from "./services/payment-refund/payment-refund.service.js";
 import { createPaymentRefundQueryService } from "./services/payment-refund-query.service.js";
 
 import { createPaymentController } from "./controllers/payment.controller.js";

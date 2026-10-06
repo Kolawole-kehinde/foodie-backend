@@ -110,6 +110,68 @@ export const createOrderManagementService = ({
     });
   };
 
+   const confirmOrderFromPayment = async (orderId: string) => {
+  return db.$transaction(async (tx) => {
+    const transactionOrderRepository = createOrderRepository(tx);
+    const transactionOutboxRepository = createOutboxRepository(tx);
+
+    const currentOrder =
+      await transactionOrderRepository.getByIdForUpdate(orderId);
+
+    if (!currentOrder) {
+      throw new NotFoundError("Order not found");
+    }
+
+    const currentStatus = currentOrder.status as OrderStatus;
+
+    // Payment success events can be delivered more than once.
+    // If the order is already confirmed, treat the duplicate
+    // event as successfully processed.
+    if (currentStatus === OrderStatus.CONFIRMED) {
+      return {
+        order: await transactionOrderRepository.getOrderWithItems(orderId),
+        action: "ALREADY_CONFIRMED" as const,
+      };
+    }
+
+    // The payment succeeded after the inventory reservation expired.
+    // Do not confirm the order because the stock may already have
+    // been released and sold to another customer.
+    if (currentStatus === OrderStatus.EXPIRED) {
+      return {
+        order: await transactionOrderRepository.getOrderWithItems(orderId),
+        action: "REFUND_REQUIRED" as const,
+      };
+    }
+
+    if (currentStatus !== OrderStatus.PENDING) {
+      throw new ConflictError(
+        `Order cannot be confirmed from ${currentStatus}`,
+      );
+    }
+
+    await transactionOrderRepository.updateStatus(orderId, {
+      status: OrderStatus.CONFIRMED,
+    });
+
+    const event = createOrderConfirmedEvent({
+      orderId: currentOrder.id,
+      userId: currentOrder.userId,
+      previousStatus: currentStatus,
+      newStatus: OrderStatus.CONFIRMED,
+    });
+
+    await outboxService.createEvent({
+      event,
+      repository: transactionOutboxRepository,
+    });
+
+    return {
+      order: await transactionOrderRepository.getOrderWithItems(orderId),
+      action: "CONFIRMED" as const,
+    };
+  });
+};
   const getMyOrders = async (userId: string) => {
     return orderRepository.getUserOrders(userId);
   };
@@ -269,6 +331,7 @@ export const createOrderManagementService = ({
     cancelOrder,
     expireReservations,
     confirmOrder,
+    confirmOrderFromPayment,
     processOrder,
     shipOrder,
     deliverOrder,
