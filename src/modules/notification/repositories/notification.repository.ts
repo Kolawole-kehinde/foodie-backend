@@ -10,7 +10,7 @@ type FindUserNotificationsOptions = {
 };
 
 export const createNotificationRepository = (db: DatabaseClient) => {
-    
+
   const createNotification = async (data: Prisma.NotificationCreateInput) => {
     return db.notification.create({
       data,
@@ -95,3 +95,7 @@ export const createNotificationRepository = (db: DatabaseClient) => {
     markAllAsRead,
   };
 };
+
+export type NotificationRepository = ReturnType<
+  typeof createNotificationRepository
+>;
