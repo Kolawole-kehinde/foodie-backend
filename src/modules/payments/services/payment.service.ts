@@ -6,10 +6,7 @@ import {
 import { createInitializePaymentAttemptHelper } from "../helper/initialize-payment-attempt.helper.js";
 import { createVerifyPaymentAttemptHelper } from "../helper/verify-payment-attempt.helper.js";
 import { createPaymentRepository } from "../repositories/index.js";
-import type {
-  InitializePaymentServiceInput,
-  PaymentServiceDependencies,
-} from "../types/payment.types.js";
+import type { InitializePaymentServiceInput, PaymentServiceDependencies,} from "../types/payment.types.js";
 
 const isUniqueConstraintError = (error: unknown): boolean => {
   return (
@@ -27,30 +24,18 @@ export const createPaymentService = ({
   const initializePayment = async (
     input: InitializePaymentServiceInput,
   ) => {
-    /*
-     * ------------------------------------------------------------
-     * 1. Prepare payment context
-     * ------------------------------------------------------------
-     */
-    const paymentContext =
-      await paymentProcessingService.preparePayment({
+
+    // 1. Prepare payment context
+    const paymentContext =  await paymentProcessingService.preparePayment({
         orderId: input.orderId,
         userId: input.userId,
         provider: input.provider,
       });
 
-    /*
-     * ------------------------------------------------------------
-     * 2. Resolve provider
-     * ------------------------------------------------------------
-     */
+    // 2. Resolve provider
     const provider = paymentProviderRegistry.get(input.provider);
 
-    /*
-     * ------------------------------------------------------------
-     * 3. Create provider operation helpers
-     * ------------------------------------------------------------
-     */
+    // 3. Create provider operation helpers
     const initializePaymentAttemptHelper =
       createInitializePaymentAttemptHelper({
         provider,
@@ -63,91 +48,54 @@ export const createPaymentService = ({
         provider,
       });
 
-    /*
-     * ------------------------------------------------------------
-     * 4. Find existing Payment
-     * ------------------------------------------------------------
-     */
-    const existingPayment =
-      await paymentRepository.getByOrderId(input.orderId);
+    //4. Find existing Payment
+    const existingPayment =  await paymentRepository.getByOrderId(input.orderId);
 
-    /*
-     * ------------------------------------------------------------
-     * 5. Existing Payment
-     * ------------------------------------------------------------
-     */
+    // 5. Existing Payment
     if (existingPayment) {
-      /*
-       * Always check idempotency first.
-       */
-      const existingAttempt =
-        await paymentRepository.getPaymentAttemptByIdempotencyKey(
+      // Always check idempotency first.
+      const existingAttempt =  await paymentRepository.getPaymentAttemptByIdempotencyKey(
           existingPayment.id,
           input.idempotencyKey,
         );
 
-      /*
-       * ----------------------------------------------------------
-       * Existing attempt for the same idempotency key
-       * ----------------------------------------------------------
-       */
+      // Existing attempt for the same idempotency key
       if (existingAttempt) {
-        /*
-         * Attempt already succeeded.
-         */
-        if (
-          existingAttempt.status ===
-          PaymentAttemptStatus.SUCCESS
-        ) {
+        //Attempt already succeeded.
+         
+        if (existingAttempt.status === PaymentAttemptStatus.SUCCESS) {
           return {
             paymentId: existingPayment.id,
             attemptId: existingAttempt.id,
             provider: existingAttempt.provider,
-            providerReference:
-              existingAttempt.providerReference ?? undefined,
+            providerReference: existingAttempt.providerReference ?? undefined,
             status: PaymentStatus.SUCCESS,
           };
         }
 
-        /*
-         * Attempt is currently processing.
-         */
-        if (
-          existingAttempt.status ===
-          PaymentAttemptStatus.PROCESSING
-        ) {
+        // Attempt is currently processing.
+        if (existingAttempt.status === PaymentAttemptStatus.PROCESSING) {
           return {
             paymentId: existingPayment.id,
             attemptId: existingAttempt.id,
             provider: existingAttempt.provider,
-            providerReference:
-              existingAttempt.providerReference ?? undefined,
+            providerReference: existingAttempt.providerReference ?? undefined,
             status: PaymentStatus.PROCESSING,
           };
         }
 
-        /*
-         * Attempt is INITIATED.
-         *
-         * If a provider reference exists, verify the transaction.
-         */
-        if (
-          existingAttempt.status ===
-          PaymentAttemptStatus.INITIATED
-        ) {
+        // Attempt is INITIATED.  If a provider reference exists, verify the transaction.
+      
+        if (existingAttempt.status === PaymentAttemptStatus.INITIATED) {
           if (existingAttempt.providerReference) {
             return verifyPaymentAttemptHelper.verifyPaymentAttempt({
               paymentId: existingPayment.id,
               attemptId: existingAttempt.id,
-              providerReference:
-                existingAttempt.providerReference,
+              providerReference:existingAttempt.providerReference,
             });
           }
 
-          /*
-           * We cannot safely initialize again because the previous
-           * request may already have reached the provider.
-           */
+          // We cannot safely initialize again because the previous, request may already have reached the provider.
           throw new Error(
             "Payment initialization outcome is still being determined",
           );
@@ -232,8 +180,7 @@ export const createPaymentService = ({
            * Request B must recover key-A instead of creating
            * another attempt or incorrectly throwing PENDING.
            */
-          const lockedExistingAttempt =
-            await transactionRepository.getPaymentAttemptByIdempotencyKey(
+          const lockedExistingAttempt =  await transactionRepository.getPaymentAttemptByIdempotencyKey(
               lockedPayment.id,
               input.idempotencyKey,
             );
@@ -397,8 +344,7 @@ export const createPaymentService = ({
         /*
          * Create Payment.
          */
-        const createdPayment =
-          await transactionRepository.createPayment({
+        const createdPayment = await transactionRepository.createPayment({
             order: {
               connect: {
                 id: paymentContext.orderId,
@@ -417,8 +363,7 @@ export const createPaymentService = ({
         /*
          * Create first PaymentAttempt.
          */
-        const createdAttempt =
-          await transactionRepository.createPaymentAttempt({
+        const createdAttempt = await transactionRepository.createPaymentAttempt({
             payment: {
               connect: {
                 id: createdPayment.id,

@@ -1,6 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
 import type { RequestHandler } from "express";
-
 import { env } from "../../config/env.js";
 
 import { createPaystackProvider } from "./providers/paystack/paystack.provider.js";
@@ -158,12 +157,9 @@ export const createPaymentDependencies = ({
 
   return {
     paymentRepository,
-
     paystackProvider,
     paymentProviderRegistry,
-
     paymentEventFactory,
-
     paymentProcessingService,
     paymentService,
     paymentWebhookService,
@@ -171,13 +167,11 @@ export const createPaymentDependencies = ({
     paymentQueryService,
     paymentRefundService,
     paymentRefundQueryService,
-
     paymentController,
     paymentQueryController,
     paymentReconciliationController,
     paymentRefundController,
     paymentRefundQueryController,
-
     paymentRoutes,
   };
 };

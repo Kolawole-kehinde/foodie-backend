@@ -25,5 +25,4 @@ export const createPaymentSucceededHandler = ({
   };
 };
 
-export type PaymentSucceededHandler =
-  ReturnType<typeof createPaymentSucceededHandler>;
+export type PaymentSucceededHandler =  ReturnType<typeof createPaymentSucceededHandler>;

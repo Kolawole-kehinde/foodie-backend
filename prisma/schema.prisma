@@ -552,6 +552,76 @@ model PaymentRefund {
   @@index([status])
 }
 
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+
+  type    NotificationType
+  title   String
+  message String
+
+  status NotificationStatus
+
+  eventId   String
+  eventType String
+
+  metadata Json?
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveries NotificationDelivery[]
+
+  @@unique([eventId, userId, type])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([eventId])
+}
+
+model NotificationDelivery {
+  id String @id @default(uuid())
+
+  notificationId String
+  channel        NotificationChannel
+
+  status DeliveryStatus
+
+  attempts Int @default(0)
+
+  providerMessageId String?
+  failureReason     String?
+
+  lastAttemptAt DateTime?
+  deliveredAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel])
+  @@index([status])
+  @@index([notificationId])
+}
+
+model NotificationPreference {
+  id String @id @default(uuid())
+
+  userId  String
+  type    NotificationType
+  channel NotificationChannel
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, type, channel])
+  @@index([userId])
+}
+
 model OutboxEvent {
   id            String @id @default(cuid())
   eventType     String
@@ -573,6 +643,26 @@ model OutboxEvent {
   @@index([aggregateType, aggregateId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+model InboxEvent {
+  id String @id @default(uuid())
+
+  eventId   String @unique
+  eventType String
+
+  status InboxEventStatus
+
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventType])
+  @@index([status])
 }
 
 enum OrderStatus {
@@ -616,6 +706,44 @@ enum RefundStatus {
   SUCCESS
   FAILED
   CANCELLED
+}
+
+enum NotificationType {
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
+
+  ORDER_CREATED
+  ORDER_CONFIRMED
+  ORDER_CANCELLED
+  ORDER_SHIPPED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+enum DeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum InboxEventStatus {
+  PROCESSING
+  PROCESSED
+  FAILED
 }
 
 enum OutboxEventStatus {
