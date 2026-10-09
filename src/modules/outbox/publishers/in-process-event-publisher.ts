@@ -1,27 +1,10 @@
-import type { DomainEvent } from "../../../shared/events/event.types.js";
-import type { EventBus } from "./event-bus.js";
 
+import { domainEventSchema } from "../../../shared/events/event.schema.js";
+import type { EventBus } from "./event-bus.js";
 import type {
   EventPublisher,
   PublishEventInput,
 } from "./event-publisher.js";
-
-const isDomainEvent = (payload: unknown): payload is DomainEvent => {
-  if (typeof payload !== "object" || payload === null) {
-    return false;
-  }
-
-  const event = payload as Record<string, unknown>;
-
-  return (
-    typeof event.eventId === "string" &&
-    typeof event.eventType === "string" &&
-    typeof event.occurredAt === "string" &&
-    typeof event.aggregateType === "string" &&
-    typeof event.aggregateId === "string" &&
-    "data" in event
-  );
-};
 
 export const createInProcessEventPublisher = (
   eventBus: EventBus,
@@ -31,19 +14,32 @@ export const createInProcessEventPublisher = (
     eventType,
     payload,
   }: PublishEventInput) => {
-    if (!isDomainEvent(payload)) {
+    const result = domainEventSchema.safeParse(payload);
+
+    if (!result.success) {
       throw new Error(
-        `Invalid domain event payload for ${eventType}: ${eventId}`,
+        `Invalid domain event payload for ${eventType}: ${eventId}. ${result.error.message}`,
+      );
+    }
+
+    const event = result.data;
+
+    if (
+      event.eventId !== eventId ||
+      event.eventType !== eventType
+    ) {
+      throw new Error(
+        `Event metadata mismatch for event: ${eventId}`,
       );
     }
 
     console.log("[EVENT PUBLISHED]", {
       eventId,
       eventType,
-      payload,
+      payload: event,
     });
 
-    await eventBus.publish(payload);
+    await eventBus.publish(event);
   };
 
   return {
