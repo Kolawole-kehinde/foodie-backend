@@ -96,7 +96,7 @@ export function createApp(): Express {
    /*
    * Nofifications routes.
    */
-  app.use("api/v1/notification", notification.notificationRoutes)
+  app.use("/api/v1/notifications", notification.notificationRoutes)
 
  /*
  * Start all scheduled jobs.
