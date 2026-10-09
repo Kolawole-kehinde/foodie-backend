@@ -22,6 +22,7 @@ import {
   order,
   outbox,
   payment,
+  notification,
 } from "./container.js";
 
 export function createApp(): Express {
@@ -91,6 +92,11 @@ export function createApp(): Express {
    * Payment routes.
    */
   app.use("/api/v1/payments", payment.paymentRoutes);
+
+   /*
+   * Nofifications routes.
+   */
+  app.use("api/v1/notification", notification.notificationRoutes)
 
  /*
  * Start all scheduled jobs.

@@ -24,6 +24,7 @@ import { createOutboxDependencies } from "../modules/outbox/outbox.container.js"
 import { createPaymentDependencies } from "../modules/payments/payment.container.js";
 import { createPaymentSucceededHandler } from "../modules/payments/handlers/payment-succeeded.handler.js";
 import { EVENT_TYPES } from "../shared/events/event.types.js";
+import { createNotificationDependencies } from "../modules/notification/notification.container.js";
 
 
 // Infrastructure
@@ -111,6 +112,10 @@ outbox.eventBus.subscribe(
   paymentSucceededHandler.handle,
 );
 
+const notification = createNotificationDependencies({
+  db: prisma,
+  authenticate,
+});
 
 
 // Public Dependencies
@@ -137,5 +142,6 @@ export {
   outbox,
   payment,
   order,
+  notification,
 
 };
