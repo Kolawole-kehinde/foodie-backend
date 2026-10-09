@@ -54,3 +54,6 @@ export const createNotificationService = ({
     markAllAsRead,
   };
 };
+
+
+export type NotificationService = ReturnType<typeof createNotificationService>
