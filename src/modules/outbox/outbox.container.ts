@@ -1,12 +1,13 @@
+
 import type { DatabaseClient } from "../../database/prisma/types.js";
 import { createOutboxRepository } from "./repositories/outbox.repository.js";
 import { createOutboxService } from "./services/outbox.service.js";
 import { createOutboxPublisherService } from "./services/outbox-publisher.service.js";
-import { createInProcessEventPublisher } from "./publishers/in-process-event-publisher.js";
-import { createEventBus } from "./publishers/event-bus.js";
+import { createKafkaEventPublisher } from "./publishers/kafka-event-publisher.js";
 
 export const createOutboxDependencies = (
   db: DatabaseClient,
+  brokers = ["localhost:9092"],
 ) => {
   const outboxRepository = createOutboxRepository(db);
 
@@ -14,22 +15,18 @@ export const createOutboxDependencies = (
     outboxRepository,
   });
 
-  const eventBus = createEventBus();
+  const eventPublisher = createKafkaEventPublisher({
+    brokers,
+  });
 
-  const eventPublisher = createInProcessEventPublisher(
-    eventBus,
-  );
-
-  const outboxPublisherService =
-    createOutboxPublisherService({
-      outboxService,
-      eventPublisher,
-    });
+  const outboxPublisherService = createOutboxPublisherService({
+    outboxService,
+    eventPublisher,
+  });
 
   return {
     outboxRepository,
     outboxService,
-    eventBus,
     eventPublisher,
     outboxPublisherService,
   };
