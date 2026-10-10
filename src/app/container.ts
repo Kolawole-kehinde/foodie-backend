@@ -23,8 +23,8 @@ import { createOrderDependencies } from "../modules/order/container.order.js";
 import { createOutboxDependencies } from "../modules/outbox/outbox.container.js";
 import { createPaymentDependencies } from "../modules/payments/payment.container.js";
 import { createPaymentSucceededHandler } from "../modules/payments/handlers/payment-succeeded.handler.js";
-import { EVENT_TYPES } from "../shared/events/event.types.js";
 import { createNotificationDependencies } from "../modules/notification/notification.container.js";
+import { createOrderPaymentConsumer } from "../modules/order/consumers/order-payment.consumer.js";
 
 
 // Infrastructure
@@ -107,11 +107,10 @@ const paymentSucceededHandler = createPaymentSucceededHandler({
   orderService: order.orderService,
 });
 
-outbox.eventBus.subscribe(
-  EVENT_TYPES.PAYMENT_SUCCEEDED,
-  paymentSucceededHandler.handle,
-);
-
+const orderPaymentConsumer = createOrderPaymentConsumer({
+  handler: paymentSucceededHandler,
+  brokers: ["localhost:9092"],
+});
 const notification = createNotificationDependencies({
   db: prisma,
   authenticate,
@@ -129,11 +128,9 @@ export {
   rolePermissionRoutes,
   permissionRoutes,
   userRoutes,
-
   emailDlqService,
   emailDlqController,
   emailDlqRoutes,
-
   media,
   profile,
   catalog,
@@ -142,6 +139,7 @@ export {
   outbox,
   payment,
   order,
+  orderPaymentConsumer,
   notification,
 
 };

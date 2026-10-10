@@ -110,7 +110,8 @@ export const createOrderManagementService = ({
     });
   };
 
-   const confirmOrderFromPayment = async (orderId: string) => {
+   
+const confirmOrderFromPayment = async (orderId: string) => {
   return db.$transaction(async (tx) => {
     const transactionOrderRepository = createOrderRepository(tx);
     const transactionOutboxRepository = createOutboxRepository(tx);
@@ -124,9 +125,7 @@ export const createOrderManagementService = ({
 
     const currentStatus = currentOrder.status as OrderStatus;
 
-    // Payment success events can be delivered more than once.
-    // If the order is already confirmed, treat the duplicate
-    // event as successfully processed.
+    // Handle duplicate payment-success events.
     if (currentStatus === OrderStatus.CONFIRMED) {
       return {
         order: await transactionOrderRepository.getOrderWithItems(orderId),
@@ -134,9 +133,7 @@ export const createOrderManagementService = ({
       };
     }
 
-    // The payment succeeded after the inventory reservation expired.
-    // Do not confirm the order because the stock may already have
-    // been released and sold to another customer.
+    // Payment succeeded after the reservation expired.
     if (currentStatus === OrderStatus.EXPIRED) {
       return {
         order: await transactionOrderRepository.getOrderWithItems(orderId),
@@ -150,6 +147,25 @@ export const createOrderManagementService = ({
       );
     }
 
+    const orderWithItems =
+      await transactionOrderRepository.getOrderWithItems(orderId);
+
+    if (!orderWithItems) {
+      throw new NotFoundError("Order not found");
+    }
+
+    // Convert reserved stock into sold stock.
+    for (const item of orderWithItems.items) {
+      await inventoryService.confirmReservedStock(
+        tx,
+        item.productId,
+        item.quantity,
+        "Order confirmed after successful payment",
+        orderId,
+      );
+    }
+
+    // Confirm the order only after inventory updates succeed.
     await transactionOrderRepository.updateStatus(orderId, {
       status: OrderStatus.CONFIRMED,
     });
@@ -172,6 +188,7 @@ export const createOrderManagementService = ({
     };
   });
 };
+
   const getMyOrders = async (userId: string) => {
     return orderRepository.getUserOrders(userId);
   };

@@ -1,8 +1,12 @@
-import { PaymentAttemptStatus, PaymentStatus } from "@prisma/client";
 
+import { PaymentAttemptStatus, PaymentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { PaymentProviderClient } from "../providers/payment-provider.js";
 import { PaymentProviderError } from "../errors/payment-provider.error.js";
-import type { PaymentRepository } from "../repositories/index.js";
+import {
+  createPaymentRepository,
+  type PaymentRepository,
+} from "../repositories/index.js";
+
 
 type InitializePaymentAttemptInput = {
   paymentId: string;
@@ -16,11 +20,13 @@ type InitializePaymentAttemptInput = {
 type InitializePaymentAttemptDependencies = {
   provider: PaymentProviderClient;
   paymentRepository: PaymentRepository;
+  db: PrismaClient;
 };
 
 export const createInitializePaymentAttemptHelper = ({
   provider,
   paymentRepository,
+  db,
 }: InitializePaymentAttemptDependencies) => {
   const initializePaymentAttempt = async ({
     paymentId,
@@ -30,14 +36,17 @@ export const createInitializePaymentAttemptHelper = ({
     customerEmail,
     callbackUrl,
   }: InitializePaymentAttemptInput) => {
-    /*
-     * Use the PaymentAttempt ID as the deterministic provider
-     * reference.
-     */
     const providerReference = attemptId;
 
+    // Persist the reference before contacting the provider.
+    await paymentRepository.updatePaymentAttempt(attemptId, {
+      providerReference,
+    });
+
+    let result: Awaited<ReturnType<typeof provider.initializePayment>>;
+
     try {
-      const result = await provider.initializePayment({
+      result = await provider.initializePayment({
         paymentId,
         attemptId,
         reference: providerReference,
@@ -46,54 +55,110 @@ export const createInitializePaymentAttemptHelper = ({
         customerEmail,
         callbackUrl,
       });
-
-      /*
-       * Persist the provider result before returning the response.
-       *
-       * This is important for idempotency:
-       *
-       * First request:
-       * INITIATED -> PROCESSING
-       *
-       * Second request with the same idempotency key:
-       * finds the existing PROCESSING attempt and returns it.
-       */
-      await paymentRepository.updatePaymentAttempt(attemptId, {
-  providerReference: result.providerReference,
-  providerStatus: result.providerStatus,
-  status: PaymentAttemptStatus.PROCESSING,
-});
-
-await paymentRepository.updatePayment(paymentId, {
-  status: PaymentStatus.PROCESSING,
-});
-
-      return {
-        paymentId,
-        attemptId,
-        provider: result.provider,
-        providerReference: result.providerReference,
-        providerStatus: result.providerStatus,
-        authorizationUrl: result.authorizationUrl,
-        accessCode: result.accessCode,
-        status: result.status,
-      };
     } catch (error) {
-      /*
-       * The provider error is intentionally allowed to bubble
-       * back to the Payment Service.
-       */
-      if (error instanceof PaymentProviderError) {
+      // A timeout/network error may mean Paystack received the request.
+      // Preserve the reference and current states for recovery.
+      if (
+        !(error instanceof PaymentProviderError) ||
+        error.uncertain
+      ) {
         throw error;
       }
 
+      // A definitive rejection can fail the attempt, but never
+      // overwrite a payment that has already succeeded.
+      await db.$transaction(async (tx) => {
+        const repository = createPaymentRepository(tx);
+
+        await repository.getByIdForUpdate(paymentId);
+
+        const [payment, attempt] = await Promise.all([
+          repository.getById(paymentId),
+          repository.getPaymentAttemptById(attemptId),
+        ]);
+
+        if (!payment || !attempt) {
+          throw new Error("Payment or payment attempt not found");
+        }
+
+        if (
+          payment.status === PaymentStatus.SUCCESS ||
+          attempt.status === PaymentAttemptStatus.SUCCESS
+        ) {
+          return;
+        }
+
+        if (attempt.status === PaymentAttemptStatus.INITIATED) {
+          await repository.updatePaymentAttempt(attemptId, {
+            status: PaymentAttemptStatus.FAILED,
+            failureReason: error.message,
+          });
+        }
+
+        if (
+          payment.status === PaymentStatus.PENDING ||
+          payment.status === PaymentStatus.PROCESSING
+        ) {
+          await repository.updatePayment(paymentId, {
+            status: PaymentStatus.FAILED,
+          });
+        }
+      });
+
       throw error;
     }
+
+    // Apply related state changes in one short transaction.
+    await db.$transaction(async (tx) => {
+      const repository = createPaymentRepository(tx);
+
+      await repository.getByIdForUpdate(paymentId);
+
+      const [payment, attempt] = await Promise.all([
+        repository.getById(paymentId),
+        repository.getPaymentAttemptById(attemptId),
+      ]);
+
+      if (!payment || !attempt) {
+        throw new Error("Payment or payment attempt not found");
+      }
+
+      // Do not downgrade a success received through a webhook.
+      if (
+        payment.status === PaymentStatus.SUCCESS ||
+        attempt.status === PaymentAttemptStatus.SUCCESS
+      ) {
+        return;
+      }
+
+      if (attempt.status === PaymentAttemptStatus.INITIATED) {
+        await repository.updatePaymentAttempt(attemptId, {
+          providerReference: result.providerReference,
+          providerStatus: result.providerStatus,
+          status: PaymentAttemptStatus.PROCESSING,
+        });
+      }
+
+      if (payment.status === PaymentStatus.PENDING) {
+        await repository.updatePayment(paymentId, {
+          status: PaymentStatus.PROCESSING,
+        });
+      }
+    });
+
+    return {
+      paymentId,
+      attemptId,
+      provider: result.provider,
+      providerReference: result.providerReference,
+      providerStatus: result.providerStatus,
+      authorizationUrl: result.authorizationUrl,
+      accessCode: result.accessCode,
+      status: result.status,
+    };
   };
 
-  return {
-    initializePaymentAttempt,
-  };
+  return { initializePaymentAttempt };
 };
 
 export type InitializePaymentAttemptHelper = ReturnType<

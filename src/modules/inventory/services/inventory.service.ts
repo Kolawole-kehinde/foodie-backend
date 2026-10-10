@@ -219,6 +219,11 @@ export const createInventoryService = ({
    * Releases previously reserved stock inside an
    * existing transaction.
    */
+   
+  /*
+   * Releases previously reserved stock inside an
+   * existing transaction.
+   */
   const releaseStock = async (
     tx: DatabaseClient,
     productId: string,
@@ -232,8 +237,8 @@ export const createInventoryService = ({
 
     const transactionRepository = createInventoryRepository(tx);
 
-    // Lock the row before changing reserved quantity.
-    const inventory = await transactionRepository.getByProductIdForUpdate(productId);
+    const inventory =
+      await transactionRepository.getByProductIdForUpdate(productId);
 
     if (!inventory) {
       throw new NotFoundError("Inventory not found");
@@ -264,6 +269,66 @@ export const createInventoryService = ({
     return withAvailable(updatedInventory);
   };
 
+  /*
+   * Converts reserved stock into sold stock after payment succeeds.
+   */
+  const confirmReservedStock = async (
+    tx: DatabaseClient,
+    productId: string,
+    quantity: number,
+    reason: string,
+    referenceId: string,
+  ) => {
+    if (quantity <= 0) {
+      throw new ConflictError("Confirmation quantity must be greater than zero");
+    }
+
+    const transactionRepository = createInventoryRepository(tx);
+
+    const inventory =
+      await transactionRepository.getByProductIdForUpdate(productId);
+
+    if (!inventory) {
+      throw new NotFoundError("Inventory not found");
+    }
+
+    if (
+      quantity > inventory.reservedQuantity ||
+      quantity > inventory.quantity
+    ) {
+      throw new ConflictError(
+        "Insufficient reserved stock to confirm the sale",
+      );
+    }
+
+    const updatedInventory = await transactionRepository.update(
+      inventory.id,
+      {
+        quantity: {
+          decrement: quantity,
+        },
+        reservedQuantity: {
+          decrement: quantity,
+        },
+      },
+    );
+
+    await transactionRepository.createMovement({
+      inventory: {
+        connect: {
+          id: inventory.id,
+        },
+      },
+      type: "STOCK_OUT",
+      quantity,
+      reason,
+      referenceId,
+    });
+
+    return withAvailable(updatedInventory);
+  };
+
+
   const getMovements = async (inventoryId: string) => {
     await getById(inventoryId);
 
@@ -278,6 +343,7 @@ export const createInventoryService = ({
     removeStock,
     reserveStock,
     releaseStock,
+    confirmReservedStock,
     getMovements,
   };
 };

@@ -49,6 +49,12 @@ export const createOrderPaymentConsumer = ({
 
         const event = result.data;
 
+        console.log("[KAFKA EVENT RECEIVED]", {
+  consumer: "notification",
+  eventId: event.eventId,
+  eventType: event.eventType,
+});
+
         if (event.eventType === EVENT_TYPES.PAYMENT_SUCCEEDED) {
           await handler.handle(event);
         }

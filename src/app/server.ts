@@ -4,8 +4,7 @@ import { env } from "../config/env.js";
 import { createApp } from "./app.js";
 import { prisma } from "../database/prisma/client.js";
 import { connectRedis, redis } from "../database/redis/client.js";
-
-
+import { notification, orderPaymentConsumer, outbox } from "./container.js";
 
 async function bootstrap() {
   try {
@@ -14,6 +13,13 @@ async function bootstrap() {
     // Connect to Redis
     await connectRedis();
 
+    await outbox.eventPublisher.connect();
+
+    await orderPaymentConsumer.connect();
+    await orderPaymentConsumer.start();
+
+    await notification.notificationConsumer.connect();
+    await notification.notificationConsumer.start();
     // Create Express application
     const app = createApp();
 
@@ -22,7 +28,8 @@ async function bootstrap() {
 
     // Start server
     server.listen(env.app.PORT, () => {
-      logger.info({
+      logger.info(
+        {
           port: env.app.PORT,
           environment: env.app.NODE_ENV,
         },
@@ -36,6 +43,9 @@ async function bootstrap() {
 
       server.close(async () => {
         try {
+          await notification.notificationConsumer.disconnect();
+          await orderPaymentConsumer.disconnect();
+          await outbox.eventPublisher.disconnect();
           await prisma.$disconnect();
           await redis.quit();
 

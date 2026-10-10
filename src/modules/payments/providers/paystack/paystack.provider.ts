@@ -108,8 +108,15 @@ export const createPaystackProvider = ({
     });
 
     const data = assertPaystackResponse(response.data, "payment verification");
+    console.info("[Paystack Verification Response]", {
+  reference: data.reference,
+  status: data.status,
+  amount: data.amount,
+  currency: data.currency,
+  gatewayResponse: data.gateway_response,
+});
 
-    const currency = normalizeCurrency(data.currency);
+const currency = normalizeCurrency(data.currency);
 
     return {
       provider: PaymentProvider.PAYSTACK,
@@ -144,7 +151,10 @@ export const createPaystackProvider = ({
       },
     });
 
-    const data = assertPaystackResponse(response.data, "payment refund");
+    const data = assertPaystackResponse(
+      response.data, 
+      "payment refund"
+    );
 
     const normalizedStatus = data.status.trim().toLowerCase();
 
