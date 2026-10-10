@@ -47,10 +47,35 @@ export const createNotificationDeliveryRepository = (
     });
   };
 
+  const findPendingDeliveries = async (limit = 20) => {
+  return db.notificationDelivery.findMany({
+    where: {
+      status: "PENDING",
+      channel: "EMAIL",
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+    take: limit,
+    include: {
+      notification: {
+        include: {
+          user: {
+            select: {
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
   return {
     createDelivery,
     findDelivery,
     updateDeliveryStatus,
     incrementAttempts,
+    findPendingDeliveries
   };
 };

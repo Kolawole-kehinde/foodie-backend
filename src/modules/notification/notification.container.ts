@@ -6,6 +6,7 @@ import { createNotificationController } from "./controllers/notification.control
 import { createNotificationRoutes } from "./routes/notification.routes.js";
 import { createPaymentSucceededNotificationHandler } from "./handlers/payment-succeeded-notification.handler.js";
 import { createNotificationConsumer } from "./consumers/notification.consumer.js";
+import { createNotificationDeliveryWorker } from "./workers/notification-delivery.worker.js";
 
 type NotificationDependencies = {
   db: DatabaseClient;
@@ -42,6 +43,9 @@ const notificationConsumer = createNotificationConsumer({
   handler: paymentSucceededNotificationHandler,
 });
 
+const notificationDeliveryWorker =
+  createNotificationDeliveryWorker({ db });
+
   return {
     notificationRepository,
     notificationService,
@@ -49,5 +53,6 @@ const notificationConsumer = createNotificationConsumer({
     notificationRoutes,
     paymentSucceededNotificationHandler,
     notificationConsumer,
+    notificationDeliveryWorker
   };
 };

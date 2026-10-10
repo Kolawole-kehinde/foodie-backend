@@ -13,13 +13,13 @@ export const createEmailProvider = (): ChannelProvider => {
     input: ChannelDeliveryInput,
   ): Promise<ChannelDeliveryResult> => {
     // The recipient must be resolved from the trusted user record.
-    const email = input.metadata?.email;
+    const email = input.recipientEmail;
 
-    if (typeof email !== "string" || !email) {
-      throw new Error(
-        `Email address is missing for notification ${input.notificationId}`,
-      );
-    }
+if (!email) {
+  throw new Error(
+    `Email address is missing for notification ${input.notificationId}`,
+  );
+}
 
     logger.info(
       {

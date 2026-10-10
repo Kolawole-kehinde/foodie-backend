@@ -4,6 +4,7 @@ export type ChannelDeliveryInput = {
   notificationId: string;
   deliveryId: string;
   userId: string;
+  recipientEmail: string;
   title: string;
   message: string;
   metadata?: Record<string, unknown> | null;
