@@ -1,11 +1,15 @@
-
-import { Kafka, type Consumer } from "kafkajs";
+import type { Consumer } from "kafkajs";
+import { kafka } from "../../../infrastructure/kafka/kafka.client.js";
+import {
+  connectKafka,
+  disconnectKafka,
+} from "../../../infrastructure/kafka/kafka.connection.js";
 import { domainEventSchema } from "../../../shared/events/event.schema.js";
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type { PaymentSucceededHandler } from "../../payments/handlers/payment-succeeded.handler.js";
 
+// The order consumer requires its event handler.
 type OrderPaymentConsumerDependencies = {
-  brokers?: string[];
   handler: PaymentSucceededHandler;
 };
 
@@ -13,26 +17,22 @@ const TOPIC = "domain-events";
 const GROUP_ID = "foodie-order-consumer";
 
 export const createOrderPaymentConsumer = ({
-  brokers = ["localhost:9092"],
   handler,
 }: OrderPaymentConsumerDependencies) => {
-  const kafka = new Kafka({
-    clientId: "foodie-order-service",
-    brokers,
-  });
-
+  
+  // Create a consumer using the shared Kafka client.
   const consumer: Consumer = kafka.consumer({
     groupId: GROUP_ID,
   });
 
+  // Connect through the shared helper and subscribe to domain events.
   const connect = async () => {
     console.log("[ORDER CONSUMER] Connecting...", {
-      brokers,
       topic: TOPIC,
       groupId: GROUP_ID,
     });
 
-    await consumer.connect();
+    await connectKafka(consumer);
 
     await consumer.subscribe({
       topic: TOPIC,
@@ -45,10 +45,12 @@ export const createOrderPaymentConsumer = ({
     });
   };
 
+  // Start consuming and processing payment-success events.
   const start = async () => {
     console.log("[ORDER CONSUMER] Starting message processing...");
 
     await consumer.run({
+      // Offsets are committed explicitly after successful processing.
       autoCommit: false,
 
       eachMessage: async ({ topic, partition, message }) => {
@@ -64,16 +66,12 @@ export const createOrderPaymentConsumer = ({
             throw new Error("Kafka message has no value");
           }
 
-          const rawEvent: unknown = JSON.parse(
-            message.value.toString(),
-          );
-
+          // Parse the payload and validate the domain event structure.
+          const rawEvent: unknown = JSON.parse(message.value.toString());
           const result = domainEventSchema.safeParse(rawEvent);
 
           if (!result.success) {
-            throw new Error(
-              `Invalid domain event: ${result.error.message}`,
-            );
+            throw new Error(`Invalid domain event: ${result.error.message}`);
           }
 
           const event = result.data;
@@ -87,6 +85,7 @@ export const createOrderPaymentConsumer = ({
             offset: message.offset,
           });
 
+          // Handle payment-success events; other valid event types are ignored.
           if (event.eventType === EVENT_TYPES.PAYMENT_SUCCEEDED) {
             console.log("[ORDER CONSUMER] Handling payment success", {
               eventId: event.eventId,
@@ -99,7 +98,7 @@ export const createOrderPaymentConsumer = ({
             });
           }
 
-          // Commit only after processing succeeds.
+          // Commit only after the applicable handler succeeds.
           await consumer.commitOffsets([
             {
               topic,
@@ -114,14 +113,12 @@ export const createOrderPaymentConsumer = ({
             offset: (BigInt(message.offset) + 1n).toString(),
           });
         } catch (error) {
+          // Keep the offset uncommitted so the message can be retried.
           console.error("[ORDER CONSUMER] Message processing failed", {
             topic,
             partition,
             offset: message.offset,
-            error:
-              error instanceof Error
-                ? error.message
-                : String(error),
+            error: error instanceof Error ? error.message : String(error),
           });
 
           throw error;
@@ -130,12 +127,17 @@ export const createOrderPaymentConsumer = ({
     });
   };
 
+  // Disconnect using the shared Kafka connection helper.
   const disconnect = async () => {
     console.log("[ORDER CONSUMER] Disconnecting...");
-    await consumer.disconnect();
+    await disconnectKafka(consumer);
   };
 
-  return { connect, start, disconnect };
+  return {
+    connect,
+    start,
+    disconnect,
+  };
 };
 
 export type OrderPaymentConsumer = ReturnType<
