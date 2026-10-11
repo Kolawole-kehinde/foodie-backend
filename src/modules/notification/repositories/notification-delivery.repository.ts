@@ -3,7 +3,6 @@ import { DeliveryStatus, Prisma, type PrismaClient } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
 type ClaimPendingDeliveriesOptions = {
-  // Must be unique to this running worker instance.
   workerId: string;
   limit?: number;
   leaseMs?: number;
@@ -12,52 +11,40 @@ type ClaimPendingDeliveriesOptions = {
 export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
   const createDelivery = async (
     data: Prisma.NotificationDeliveryCreateInput,
-  ) => {
-    return db.notificationDelivery.create({ data });
-  };
+  ) => db.notificationDelivery.create({ data });
 
-  const findDelivery = async (id: string) => {
-    return db.notificationDelivery.findUnique({ where: { id } });
-  };
+  const findDelivery = async (id: string) =>
+    db.notificationDelivery.findUnique({ where: { id } });
 
   const updateDeliveryStatus = async (
     id: string,
     data: Prisma.NotificationDeliveryUpdateInput,
-  ) => {
-    return db.notificationDelivery.update({ where: { id }, data });
-  };
+  ) => db.notificationDelivery.update({ where: { id }, data });
 
-  const incrementAttempts = async (id: string) => {
-    return db.notificationDelivery.update({
+  const incrementAttempts = async (id: string) =>
+    db.notificationDelivery.update({
       where: { id },
       data: {
         attempts: { increment: 1 },
         lastAttemptAt: new Date(),
       },
     });
-  };
 
-  // Atomically claims eligible deliveries so concurrent workers skip
-  // rows that another worker has already locked.
+  // Atomically claim eligible jobs. SKIP LOCKED lets concurrent workers
+  // claim separate rows without waiting for each other.
   const claimPendingDeliveries = async ({
     workerId,
     limit = 20,
     leaseMs = 60_000,
   }: ClaimPendingDeliveriesOptions) => {
-    if (!workerId.trim()) {
-      throw new Error("A non-empty workerId is required");
-    }
-
+    if (!workerId.trim()) throw new Error("workerId is required");
     if (!Number.isInteger(limit) || limit < 1) {
       throw new Error("limit must be a positive integer");
     }
-
     if (!Number.isInteger(leaseMs) || leaseMs < 1) {
       throw new Error("leaseMs must be a positive integer");
     }
 
-    // This single SQL statement locks and claims jobs atomically.
-    // It includes expired PROCESSING jobs so crashed workers can be recovered.
     const claimedRows = await db.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`
         WITH candidates AS (
@@ -98,6 +85,8 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
             NOW() + (${leaseMs} * INTERVAL '1 millisecond'),
           "attempts" = delivery."attempts" + 1,
           "lastAttemptAt" = NOW(),
+          "nextRetryAt" = NULL,
+          "failureReason" = NULL,
           "updatedAt" = NOW()
         FROM candidates
         WHERE delivery."id" = candidates."id"
@@ -105,14 +94,11 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
       `,
     );
 
-    if (claimedRows.length === 0) {
-      return [];
-    }
+    if (claimedRows.length === 0) return [];
 
+    // Load notification and recipient details after the atomic claim.
     const claimedIds = claimedRows.map((row) => row.id);
 
-    // Load email details after claiming. The SQL statement above has
-    // already committed its claim when this runs outside another transaction.
     return db.notificationDelivery.findMany({
       where: {
         id: { in: claimedIds },
@@ -122,9 +108,7 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
       include: {
         notification: {
           include: {
-            user: {
-              select: { email: true },
-            },
+            user: { select: { email: true } },
           },
         },
       },
@@ -132,19 +116,95 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
     });
   };
 
+  // Renew only a lease that this worker still owns and that has not expired.
+  const renewLease = async (
+    id: string,
+    workerId: string,
+    leaseMs = 60_000,
+  ) => {
+    if (!Number.isInteger(leaseMs) || leaseMs < 1) {
+      throw new Error("leaseMs must be a positive integer");
+    }
+
+    return db.notificationDelivery.updateMany({
+      where: {
+        id,
+        status: DeliveryStatus.PROCESSING,
+        lockedBy: workerId,
+        leaseExpiresAt: { gt: new Date() },
+      },
+      data: {
+        leaseExpiresAt: new Date(Date.now() + leaseMs),
+      },
+    });
+  };
+
+  // Finalize success only while the worker still owns a valid lease.
+  const markSentIfOwned = async (
+    id: string,
+    workerId: string,
+    providerMessageId: string,
+  ) => {
+    const now = new Date();
+
+    return db.notificationDelivery.updateMany({
+      where: {
+        id,
+        status: DeliveryStatus.PROCESSING,
+        lockedBy: workerId,
+        leaseExpiresAt: { gt: now },
+      },
+      data: {
+        status: DeliveryStatus.SENT,
+        providerMessageId,
+        deliveredAt: now,
+        failureReason: null,
+        nextRetryAt: null,
+        lockedBy: null,
+        leaseExpiresAt: null,
+      },
+    });
+  };
+
+  // Finalize failure only while the worker still owns a valid lease.
+  const markFailedIfOwned = async (
+    id: string,
+    workerId: string,
+    failureReason: string,
+    nextRetryAt: Date | null,
+  ) => {
+    const now = new Date();
+
+    return db.notificationDelivery.updateMany({
+      where: {
+        id,
+        status: DeliveryStatus.PROCESSING,
+        lockedBy: workerId,
+        leaseExpiresAt: { gt: now },
+      },
+      data: {
+        status: DeliveryStatus.FAILED,
+        failureReason,
+        nextRetryAt,
+        lockedBy: null,
+        leaseExpiresAt: null,
+      },
+    });
+  };
+
+  // Keep this method only for callers that still need a non-claiming query.
+  // Do not use it to drive concurrent delivery workers.
   const findPendingDeliveries = async (limit = 20) => {
     const now = new Date();
 
-    // Legacy query: do not use this to drive concurrent workers.
-    // The worker should use claimPendingDeliveries() instead.
     return db.notificationDelivery.findMany({
       where: {
         channel: "EMAIL",
         attempts: { lt: 5 },
         OR: [
-          { status: "PENDING" },
+          { status: DeliveryStatus.PENDING },
           {
-            status: "FAILED",
+            status: DeliveryStatus.FAILED,
             nextRetryAt: { lte: now },
           },
         ],
@@ -154,32 +214,29 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
       include: {
         notification: {
           include: {
-            user: {
-              select: { email: true },
-            },
+            user: { select: { email: true } },
           },
         },
       },
     });
   };
 
-  const findExhaustedDeliveries = async (limit = 20) => {
-    const candidates = await db.notificationDelivery.findMany({
+  const findExhaustedDeliveries = async (limit = 20) =>
+    db.notificationDelivery.findMany({
       where: {
         status: DeliveryStatus.FAILED,
         channel: "EMAIL",
+        deadLetteredAt: null,
+        attempts: { gte: 1 },
       },
       orderBy: { updatedAt: "asc" },
-      take: Math.max(limit * 5, 100),
-    });
+      take: limit,
+    }).then((deliveries) =>
+      deliveries.filter((delivery) => delivery.attempts >= delivery.maxAttempts),
+    );
 
-    return candidates
-      .filter((delivery) => delivery.attempts >= delivery.maxAttempts)
-      .slice(0, limit);
-  };
-
-  const markAsDeadLettered = async (id: string) => {
-    return db.notificationDelivery.updateMany({
+  const markAsDeadLettered = async (id: string) =>
+    db.notificationDelivery.updateMany({
       where: {
         id,
         status: DeliveryStatus.FAILED,
@@ -192,7 +249,6 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
         leaseExpiresAt: null,
       },
     });
-  };
 
   return {
     createDelivery,
@@ -201,6 +257,9 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
     incrementAttempts,
     findPendingDeliveries,
     claimPendingDeliveries,
+    renewLease,
+    markSentIfOwned,
+    markFailedIfOwned,
     findExhaustedDeliveries,
     markAsDeadLettered,
   };
