@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 
 import type { DatabaseClient } from "../../../database/prisma/types.js";
-import { createNotificationRepository } from "../repositories/notification.repository.js";
+import { createNotificationRepository, type NotificationRepository } from "../repositories/notification.repository.js";
 import { createNotificationDeliveryRepository } from "../repositories/notification-delivery.repository.js";
 import { createNotificationPreferenceRepository } from "../repositories/notification-preference.repository.js";
 
@@ -24,6 +24,7 @@ type CreateNotificationInput = {
 
 type CreateNotificationServiceDependencies = {
   db: PrismaClient;
+  notificationRepository: NotificationRepository
 };
 
 type ListNotificationsInput = {

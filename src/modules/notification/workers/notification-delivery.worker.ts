@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DeliveryStatus, NotificationChannel } from "@prisma/client";
 
 import type { DatabaseClient } from "../../../database/prisma/types.js";
@@ -9,11 +10,17 @@ type NotificationDeliveryWorkerDependencies = {
   db: DatabaseClient;
 };
 
-const getRetryDelayMs = (attempts: number) => {
-  const delayMs = 60_000 * 2 ** Math.max(0, attempts - 1);
+const LEASE_MS = 60_000;
 
-  // Cap exponential backoff at one hour.
-  return Math.min(delayMs, 60 * 60 * 1000);
+const getRetryDelayMs = (attempts: number) => {
+  // Exponential backoff with jitter to avoid retrying every failed job together.
+  const baseDelayMs = 60_000 * 2 ** Math.max(0, attempts - 1);
+  const cappedDelayMs = Math.min(baseDelayMs, 60 * 60 * 1000);
+  const jitterMs = Math.floor(
+    Math.random() * Math.min(cappedDelayMs * 0.2, 30_000),
+  );
+
+  return cappedDelayMs + jitterMs;
 };
 
 export const createNotificationDeliveryWorker = ({
@@ -22,8 +29,16 @@ export const createNotificationDeliveryWorker = ({
   const deliveryRepository = createNotificationDeliveryRepository(db);
   const emailProvider = createEmailProvider();
 
+  // Each worker instance gets its own identity for lease ownership checks.
+  const workerId = `notification-worker-${randomUUID()}`;
+
   const processPendingDeliveries = async (limit = 20) => {
-    const deliveries = await deliveryRepository.findPendingDeliveries(limit);
+    // Jobs are atomically claimed and committed before any email is sent.
+    const deliveries = await deliveryRepository.claimPendingDeliveries({
+      workerId,
+      limit,
+      leaseMs: LEASE_MS,
+    });
 
     let processed = 0;
     let sent = 0;
@@ -31,47 +46,6 @@ export const createNotificationDeliveryWorker = ({
     let skipped = 0;
 
     for (const delivery of deliveries) {
-      // Claim only if this delivery is still eligible.
-      // The repository query may have returned a stale snapshot.
-      const now = new Date();
-
-      const claim = await db.notificationDelivery.updateMany({
-        where: {
-          id: delivery.id,
-          channel: NotificationChannel.EMAIL,
-          attempts: {
-            lt: delivery.maxAttempts,
-          },
-          OR: [
-            {
-              status: DeliveryStatus.PENDING,
-            },
-            {
-              status: DeliveryStatus.FAILED,
-              nextRetryAt: {
-                lte: now,
-              },
-            },
-          ],
-        },
-        data: {
-          status: DeliveryStatus.PROCESSING,
-          nextRetryAt: null,
-          failureReason: null,
-        },
-      });
-
-      if (claim.count !== 1) {
-        skipped++;
-        continue;
-      }
-
-      // Attempts are incremented before calling the provider.
-      // This counts a send attempt even if the provider throws.
-      const attemptedDelivery = await deliveryRepository.incrementAttempts(
-        delivery.id,
-      );
-
       processed++;
 
       try {
@@ -98,35 +72,97 @@ export const createNotificationDeliveryWorker = ({
           metadata,
         });
 
-        await deliveryRepository.updateDeliveryStatus(delivery.id, {
-          status: DeliveryStatus.SENT,
-          providerMessageId: result.providerMessageId,
-          deliveredAt: new Date(),
-          failureReason: null,
-          nextRetryAt: null,
+        // Finalize only if this worker still owns the active lease.
+        const update = await db.notificationDelivery.updateMany({
+          where: {
+            id: delivery.id,
+            status: DeliveryStatus.PROCESSING,
+            lockedBy: workerId,
+          },
+          data: {
+            status: DeliveryStatus.SENT,
+            providerMessageId: result.providerMessageId,
+            deliveredAt: new Date(),
+            failureReason: null,
+            nextRetryAt: null,
+            lockedBy: null,
+            leaseExpiresAt: null,
+          },
         });
 
-        sent++;
+        if (update.count === 1) {
+          sent++;
+        } else {
+          // Another worker may have reclaimed the delivery after this lease expired.
+          skipped++;
+          logger.warn(
+            { deliveryId: delivery.id, workerId },
+            "Notification delivery succeeded at provider but lease ownership was lost before finalization",
+          );
+        }
       } catch (error) {
         const failureReason =
           error instanceof Error
             ? error.message
             : "Unknown email delivery error";
 
-        const canRetry =
-          attemptedDelivery.attempts < attemptedDelivery.maxAttempts;
+        // Do not overwrite the result if another worker has reclaimed this job.
+        const currentDelivery = await deliveryRepository.findDelivery(
+          delivery.id,
+        );
+
+        if (
+          !currentDelivery ||
+          currentDelivery.status !== DeliveryStatus.PROCESSING ||
+          currentDelivery.lockedBy !== workerId
+        ) {
+          skipped++;
+          logger.warn(
+            { deliveryId: delivery.id, workerId, failureReason },
+            "Notification delivery failed after lease ownership was lost",
+          );
+          continue;
+        }
+
+        const canRetry = currentDelivery.attempts < currentDelivery.maxAttempts;
 
         const nextRetryAt = canRetry
-          ? new Date(Date.now() + getRetryDelayMs(attemptedDelivery.attempts))
+          ? new Date(Date.now() + getRetryDelayMs(currentDelivery.attempts))
           : null;
 
-        await deliveryRepository.updateDeliveryStatus(delivery.id, {
-          status: DeliveryStatus.FAILED,
-          failureReason,
-          nextRetryAt,
+        const update = await db.notificationDelivery.updateMany({
+          where: {
+            id: delivery.id,
+            status: DeliveryStatus.PROCESSING,
+            lockedBy: workerId,
+          },
+          data: {
+            status: DeliveryStatus.FAILED,
+            failureReason,
+            nextRetryAt,
+            lockedBy: null,
+            leaseExpiresAt: null,
+          },
         });
 
-        failed++;
+        if (update.count === 1) {
+          failed++;
+
+          logger.error(
+            {
+              deliveryId: delivery.id,
+              attempts: currentDelivery.attempts,
+              maxAttempts: currentDelivery.maxAttempts,
+              nextRetryAt,
+              failureReason,
+            },
+            canRetry
+              ? "Notification delivery failed; retry scheduled"
+              : "Notification delivery failed; attempts exhausted",
+          );
+        } else {
+          skipped++;
+        }
       }
     }
 
@@ -149,22 +185,17 @@ export const createNotificationDeliveryWorker = ({
       const result = await deliveryRepository.markAsDeadLettered(delivery.id);
 
       if (result.count === 1) {
-        if (result.count === 1) {
-          logger.error(
-            {
-              deliveryId: delivery.id,
-              notificationId: delivery.notificationId,
-              attempts: delivery.attempts,
-              maxAttempts: delivery.maxAttempts,
-              failureReason: delivery.failureReason,
-            },
-            "Notification delivery moved to DLQ",
-          );
+        logger.error(
+          {
+            deliveryId: delivery.id,
+            notificationId: delivery.notificationId,
+            attempts: delivery.attempts,
+            maxAttempts: delivery.maxAttempts,
+            failureReason: delivery.failureReason,
+          },
+          "Notification delivery moved to DLQ",
+        );
 
-          deadLettered++;
-        } else {
-          skipped++;
-        }
         deadLettered++;
       } else {
         skipped++;
