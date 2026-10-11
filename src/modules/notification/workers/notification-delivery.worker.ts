@@ -3,6 +3,7 @@ import { DeliveryStatus, NotificationChannel } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { createNotificationDeliveryRepository } from "../repositories/notification-delivery.repository.js";
 import { createEmailProvider } from "../providers/email/email.provider.js";
+import { logger } from "../../../config/logger.js";
 
 type NotificationDeliveryWorkerDependencies = {
   db: DatabaseClient;
@@ -67,8 +68,9 @@ export const createNotificationDeliveryWorker = ({
 
       // Attempts are incremented before calling the provider.
       // This counts a send attempt even if the provider throws.
-      const attemptedDelivery =
-        await deliveryRepository.incrementAttempts(delivery.id);
+      const attemptedDelivery = await deliveryRepository.incrementAttempts(
+        delivery.id,
+      );
 
       processed++;
 
@@ -115,9 +117,7 @@ export const createNotificationDeliveryWorker = ({
           attemptedDelivery.attempts < attemptedDelivery.maxAttempts;
 
         const nextRetryAt = canRetry
-          ? new Date(
-              Date.now() + getRetryDelayMs(attemptedDelivery.attempts),
-            )
+          ? new Date(Date.now() + getRetryDelayMs(attemptedDelivery.attempts))
           : null;
 
         await deliveryRepository.updateDeliveryStatus(delivery.id, {
@@ -139,8 +139,48 @@ export const createNotificationDeliveryWorker = ({
     };
   };
 
+  const processDeadLetters = async (limit = 20) => {
+    const deliveries = await deliveryRepository.findExhaustedDeliveries(limit);
+
+    let deadLettered = 0;
+    let skipped = 0;
+
+    for (const delivery of deliveries) {
+      const result = await deliveryRepository.markAsDeadLettered(delivery.id);
+
+      if (result.count === 1) {
+        if (result.count === 1) {
+          logger.error(
+            {
+              deliveryId: delivery.id,
+              notificationId: delivery.notificationId,
+              attempts: delivery.attempts,
+              maxAttempts: delivery.maxAttempts,
+              failureReason: delivery.failureReason,
+            },
+            "Notification delivery moved to DLQ",
+          );
+
+          deadLettered++;
+        } else {
+          skipped++;
+        }
+        deadLettered++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return {
+      fetched: deliveries.length,
+      deadLettered,
+      skipped,
+    };
+  };
+
   return {
     processPendingDeliveries,
+    processDeadLetters,
   };
 };
 

@@ -599,6 +599,7 @@ nextRetryAt DateTime?
 
   lastAttemptAt DateTime?
   deliveredAt   DateTime?
+  deadLetteredAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

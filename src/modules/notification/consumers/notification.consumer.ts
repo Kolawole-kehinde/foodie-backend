@@ -170,9 +170,17 @@ export const createNotificationConsumer = ({
           partition,
           offset: message.offset,
         });
+        switch (event.eventType) {
+          case EVENT_TYPES.PAYMENT_SUCCEEDED:
+            await processEvent(event);
+            break;
 
-        if (event.eventType === EVENT_TYPES.PAYMENT_SUCCEEDED) {
-          await processEvent(event);
+          default:
+            console.info("[Notification] Event type not handled", {
+              eventId: event.eventId,
+              eventType: event.eventType,
+            });
+            break;
         }
 
         // Commit after successful processing or a safe duplicate skip.
