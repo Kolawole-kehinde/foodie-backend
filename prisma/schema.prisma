@@ -580,35 +580,44 @@ model Notification {
   @@index([userId, readAt])
   @@index([eventId])
 }
-
 model NotificationDelivery {
   id String @id @default(cuid())
 
   notificationId String
   channel        NotificationChannel
+  status         DeliveryStatus
 
-  status DeliveryStatus
-
-
-attempts    Int       @default(0)
-maxAttempts Int       @default(5)
-nextRetryAt DateTime?
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  nextRetryAt    DateTime?
 
   providerMessageId String?
   failureReason     String?
 
-  lastAttemptAt DateTime?
-  deliveredAt   DateTime?
+  lastAttemptAt  DateTime?
+  deliveredAt    DateTime?
   deadLetteredAt DateTime?
+
+  // Identifies the worker currently owning this delivery.
+  lockedBy String?
+
+  // Allows another worker to recover the job if its lease expires.
+  leaseExpiresAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId],references: [id],onDelete: Cascade)
 
   @@unique([notificationId, channel])
   @@index([status])
   @@index([notificationId])
+
+  // Helps workers find pending and retryable deliveries efficiently.
+  @@index([status, nextRetryAt, createdAt])
+
+  // Helps recovery jobs find abandoned processing deliveries.
+  @@index([status, leaseExpiresAt])
 }
 
 model NotificationPreference {
