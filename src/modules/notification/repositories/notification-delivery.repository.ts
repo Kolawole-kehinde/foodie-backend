@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { DeliveryStatus, type Prisma } from "@prisma/client";
 
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
@@ -47,11 +47,26 @@ export const createNotificationDeliveryRepository = (
     });
   };
 
-  const findPendingDeliveries = async (limit = 20) => {
+ const findPendingDeliveries = async (limit = 20) => {
+  const now = new Date();
+
   return db.notificationDelivery.findMany({
     where: {
-      status: "PENDING",
       channel: "EMAIL",
+      attempts: {
+        lt: 5,
+      },
+      OR: [
+        {
+          status: "PENDING",
+        },
+        {
+          status: "FAILED",
+          nextRetryAt: {
+            lte: now,
+          },
+        },
+      ],
     },
     orderBy: {
       createdAt: "asc",
@@ -71,11 +86,27 @@ export const createNotificationDeliveryRepository = (
   });
 };
 
+const findExhaustedDeliveries = async (limit = 20) => {
+  const candidates = await db.notificationDelivery.findMany({
+    where: {
+      status: DeliveryStatus.FAILED,
+      channel: "EMAIL",
+    },
+    orderBy: { updatedAt: "asc" },
+    take: limit,
+  });
+
+  return candidates.filter(
+    (delivery) => delivery.attempts >= delivery.maxAttempts,
+  );
+};
+
   return {
     createDelivery,
     findDelivery,
     updateDeliveryStatus,
     incrementAttempts,
-    findPendingDeliveries
+    findPendingDeliveries,
+    findExhaustedDeliveries
   };
 };
