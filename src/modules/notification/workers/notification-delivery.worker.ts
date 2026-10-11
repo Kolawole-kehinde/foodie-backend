@@ -1,19 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { DeliveryStatus, NotificationChannel } from "@prisma/client";
+import { NotificationChannel } from "@prisma/client";
 
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { createNotificationDeliveryRepository } from "../repositories/notification-delivery.repository.js";
 import { createEmailProvider } from "../providers/email/email.provider.js";
 import { logger } from "../../../config/logger.js";
+import { EmailProviderError } from "../providers/email/email-provider.error.js";
 
 type NotificationDeliveryWorkerDependencies = {
   db: DatabaseClient;
 };
 
 const LEASE_MS = 60_000;
+const LEASE_RENEWAL_INTERVAL_MS = 20_000;
 
 const getRetryDelayMs = (attempts: number) => {
-  // Exponential backoff with jitter to avoid retrying every failed job together.
+  // Exponential backoff with jitter, capped at one hour before jitter.
   const baseDelayMs = 60_000 * 2 ** Math.max(0, attempts - 1);
   const cappedDelayMs = Math.min(baseDelayMs, 60 * 60 * 1000);
   const jitterMs = Math.floor(
@@ -29,11 +31,62 @@ export const createNotificationDeliveryWorker = ({
   const deliveryRepository = createNotificationDeliveryRepository(db);
   const emailProvider = createEmailProvider();
 
-  // Each worker instance gets its own identity for lease ownership checks.
+  // Each running worker instance must have its own identity.
   const workerId = `notification-worker-${randomUUID()}`;
 
+  // Renew the lease while the provider request is in progress.
+  const startLeaseHeartbeat = (deliveryId: string) => {
+    let leaseLost = false;
+    let renewalInFlight: Promise<void> | undefined;
+
+    const timer = setInterval(() => {
+      // Avoid overlapping renewals if the database is slow.
+      if (renewalInFlight) return;
+
+      renewalInFlight = (async () => {
+        try {
+          const result = await deliveryRepository.renewLease(
+            deliveryId,
+            workerId,
+            LEASE_MS,
+          );
+
+          if (result.count !== 1) {
+            leaseLost = true;
+
+            logger.warn(
+              { deliveryId, workerId },
+              "Notification delivery lease is no longer owned by this worker",
+            );
+          }
+        } catch (error) {
+          // Ownership is now uncertain, so do not finalize this delivery.
+          leaseLost = true;
+
+          logger.error(
+            { err: error, deliveryId, workerId },
+            "Failed to renew notification delivery lease",
+          );
+        }
+      })().finally(() => {
+        renewalInFlight = undefined;
+      });
+    }, LEASE_RENEWAL_INTERVAL_MS);
+
+    return {
+      isLeaseLost: () => leaseLost,
+
+      stop: async () => {
+        clearInterval(timer);
+
+        // Wait for an outstanding renewal before finalizing the delivery.
+        await renewalInFlight;
+      },
+    };
+  };
+
   const processPendingDeliveries = async (limit = 20) => {
-    // Jobs are atomically claimed and committed before any email is sent.
+    // The claim commits before any provider call begins.
     const deliveries = await deliveryRepository.claimPendingDeliveries({
       workerId,
       limit,
@@ -48,20 +101,25 @@ export const createNotificationDeliveryWorker = ({
     for (const delivery of deliveries) {
       processed++;
 
+      if (delivery.channel !== NotificationChannel.EMAIL) {
+        // The claim query currently selects EMAIL only.
+        skipped++;
+        continue;
+      }
+
+      const heartbeat = startLeaseHeartbeat(delivery.id);
+
+      const metadata =
+        delivery.notification.metadata &&
+        typeof delivery.notification.metadata === "object" &&
+        !Array.isArray(delivery.notification.metadata)
+          ? (delivery.notification.metadata as Record<string, unknown>)
+          : null;
+
+      let providerMessageId: string;
+
       try {
-        if (delivery.channel !== NotificationChannel.EMAIL) {
-          throw new Error(
-            `Unsupported notification channel: ${delivery.channel}`,
-          );
-        }
-
-        const metadata =
-          delivery.notification.metadata &&
-          typeof delivery.notification.metadata === "object" &&
-          !Array.isArray(delivery.notification.metadata)
-            ? (delivery.notification.metadata as Record<string, unknown>)
-            : null;
-
+        // Network I/O happens outside database transactions.
         const result = await emailProvider.send({
           notificationId: delivery.notification.id,
           deliveryId: delivery.id,
@@ -72,78 +130,54 @@ export const createNotificationDeliveryWorker = ({
           metadata,
         });
 
-        // Finalize only if this worker still owns the active lease.
-        const update = await db.notificationDelivery.updateMany({
-          where: {
-            id: delivery.id,
-            status: DeliveryStatus.PROCESSING,
-            lockedBy: workerId,
-          },
-          data: {
-            status: DeliveryStatus.SENT,
-            providerMessageId: result.providerMessageId,
-            deliveredAt: new Date(),
-            failureReason: null,
-            nextRetryAt: null,
-            lockedBy: null,
-            leaseExpiresAt: null,
-          },
-        });
+        if (!result.providerMessageId) {
+  throw new Error(
+    "Email provider did not return a provider message ID",
+  );
+}
 
-        if (update.count === 1) {
-          sent++;
-        } else {
-          // Another worker may have reclaimed the delivery after this lease expired.
-          skipped++;
-          logger.warn(
-            { deliveryId: delivery.id, workerId },
-            "Notification delivery succeeded at provider but lease ownership was lost before finalization",
-          );
-        }
+providerMessageId = result.providerMessageId;
       } catch (error) {
+        await heartbeat.stop();
+
         const failureReason =
           error instanceof Error
             ? error.message
             : "Unknown email delivery error";
 
-        // Do not overwrite the result if another worker has reclaimed this job.
-        const currentDelivery = await deliveryRepository.findDelivery(
-          delivery.id,
-        );
-
-        if (
-          !currentDelivery ||
-          currentDelivery.status !== DeliveryStatus.PROCESSING ||
-          currentDelivery.lockedBy !== workerId
-        ) {
+        if (heartbeat.isLeaseLost()) {
           skipped++;
+
           logger.warn(
             { deliveryId: delivery.id, workerId, failureReason },
-            "Notification delivery failed after lease ownership was lost",
+            "Email provider failed after this worker lost its lease",
           );
+
           continue;
         }
 
-        const canRetry = currentDelivery.attempts < currentDelivery.maxAttempts;
+        // Attempts were incremented when the delivery was claimed.
+       
 
-        const nextRetryAt = canRetry
-          ? new Date(Date.now() + getRetryDelayMs(currentDelivery.attempts))
-          : null;
+     const providerError =
+  error instanceof EmailProviderError ? error : null;
 
-        const update = await db.notificationDelivery.updateMany({
-          where: {
-            id: delivery.id,
-            status: DeliveryStatus.PROCESSING,
-            lockedBy: workerId,
-          },
-          data: {
-            status: DeliveryStatus.FAILED,
-            failureReason,
-            nextRetryAt,
-            lockedBy: null,
-            leaseExpiresAt: null,
-          },
-        });
+// Only retry when the provider classifies the error as retryable.
+// Unknown errors remain retryable, with the maximum attempt limit enforced.
+const retryable = providerError?.retryable ?? true;
+const canRetry = retryable && delivery.attempts < delivery.maxAttempts;
+
+const nextRetryAt = canRetry
+  ? new Date(Date.now() + getRetryDelayMs(delivery.attempts))
+  : null;
+
+const update = await deliveryRepository.markFailedIfOwned(
+  delivery.id,
+  workerId,
+  failureReason,
+  nextRetryAt,
+  !retryable,
+);
 
         if (update.count === 1) {
           failed++;
@@ -151,8 +185,8 @@ export const createNotificationDeliveryWorker = ({
           logger.error(
             {
               deliveryId: delivery.id,
-              attempts: currentDelivery.attempts,
-              maxAttempts: currentDelivery.maxAttempts,
+              attempts: delivery.attempts,
+              maxAttempts: delivery.maxAttempts,
               nextRetryAt,
               failureReason,
             },
@@ -162,7 +196,47 @@ export const createNotificationDeliveryWorker = ({
           );
         } else {
           skipped++;
+
+          logger.warn(
+            { deliveryId: delivery.id, workerId },
+            "Could not record failure because this worker no longer owns a valid lease",
+          );
         }
+
+        continue;
+      }
+
+      await heartbeat.stop();
+
+      if (heartbeat.isLeaseLost()) {
+        // The provider may have accepted the email, but this worker can no
+        // longer safely update the database. A duplicate on recovery is possible.
+        skipped++;
+
+        logger.warn(
+          { deliveryId: delivery.id, workerId, providerMessageId },
+          "Email provider accepted the message, but lease ownership was lost before finalization",
+        );
+
+        continue;
+      }
+
+      // A repository-level conditional update verifies current lease ownership.
+      const update = await deliveryRepository.markSentIfOwned(
+        delivery.id,
+        workerId,
+        providerMessageId,
+      );
+
+      if (update.count === 1) {
+        sent++;
+      } else {
+        skipped++;
+
+        logger.warn(
+          { deliveryId: delivery.id, workerId, providerMessageId },
+          "Email provider accepted the message, but the delivery could not be finalized by this worker",
+        );
       }
     }
 

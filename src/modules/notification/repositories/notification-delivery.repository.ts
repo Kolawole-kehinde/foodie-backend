@@ -168,30 +168,32 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
 
   // Finalize failure only while the worker still owns a valid lease.
   const markFailedIfOwned = async (
-    id: string,
-    workerId: string,
-    failureReason: string,
-    nextRetryAt: Date | null,
-  ) => {
-    const now = new Date();
+  id: string,
+  workerId: string,
+  failureReason: string,
+  nextRetryAt: Date | null,
+  permanent = false,
+) => {
+  const now = new Date();
 
-    return db.notificationDelivery.updateMany({
-      where: {
-        id,
-        status: DeliveryStatus.PROCESSING,
-        lockedBy: workerId,
-        leaseExpiresAt: { gt: now },
-      },
-      data: {
-        status: DeliveryStatus.FAILED,
-        failureReason,
-        nextRetryAt,
-        lockedBy: null,
-        leaseExpiresAt: null,
-      },
-    });
-  };
-
+  return db.notificationDelivery.updateMany({
+    where: {
+      id,
+      status: DeliveryStatus.PROCESSING,
+      lockedBy: workerId,
+      leaseExpiresAt: { gt: now },
+    },
+    data: {
+      status: DeliveryStatus.FAILED,
+      failureReason,
+      nextRetryAt,
+      // Permanently failed deliveries are immediately marked as dead-lettered.
+      deadLetteredAt: permanent ? now : null,
+      lockedBy: null,
+      leaseExpiresAt: null,
+    },
+  });
+};
   // Keep this method only for callers that still need a non-claiming query.
   // Do not use it to drive concurrent delivery workers.
   const findPendingDeliveries = async (limit = 20) => {
@@ -221,19 +223,31 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
     });
   };
 
-  const findExhaustedDeliveries = async (limit = 20) =>
-    db.notificationDelivery.findMany({
-      where: {
-        status: DeliveryStatus.FAILED,
-        channel: "EMAIL",
-        deadLetteredAt: null,
-        attempts: { gte: 1 },
-      },
-      orderBy: { updatedAt: "asc" },
-      take: limit,
-    }).then((deliveries) =>
-      deliveries.filter((delivery) => delivery.attempts >= delivery.maxAttempts),
-    );
+
+const findExhaustedDeliveries = async (limit = 20) => {
+  const deliveries = await db.notificationDelivery.findMany({
+    where: {
+      status: DeliveryStatus.FAILED,
+      channel: "EMAIL",
+      OR: [
+        { deadLetteredAt: { not: null } },
+        { attempts: { gte: 1 } },
+      ],
+    },
+    orderBy: { updatedAt: "asc" },
+    take: Math.max(limit * 5, 100),
+  });
+
+  // Include permanent failures already marked as dead-lettered and
+  // deliveries that have exhausted their allowed attempts.
+  return deliveries
+    .filter(
+      (delivery) =>
+        delivery.deadLetteredAt !== null ||
+        delivery.attempts >= delivery.maxAttempts,
+    )
+    .slice(0, limit);
+};
 
   const markAsDeadLettered = async (id: string) =>
     db.notificationDelivery.updateMany({
