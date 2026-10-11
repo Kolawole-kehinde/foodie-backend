@@ -1,6 +1,17 @@
-import type { Prisma } from "@prisma/client";
 
+import {NotificationStatus,NotificationType,type Prisma,} from "@prisma/client";
 import type { NotificationRepository } from "../repositories/notification.repository.js";
+
+type CreateNotificationInput = {
+  userId: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  title: string;
+  message: string;
+  eventId: string;
+  eventType: string;
+  metadata?: Prisma.InputJsonValue;
+};
 
 type CreateNotificationServiceDependencies = {
   notificationRepository: NotificationRepository;
@@ -16,8 +27,22 @@ type ListNotificationsInput = {
 export const createNotificationService = ({
   notificationRepository,
 }: CreateNotificationServiceDependencies) => {
-  const create = async (data: Prisma.NotificationCreateInput) => {
-    return notificationRepository.createNotification(data);
+  
+  const create = async (data: CreateNotificationInput) => {
+    return notificationRepository.createNotification({
+      user: {
+        connect: { id: data.userId },
+      },
+      type: data.type,
+      status: data.status,
+      title: data.title,
+      message: data.message,
+      eventId: data.eventId,
+      eventType: data.eventType,
+      ...(data.metadata !== undefined
+        ? { metadata: data.metadata }
+        : {}),
+    });
   };
 
   const get = async (id: string) => {
@@ -55,5 +80,6 @@ export const createNotificationService = ({
   };
 };
 
-
-export type NotificationService = ReturnType<typeof createNotificationService>
+export type NotificationService = ReturnType<
+  typeof createNotificationService
+>;

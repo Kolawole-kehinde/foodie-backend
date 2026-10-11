@@ -10,15 +10,12 @@ type PaymentSucceededNotificationHandlerDependencies = {
 export const createPaymentSucceededNotificationHandler = ({
   notificationService,
 }: PaymentSucceededNotificationHandlerDependencies) => {
-    
   const handle = async (event: PaymentSucceededEvent) => {
     const { userId, paymentId, orderId, amount, currency } = event.data;
 
     try {
       await notificationService.create({
-        user: {
-          connect: { id: userId },
-        },
+        userId,
         type: NotificationType.PAYMENT_SUCCESS,
         status: NotificationStatus.UNREAD,
         title: "Payment successful",
@@ -44,7 +41,7 @@ export const createPaymentSucceededNotificationHandler = ({
         return;
       }
 
-      // Allow genuine failures to propagate so the event can be retried.
+      // Propagate genuine failures so the consumer can retry.
       throw error;
     }
   };

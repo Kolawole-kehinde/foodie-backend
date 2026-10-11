@@ -109,8 +109,7 @@ const paymentSucceededHandler = createPaymentSucceededHandler({
 
 const orderPaymentConsumer = createOrderPaymentConsumer({
   handler: paymentSucceededHandler,
-  brokers: ["localhost:9092"],
-});
+})
 const notification = createNotificationDependencies({
   db: prisma,
   authenticate,
