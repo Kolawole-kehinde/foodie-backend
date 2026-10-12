@@ -6,8 +6,6 @@ import { createAxiosClient } from "../../../../infrastructure/axios/axios.client
 import { PaymentProviderError } from "../../errors/payment-provider.error.js";
 import type {
   ListRefundsResult,
-  RefundPaymentInput,
-  RefundPaymentResult,
   VerifyRefundInput,
   VerifyRefundResult,
   VerifyWebhookInput,
@@ -51,47 +49,6 @@ export const createPaystackProvider = ({
   });
 
   const http = createPaystackHttpHelper(client);
-
-  const refundPayment = async (
-    input: RefundPaymentInput,
-  ): Promise<RefundPaymentResult> => {
-    const amount = toSubunit(input.amount);
-    const currency = normalizeCurrency(input.currency);
-
-    const response = await http.request<PaystackRefundResponse>({
-      method: "POST",
-      url: "/refund",
-      data: {
-        transaction: input.providerReference,
-        amount,
-        currency,
-        merchant_note: input.reason,
-      },
-    });
-
-    const data = assertPaystackResponse(
-      response.data, 
-      "payment refund"
-    );
-
-    const normalizedStatus = data.status.trim().toLowerCase();
-
-const status = mapRefundStatus(data.status);
-
-    return {
-      provider: PaymentProvider.PAYSTACK,
-      providerReference: input.providerReference,
-      providerRefundReference: String(data.id),
-      amount: fromSubunit(data.amount),
-      currency: normalizeCurrency(data.currency),
-      status,
-      providerStatus: data.status,
-     
-      metadata: {
-        transactionReference: getRefundProviderReference(data.transaction),
-      },
-    };
-  };
 
 const listRefunds = async (
   transactionReference: string,
@@ -406,7 +363,6 @@ const listRefunds = async (
 
   return {
     verifyWebhook,
-    refundPayment,
     verifyRefund,
     listRefunds
   };
