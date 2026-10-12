@@ -43,9 +43,9 @@ export type PaystackRefundData = {
   status: string;
   transaction: PaystackRefundTransaction;
   reason?: string | null;
+  merchant_note?: string | null;
   refunded_at?: string | null;
 };
-
 export type PaystackRefundResponse = {
   status: boolean;
   message?: unknown;

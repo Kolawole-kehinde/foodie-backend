@@ -71,9 +71,11 @@ export const createPaymentDependencies = ({
   const paymentService =
     createPaymentService({
       db,
-      paymentRepository,
-      paymentProviderRegistry,
-      paymentProcessingService,
+  paymentRepository,
+  paymentProviderRegistry,
+  paymentProcessingService,
+  outboxService,
+  paymentEventFactory,
     });
 
   // Webhook Service

@@ -1,13 +1,16 @@
-import type { PrismaClient } from "@prisma/client";
+
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { PaymentProviderRegistry } from "../../providers/payment-provider.registry.js";
-import { createPaymentRepository, type PaymentRepository} from "../../repositories/index.js";
+import {
+  createPaymentRepository,
+  type PaymentRepository,
+} from "../../repositories/index.js";
+import { createOutboxRepository } from "../../../outbox/repositories/outbox.repository.js";
 import type { OutboxService } from "../../../outbox/services/outbox.service.js";
 import type { PaymentEventFactory } from "../../events/payment-event.factory.js";
 import { createPaymentRefundCreationService } from "./payment-refund-creation.service.js";
 import { createPaymentRefundProcessingService } from "./payment-refund-processing.service.js";
 import { createPaymentRefundReconciliationService } from "./payment-refund-reconciliation.service.js";
-
-
 
 type PaymentRefundServiceDependencies = {
   db: PrismaClient;
@@ -20,6 +23,7 @@ type PaymentRefundServiceDependencies = {
 type CreateRefundInput = {
   paymentId: string;
   userId: string;
+  idempotencyKey: string;
   amount?: string;
   reason?: string;
 };
@@ -31,7 +35,6 @@ export const createPaymentRefundService = ({
   outboxService,
   paymentEventFactory,
 }: PaymentRefundServiceDependencies) => {
-
   const creationService = createPaymentRefundCreationService({
     db,
     paymentRepository,
@@ -47,12 +50,18 @@ export const createPaymentRefundService = ({
     paymentEventFactory,
   });
 
-
-  const createRefund = async ({paymentId, userId, amount, reason}: CreateRefundInput) => {
-
-  const { payment, refund, refundAmount } = await creationService.createRefundRecord({
+  const createRefund = async ({
+    paymentId,
+    userId,
+    idempotencyKey,
+    amount,
+    reason,
+  }: CreateRefundInput) => {
+    const { payment, refund, refundAmount } =
+      await creationService.createRefundRecord({
         paymentId,
         userId,
+        idempotencyKey,
         amount,
         reason,
       });
@@ -69,8 +78,10 @@ export const createPaymentRefundService = ({
 
     const provider = paymentProviderRegistry.get(attempt.provider);
 
+    // Pass the local refund ID so an uncertain provider request can be recovered.
     const { result, finalStatus } = await processingService.processRefund({
       provider,
+      refundId: refund.id,
       paymentId: payment.id,
       providerReference: attempt.providerReference,
       amount: refundAmount,
@@ -82,10 +93,7 @@ export const createPaymentRefundService = ({
 
     return db.$transaction(async (tx) => {
       const transactionRepository = createPaymentRepository(tx);
-
-      const transactionOutboxRepository = (
-        await import("../../../outbox/repositories/outbox.repository.js")
-      ).createOutboxRepository(tx);
+      const transactionOutboxRepository = createOutboxRepository(tx);
 
       const lockedPayment = await transactionRepository.getByIdForUpdate(
         payment.id,
@@ -101,32 +109,29 @@ export const createPaymentRefundService = ({
         throw new Error("Refund not found during refund processing");
       }
 
+      // A concurrent worker may already have finalized this refund.
       if (refundRecord.status !== "PROCESSING") {
         return refundRecord;
       }
 
-      const refundUpdate = {
+      const refundUpdate: Prisma.PaymentRefundUpdateInput = {
         status: finalStatus,
         providerRefundReference: result.providerRefundReference,
+        providerStatus: result.providerStatus,
       };
 
       if (finalStatus === "SUCCESS") {
-        Object.assign(refundUpdate, {
-          completedAt: now,
-          failureReason: null,
-        });
+        refundUpdate.completedAt = now;
+        refundUpdate.failureReason = null;
       }
 
       if (finalStatus === "FAILED") {
-        Object.assign(refundUpdate, {
-          failureReason: result.failureReason ?? "Refund failed",
-        });
+        refundUpdate.failureReason = result.failureReason ?? "Refund failed";
       }
 
       if (finalStatus === "CANCELLED") {
-        Object.assign(refundUpdate, {
-          failureReason: result.failureReason ?? "Refund cancelled",
-        });
+        refundUpdate.failureReason =
+          result.failureReason ?? "Refund cancelled";
       }
 
       const updatedRefund = await transactionRepository.updateRefund(
@@ -163,13 +168,14 @@ export const createPaymentRefundService = ({
         orderId: payment.orderId,
         userId: payment.userId,
         provider: attempt.provider,
-        providerReference: attempt.providerReference ?? undefined,
+     providerReference: attempt.providerReference ?? undefined,
         amount: payment.amount.toFixed(2),
         currency: payment.currency,
         status: nextPaymentStatus,
         occurredAt: now,
       });
 
+      // Keep the payment update and event creation in the same transaction.
       await outboxService.createEvent({
         event: paymentEvent,
         repository: transactionOutboxRepository,
@@ -185,4 +191,6 @@ export const createPaymentRefundService = ({
   };
 };
 
-export type PaymentRefundService = ReturnType <typeof createPaymentRefundService>;
+export type PaymentRefundService = ReturnType<
+  typeof createPaymentRefundService
+>;

@@ -246,6 +246,8 @@ registry.registerPath({
   },
 });
 
+
+  
 /**
  * Refund payment
  */
@@ -253,10 +255,22 @@ registry.registerPath({
   method: "post",
   path: "/api/v1/payments/{paymentId}/refund",
   tags: ["Payments"],
+  summary: "Initiate a payment refund",
+  description:
+    "Initiates a refund for a successful payment. The Idempotency-Key header prevents duplicate refund requests when the same request is retried.",
   security: [{ bearerAuth: [] }],
 
   request: {
     params: paymentIdParamsSchema,
+
+    headers: z.object({
+      "Idempotency-Key": z
+        .string()
+        .trim()
+        .min(1, "Idempotency-Key is required")
+        .max(255, "Idempotency-Key cannot exceed 255 characters")
+        .describe("Unique key used to safely retry the same refund request"),
+    }),
 
     body: {
       content: {
@@ -278,6 +292,27 @@ registry.registerPath({
           }),
         },
       },
+    },
+
+    400: {
+      description: "Invalid request body or missing/invalid idempotency key",
+    },
+
+    401: {
+      description: "Authentication required",
+    },
+
+    403: {
+      description: "Insufficient permission to refund this payment",
+    },
+
+    404: {
+      description: "Payment not found",
+    },
+
+    409: {
+      description:
+        "Refund conflicts with the payment state or an existing idempotency key",
     },
   },
 });

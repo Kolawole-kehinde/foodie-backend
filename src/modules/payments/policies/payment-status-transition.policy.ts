@@ -1,6 +1,9 @@
 import { PaymentStatus } from "@prisma/client";
 
-const allowedTransitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
+const allowedTransitions: Record<
+  PaymentStatus,
+  readonly PaymentStatus[]
+> = {
   [PaymentStatus.PENDING]: [
     PaymentStatus.PROCESSING,
     PaymentStatus.FAILED,
@@ -21,16 +24,14 @@ const allowedTransitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
   ],
 
   [PaymentStatus.PARTIALLY_REFUNDED]: [
-    PaymentStatus.PARTIALLY_REFUNDED,
     PaymentStatus.REFUNDED,
   ],
 
-  [PaymentStatus.FAILED]: [PaymentStatus.PENDING, PaymentStatus.PROCESSING],
+  // Retrying a failed payment returns it to PENDING with a new attempt.
+  [PaymentStatus.FAILED]: [PaymentStatus.PENDING],
 
-  [PaymentStatus.CANCELLED]: [PaymentStatus.PROCESSING],
-
-  [PaymentStatus.EXPIRED]: [PaymentStatus.PROCESSING],
-
+  [PaymentStatus.CANCELLED]: [],
+  [PaymentStatus.EXPIRED]: [],
   [PaymentStatus.REFUNDED]: [],
 };
 
@@ -38,7 +39,11 @@ export const canTransitionPaymentStatus = (
   currentStatus: PaymentStatus,
   nextStatus: PaymentStatus,
 ): boolean => {
-  return allowedTransitions[currentStatus].includes(nextStatus);
+  // An unchanged status is idempotent, not a new transition.
+  return (
+    currentStatus === nextStatus ||
+    allowedTransitions[currentStatus].includes(nextStatus)
+  );
 };
 
 export const getAllowedPaymentStatusTransitions = (

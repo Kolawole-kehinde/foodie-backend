@@ -1,15 +1,12 @@
 
 import { PaymentProvider } from "@prisma/client";
-
 import type {
   RefundPaymentInput,
   RefundPaymentResult,
 } from "../../../types/payment.types.js";
-
 import { PaymentProviderError } from "../../../errors/payment-provider.error.js";
 import { createPaystackHttpHelper } from "../../helpers/paystack-http.helper.js";
 import { assertPaystackResponse } from "../../helpers/paystack-response.helper.js";
-
 import {
   fromSubunit,
   getRefundProviderReference,
@@ -18,7 +15,6 @@ import {
   normalizeProviderCurrency,
   toSubunit,
 } from "../paystack-mappers.js";
-
 import type { PaystackRefundResponse } from "../paystack.types.js";
 
 type PaystackHttp = ReturnType<typeof createPaystackHttpHelper>;
@@ -36,6 +32,12 @@ export const createRefundPaymentOperation = ({
     const amount = toSubunit(input.amount);
     const currency = normalizeCurrency(input.currency);
 
+    // Include a stable local ID so recovery can identify the exact refund.
+    const correlationMarker = `refund-id:${input.refundId}`;
+    const merchantNote = input.reason
+      ? `${correlationMarker}; ${input.reason}`.slice(0, 255)
+      : correlationMarker;
+
     const response = await http.request<PaystackRefundResponse>({
       method: "POST",
       url: "/refund",
@@ -43,14 +45,11 @@ export const createRefundPaymentOperation = ({
         transaction: input.providerReference,
         amount,
         currency,
-        merchant_note: input.reason,
+        merchant_note: merchantNote,
       },
     });
 
-    const data = assertPaystackResponse(
-      response.data,
-      "payment refund",
-    );
+    const data = assertPaystackResponse(response.data, "payment refund");
 
     if (
       !Number.isSafeInteger(data.id) ||
@@ -70,9 +69,7 @@ export const createRefundPaymentOperation = ({
     }
 
     const status = mapRefundStatus(data.status);
-    const providerReference = getRefundProviderReference(
-      data.transaction,
-    );
+    const providerReference = getRefundProviderReference(data.transaction);
 
     return {
       provider: PaymentProvider.PAYSTACK,
@@ -83,10 +80,8 @@ export const createRefundPaymentOperation = ({
       status,
       providerStatus: data.status,
       failureReason:
-        status === "FAILED" ? (data.reason ?? undefined) : undefined,
-      metadata: {
-        transactionReference: providerReference,
-      },
+        status === "FAILED" ? data.reason ?? undefined : undefined,
+      metadata: { transactionReference: providerReference },
     };
   };
 

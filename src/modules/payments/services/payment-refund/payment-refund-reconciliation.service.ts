@@ -1,3 +1,4 @@
+
 import {
   PaymentStatus,
   Prisma,
@@ -7,19 +8,14 @@ import {
 
 import { canTransitionPaymentStatus } from "../../policies/payment-status-transition.policy.js";
 import { canTransitionRefundStatus } from "../../policies/refund-status-transition.policy.js";
-
 import type { PaymentProviderRegistry } from "../../providers/payment-provider.registry.js";
-
 import {
   createPaymentRepository,
   type PaymentRepository,
 } from "../../repositories/index.js";
-
 import { createOutboxRepository } from "../../../outbox/repositories/outbox.repository.js";
 import type { OutboxService } from "../../../outbox/services/outbox.service.js";
-
 import type { PaymentEventFactory } from "../../events/payment-event.factory.js";
-
 import { mapProviderRefundStatus } from "./payment-refund-status.service.js";
 
 type PaymentRefundReconciliationServiceDependencies = {
@@ -72,67 +68,31 @@ export const createPaymentRefundReconciliationService = ({
 
     let providerRefundReference = refund.providerRefundReference;
 
-    /*
-     * The original refund request may have reached the provider
-     * successfully before our application crashed.
-     *
-     * In that situation the local refund has no
-     * providerRefundReference, so we recover it by asking the
-     * provider for existing refunds.
-     */
+    // Recover the exact provider refund if the initial request's result was lost.
     if (!providerRefundReference) {
       const refunds = await provider.listRefunds(attempt.providerReference);
+      const correlationMarker = `refund-id:${refund.id}`;
 
-      console.log(
-        "[Payments] Provider refunds",
-        JSON.stringify(refunds, null, 2),
+      const matchingRefund = refunds.refunds.find(
+        (providerRefund) =>
+          providerRefund.merchantNote === correlationMarker ||
+          providerRefund.merchantNote?.startsWith(
+            `${correlationMarker}; `,
+          ),
       );
 
-      const expectedAmount = refund.amount.toFixed(2);
-
-      const expectedCurrency = refund.currency.trim().toUpperCase();
-
-      /*
-       * Match primarily by amount + currency.
-       *
-       * We intentionally do not require providerReference here
-       * because Paystack may return the original transaction as
-       * a numeric transaction ID rather than our transaction
-       * reference.
-       *
-       * We also prefer an exact providerReference match when
-       * available.
-       */
-      const matchingRefund =
-        refunds.refunds.find(
-          (providerRefund) =>
-            providerRefund.providerReference === attempt.providerReference &&
-            providerRefund.amount === expectedAmount &&
-            providerRefund.currency.trim().toUpperCase() === expectedCurrency,
-        ) ??
-        refunds.refunds.find(
-          (providerRefund) =>
-            providerRefund.amount === expectedAmount &&
-            providerRefund.currency.trim().toUpperCase() === expectedCurrency,
-        );
-
       if (!matchingRefund) {
+        // Never guess using amount and currency alone.
         throw new Error(
-          "Unable to find existing provider refund for reconciliation",
+          "Unable to identify the exact provider refund; manual review may be required",
         );
       }
 
       providerRefundReference = matchingRefund.providerRefundReference;
 
-      /*
-       * Persist the provider refund reference before verifying it.
-       *
-       * This makes the next reconciliation attempt independent
-       * of the refund-list lookup.
-       */
+      // Save the reference before verification so later runs can use it directly.
       await db.$transaction(async (tx) => {
         const transactionRepository = createPaymentRepository(tx);
-
         const refundRecord = await transactionRepository.getRefundById(
           refund.id,
         );
@@ -154,9 +114,6 @@ export const createPaymentRefundReconciliationService = ({
       });
     }
 
-    /*
-     * At this point we must have a provider refund reference.
-     */
     if (!providerRefundReference) {
       throw new Error("Provider refund reference is required for verification");
     }
@@ -165,11 +122,6 @@ export const createPaymentRefundReconciliationService = ({
       providerRefundReference,
     });
 
-    /*
-     * Never trust a provider response blindly.
-     * Verify that the refund amount and currency match
-     * our local refund.
-     */
     if (result.amount !== refund.amount.toFixed(2)) {
       throw new Error("Provider refund amount does not match refund amount");
     }
@@ -185,16 +137,10 @@ export const createPaymentRefundReconciliationService = ({
 
     const finalStatus = mapProviderRefundStatus(result.status);
 
-    /*
-     * The provider may still report PROCESSING.
-     *
-     * That is not an error. Keep the local refund in
-     * PROCESSING and wait for the next reconciliation run.
-     */
+    // Keep pending refunds processing until the provider reports a terminal state.
     if (finalStatus === RefundStatus.PROCESSING) {
       return db.$transaction(async (tx) => {
         const transactionRepository = createPaymentRepository(tx);
-
         const refundRecord = await transactionRepository.getRefundById(
           refund.id,
         );
@@ -212,15 +158,11 @@ export const createPaymentRefundReconciliationService = ({
             result.providerRefundReference ??
             providerRefundReference ??
             refundRecord.providerRefundReference,
-
           providerStatus: result.providerStatus,
         });
       });
     }
 
-    /*
-     * Only terminal states continue below.
-     */
     if (!canTransitionRefundStatus(refund.status, finalStatus)) {
       throw new Error(
         `Invalid refund status transition: ${refund.status} -> ${finalStatus}`,
@@ -231,13 +173,9 @@ export const createPaymentRefundReconciliationService = ({
 
     return db.$transaction(async (tx) => {
       const transactionRepository = createPaymentRepository(tx);
-
       const transactionOutboxRepository = createOutboxRepository(tx);
 
-      /*
-       * Lock the payment because successful refund
-       * reconciliation can change the payment status.
-       */
+      // Lock the payment before changing its status.
       const lockedPayment = await transactionRepository.getByIdForUpdate(
         payment.id,
       );
@@ -252,10 +190,6 @@ export const createPaymentRefundReconciliationService = ({
         throw new Error("Refund not found during refund reconciliation");
       }
 
-      /*
-       * Another worker/request may have already completed
-       * this refund.
-       */
       if (refundRecord.status !== RefundStatus.PROCESSING) {
         return refundRecord;
       }
@@ -268,18 +202,15 @@ export const createPaymentRefundReconciliationService = ({
 
       const refundUpdate: Prisma.PaymentRefundUpdateInput = {
         status: finalStatus,
-
         providerRefundReference:
           result.providerRefundReference ??
           providerRefundReference ??
           refundRecord.providerRefundReference,
-
         providerStatus: result.providerStatus,
       };
 
       if (finalStatus === RefundStatus.SUCCESS) {
         refundUpdate.completedAt = result.completedAt ?? now;
-
         refundUpdate.failureReason = null;
       }
 
@@ -288,7 +219,8 @@ export const createPaymentRefundReconciliationService = ({
       }
 
       if (finalStatus === RefundStatus.CANCELLED) {
-        refundUpdate.failureReason = result.failureReason ?? "Refund cancelled";
+        refundUpdate.failureReason =
+          result.failureReason ?? "Refund cancelled";
       }
 
       const updatedRefund = await transactionRepository.updateRefund(
@@ -296,9 +228,6 @@ export const createPaymentRefundReconciliationService = ({
         refundUpdate,
       );
 
-      /*
-       * A successful refund changes the payment status.
-       */
       if (finalStatus === RefundStatus.SUCCESS) {
         const totalRefunded = await transactionRepository.getRefundedAmount(
           payment.id,
@@ -313,7 +242,10 @@ export const createPaymentRefundReconciliationService = ({
 
         if (lockedPayment.status !== nextPaymentStatus) {
           if (
-            !canTransitionPaymentStatus(lockedPayment.status, nextPaymentStatus)
+            !canTransitionPaymentStatus(
+              lockedPayment.status,
+              nextPaymentStatus,
+            )
           ) {
             throw new Error(
               `Invalid payment status transition: ${lockedPayment.status} -> ${nextPaymentStatus}`,
@@ -322,32 +254,22 @@ export const createPaymentRefundReconciliationService = ({
 
           await transactionRepository.updatePayment(payment.id, {
             status: nextPaymentStatus,
-
             refundedAt: isFullRefund ? now : undefined,
           });
 
-          /*
-           * Publish the payment refund event through
-           * the outbox so the event and database update
-           * remain atomic.
-           */
           const paymentEvent = paymentEventFactory.create({
             paymentId: payment.id,
             orderId: payment.orderId,
             userId: payment.userId,
             provider: attempt.provider,
-
             providerReference: attempt.providerReference ?? undefined,
-
             amount: payment.amount.toFixed(2),
-
             currency: payment.currency,
-
             status: nextPaymentStatus,
-
             occurredAt: now,
           });
 
+          // The outbox event commits atomically with the payment status update.
           await outboxService.createEvent({
             event: paymentEvent,
             repository: transactionOutboxRepository,

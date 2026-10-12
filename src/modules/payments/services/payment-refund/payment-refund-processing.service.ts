@@ -1,14 +1,14 @@
+
 import { RefundStatus } from "@prisma/client";
 import type { PaymentProviderRegistry } from "../../providers/payment-provider.registry.js";
 import { canTransitionRefundStatus } from "../../policies/refund-status-transition.policy.js";
 import { mapProviderRefundStatus } from "./payment-refund-status.service.js";
 
-type PaymentProviderClient = ReturnType<
-  PaymentProviderRegistry["get"]
->;
+type PaymentProviderClient = ReturnType<PaymentProviderRegistry["get"]>;
 
 type ProcessRefundInput = {
   provider: PaymentProviderClient;
+  refundId: string;
   paymentId: string;
   providerReference: string;
   amount: string;
@@ -19,6 +19,7 @@ type ProcessRefundInput = {
 export const createPaymentRefundProcessingService = () => {
   const processRefund = async ({
     provider,
+    refundId,
     paymentId,
     providerReference,
     amount,
@@ -26,6 +27,7 @@ export const createPaymentRefundProcessingService = () => {
     reason,
   }: ProcessRefundInput) => {
     const result = await provider.refundPayment({
+      refundId,
       paymentId,
       providerReference,
       amount,
@@ -34,9 +36,7 @@ export const createPaymentRefundProcessingService = () => {
     });
 
     if (result.amount !== amount) {
-      throw new Error(
-        "Provider refund amount does not match requested refund amount",
-      );
+      throw new Error("Provider refund amount does not match requested amount");
     }
 
     if (
@@ -44,7 +44,7 @@ export const createPaymentRefundProcessingService = () => {
       currency.trim().toUpperCase()
     ) {
       throw new Error(
-        "Provider refund currency does not match payment currency",
+        "Provider refund currency does not match requested currency",
       );
     }
 
@@ -52,27 +52,15 @@ export const createPaymentRefundProcessingService = () => {
 
     if (
       finalStatus !== RefundStatus.PROCESSING &&
-      !canTransitionRefundStatus(
-        RefundStatus.PROCESSING,
-        finalStatus,
-      )
+      !canTransitionRefundStatus(RefundStatus.PROCESSING, finalStatus)
     ) {
       throw new Error(
         `Invalid refund status transition: ${RefundStatus.PROCESSING} -> ${finalStatus}`,
       );
     }
 
-    return {
-      result,
-      finalStatus,
-    };
+    return { result, finalStatus };
   };
 
-  return {
-    processRefund,
-  };
+  return { processRefund };
 };
-
-export type PaymentRefundProcessingService = ReturnType<
-  typeof createPaymentRefundProcessingService
->;

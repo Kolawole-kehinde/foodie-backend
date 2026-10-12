@@ -77,71 +77,114 @@ export const createPaymentReconciliationService = ({
     return reconcilePaymentInternal(payment);
   };
 
-  const reconcilePaymentInternal = async (
-    payment: NonNullable<
-      Awaited<ReturnType<typeof paymentRepository.getById>>
-    >,
-  ) => {
-    const attempt = await paymentRepository.getLatestPaymentAttempt(
-      payment.id,
-    );
+const reconcilePaymentInternal = async (
+  payment: NonNullable<
+    Awaited<ReturnType<typeof paymentRepository.getById>>
+  >,
+) => {
+  const attempt = await paymentRepository.getLatestPaymentAttempt(
+    payment.id,
+  );
 
-    if (!attempt) {
-      throw new Error("Payment attempt not found");
+  if (!attempt) {
+    throw new Error("Payment attempt not found");
+  }
+
+  if (!attempt.providerReference) {
+    throw new Error("Payment attempt does not have a provider reference");
+  }
+
+  const provider = paymentProviderRegistry.get(attempt.provider);
+  const result = await provider.verifyPayment({
+    providerReference: attempt.providerReference,
+  });
+
+  // An unknown provider result must not change local payment state.
+  if (result.status === "UNKNOWN") {
+    return {
+      paymentId: payment.id,
+      attemptId: attempt.id,
+      previousStatus: payment.status,
+      status: payment.status,
+      changed: false,
+      verifiedAt: new Date(),
+    };
+  }
+
+  const expectedAmount = new Prisma.Decimal(payment.amount.toString());
+  const providerAmount = new Prisma.Decimal(result.amount);
+
+  if (expectedAmount.comparedTo(providerAmount) !== 0) {
+    throw new Error("Provider payment amount does not match stored payment");
+  }
+
+  if (
+    result.currency.trim().toUpperCase() !==
+    payment.currency.trim().toUpperCase()
+  ) {
+    throw new Error("Provider payment currency does not match stored payment");
+  }
+
+  const nextStatus = mapProviderStatusToPaymentStatus(result.status);
+  const now = new Date();
+
+  return db.$transaction(async (tx) => {
+    const repository = createPaymentRepository(tx);
+    const outboxRepository = createOutboxRepository(tx);
+
+    const lockedPayment = await repository.getByIdForUpdate(payment.id);
+
+    if (!lockedPayment) {
+      throw new Error("Payment not found during reconciliation");
     }
 
-    const providerReference = attempt.providerReference;
-
-    if (!providerReference) {
-      throw new Error(
-        "Payment attempt does not have a provider reference",
-      );
-    }
-
-    const provider = paymentProviderRegistry.get(attempt.provider);
-
-    const result = await provider.verifyPayment({
-      providerReference,
-    });
-
-    if (result.amount !== payment.amount.toFixed(2)) {
-      throw new Error(
-        "Provider payment amount does not match stored payment",
-      );
-    }
+    const currentAttempt =
+      await repository.getPaymentAttemptById(attempt.id);
 
     if (
-      result.currency.toUpperCase() !==
-      payment.currency.toUpperCase()
+      !currentAttempt ||
+      currentAttempt.paymentId !== lockedPayment.id ||
+      currentAttempt.providerReference !== attempt.providerReference
     ) {
-      throw new Error(
-        "Provider payment currency does not match stored payment",
-      );
+      throw new Error("Payment attempt changed during reconciliation");
     }
 
-    const nextStatus = mapProviderStatusToPaymentStatus(result.status);
-    const now = new Date();
-
-    if (payment.status === nextStatus) {
-      await paymentRepository.updatePaymentAttempt(attempt.id, {
-        providerReference: result.providerReference,
-        providerStatus: result.providerStatus,
-        lastVerifiedAt: now,
-      });
-
+    // Do not apply a stale result to a completed or superseded attempt.
+    if (
+      currentAttempt.status !== PaymentAttemptStatus.INITIATED &&
+      currentAttempt.status !== PaymentAttemptStatus.PROCESSING
+    ) {
       return {
-        paymentId: payment.id,
-        attemptId: attempt.id,
-        previousStatus: payment.status,
-        status: payment.status,
+        paymentId: lockedPayment.id,
+        attemptId: currentAttempt.id,
+        previousStatus: lockedPayment.status,
+        status: lockedPayment.status,
         changed: false,
         verifiedAt: now,
       };
     }
 
-    if (!canTransitionPaymentStatus(payment.status, nextStatus)) {
+    if (lockedPayment.status === nextStatus) {
+      await repository.updatePaymentAttempt(currentAttempt.id, {
+        providerStatus: result.providerStatus,
+        lastVerifiedAt: now,
+      });
+
+      return {
+        paymentId: lockedPayment.id,
+        attemptId: currentAttempt.id,
+        previousStatus: lockedPayment.status,
+        status: lockedPayment.status,
+        changed: false,
+        verifiedAt: now,
+      };
+    }
+
+    if (
+      !canTransitionPaymentStatus(lockedPayment.status, nextStatus)
+    ) {
       throw new Error(
-        `Invalid payment status transition: ${payment.status} -> ${nextStatus}`,
+        `Invalid reconciliation transition: ${lockedPayment.status} -> ${nextStatus}`,
       );
     }
 
@@ -149,17 +192,8 @@ export const createPaymentReconciliationService = ({
       status: nextStatus,
     };
 
-    if (nextStatus === PaymentStatus.SUCCESS) {
-      paymentUpdate.paidAt = result.paidAt ?? now;
-      paymentUpdate.failedAt = null;
-      paymentUpdate.failureReason = null;
-    }
-
-    if (nextStatus === PaymentStatus.FAILED) {
-      paymentUpdate.failedAt = now;
-      paymentUpdate.failureReason =
-        result.failureReason ?? "Payment provider reported failure";
-    }
+    const failureReason =
+      result.failureReason ?? `Provider reported ${result.status}`;
 
     const attemptUpdate: Prisma.PaymentAttemptUpdateInput = {
       status: mapPaymentStatusToAttemptStatus(nextStatus),
@@ -168,100 +202,49 @@ export const createPaymentReconciliationService = ({
       lastVerifiedAt: now,
     };
 
-    if (isTerminalPaymentStatus(nextStatus)) {
-      attemptUpdate.completedAt = result.paidAt ?? now;
-    }
-
     if (nextStatus === PaymentStatus.SUCCESS) {
+      paymentUpdate.paidAt = result.paidAt ?? now;
+      paymentUpdate.failedAt = null;
+      paymentUpdate.failureReason = null;
       attemptUpdate.failureReason = null;
+      attemptUpdate.completedAt = result.paidAt ?? now;
+    } else {
+      paymentUpdate.failedAt = now;
+      paymentUpdate.failureReason = failureReason;
+      attemptUpdate.failureReason = failureReason;
+      attemptUpdate.completedAt = now;
     }
 
-    if (nextStatus === PaymentStatus.FAILED) {
-      attemptUpdate.failureReason =
-        result.failureReason ?? "Payment provider reported failure";
-    }
+    await repository.updatePayment(lockedPayment.id, paymentUpdate);
+    await repository.updatePaymentAttempt(currentAttempt.id, attemptUpdate);
 
-    const transactionResult = await db.$transaction(
-      async (
-        tx,
-      ): Promise<{
-        changed: boolean;
-        previousStatus: PaymentStatus;
-      }> => {
-        const transactionRepository = createPaymentRepository(tx);
-        const transactionOutboxRepository = createOutboxRepository(tx);
+    const event = paymentEventFactory.create({
+      paymentId: lockedPayment.id,
+      orderId: lockedPayment.orderId,
+      userId: lockedPayment.userId,
+      provider: currentAttempt.provider,
+      providerReference: result.providerReference,
+      amount: lockedPayment.amount.toFixed(2),
+      currency: lockedPayment.currency,
+      status: nextStatus,
+      occurredAt: now,
+    });
 
-        const lockedPayment =
-          await transactionRepository.getByIdForUpdate(payment.id);
-
-        if (!lockedPayment) {
-          throw new Error("Payment not found during reconciliation");
-        }
-
-        // Another request may have completed this transition while
-        // we were verifying the payment with the provider.
-        if (lockedPayment.status === nextStatus) {
-          return {
-            changed: false,
-            previousStatus: lockedPayment.status,
-          };
-        }
-
-        if (
-          !canTransitionPaymentStatus(
-            lockedPayment.status,
-            nextStatus,
-          )
-        ) {
-          throw new Error(
-            `Invalid reconciliation transition: ${lockedPayment.status} -> ${nextStatus}`,
-          );
-        }
-
-        await transactionRepository.updatePayment(
-          lockedPayment.id,
-          paymentUpdate,
-        );
-
-        await transactionRepository.updatePaymentAttempt(
-          attempt.id,
-          attemptUpdate,
-        );
-
-        const paymentEvent = paymentEventFactory.create({
-          paymentId: lockedPayment.id,
-          orderId: lockedPayment.orderId,
-          userId: lockedPayment.userId,
-          provider: attempt.provider,
-          providerReference: result.providerReference,
-          amount: lockedPayment.amount.toFixed(2),
-          currency: lockedPayment.currency,
-          status: nextStatus,
-          occurredAt: now,
-        });
-
-        await outboxService.createEvent({
-          event: paymentEvent,
-          repository: transactionOutboxRepository,
-        });
-
-        return {
-          changed: true,
-          previousStatus: lockedPayment.status,
-        };
-      },
-    );
+    await outboxService.createEvent({
+      event,
+      repository: outboxRepository,
+    });
 
     return {
-      paymentId: payment.id,
-      attemptId: attempt.id,
-      previousStatus: transactionResult.previousStatus,
+      paymentId: lockedPayment.id,
+      attemptId: currentAttempt.id,
+      previousStatus: lockedPayment.status,
       status: nextStatus,
-      changed: transactionResult.changed,
+      changed: true,
       verifiedAt: now,
     };
-  };
-
+  });
+};
   return {
     reconcilePayment,
     reconcilePaymentForJob,

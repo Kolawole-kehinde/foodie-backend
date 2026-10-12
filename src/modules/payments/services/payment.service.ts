@@ -1,3 +1,4 @@
+
 import {
   PaymentAttemptStatus,
   PaymentStatus,
@@ -18,8 +19,9 @@ export const createPaymentService = ({
   paymentRepository,
   paymentProviderRegistry,
   paymentProcessingService,
+  outboxService,
+  paymentEventFactory,
 }: PaymentServiceDependencies) => {
-  // Prepare the payment context and provider helpers.
   const initializePayment = async (
     input: InitializePaymentServiceInput,
   ) => {
@@ -41,9 +43,10 @@ export const createPaymentService = ({
       paymentRepository,
       provider,
       db,
+      outboxService,
+      paymentEventFactory,
     });
 
-    // Recover an attempt using its existing idempotency key.
     const recoverAttempt = async (
       paymentId: string,
       attempt: NonNullable<
@@ -100,7 +103,6 @@ export const createPaymentService = ({
       );
     };
 
-    // Handle payments that already exist for this order.
     const handleExistingPayment = async (
       payment: NonNullable<
         Awaited<ReturnType<typeof paymentRepository.getByOrderId>>
@@ -135,7 +137,6 @@ export const createPaymentService = ({
         );
       }
 
-      // Lock the failed payment before creating a retry attempt.
       const retryResult = await db.$transaction(async (tx) => {
         const repository = createPaymentRepository(tx);
 
@@ -179,7 +180,6 @@ export const createPaymentService = ({
           );
         }
 
-        // Create the attempt and reset the payment atomically.
         const attempt = await repository.createPaymentAttempt({
           payment: {
             connect: {
@@ -213,7 +213,6 @@ export const createPaymentService = ({
         );
       }
 
-      // Call the provider only after the transaction commits.
       return initializeAttempt.initializePaymentAttempt({
         paymentId: retryResult.paymentId,
         attemptId: retryResult.attemptId,
@@ -232,7 +231,6 @@ export const createPaymentService = ({
       return handleExistingPayment(existingPayment);
     }
 
-    // Create the initial payment and attempt in one transaction.
     try {
       const result = await db.$transaction(async (tx) => {
         const repository = createPaymentRepository(tx);
@@ -269,7 +267,6 @@ export const createPaymentService = ({
         return { payment, attempt };
       });
 
-      // Initialize the provider after the database transaction commits.
       return initializeAttempt.initializePaymentAttempt({
         paymentId: result.payment.id,
         attemptId: result.attempt.id,
@@ -279,7 +276,6 @@ export const createPaymentService = ({
         callbackUrl: input.callbackUrl,
       });
     } catch (error) {
-      // Recover a concurrent creation only when its payment exists.
       if (!isUniqueConstraintError(error)) {
         throw error;
       }
@@ -297,7 +293,6 @@ export const createPaymentService = ({
   return { initializePayment };
 };
 
-// Detect unique-constraint conflicts from Prisma.
 const isUniqueConstraintError = (error: unknown): boolean => {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&

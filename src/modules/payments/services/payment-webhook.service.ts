@@ -1,4 +1,6 @@
+
 import crypto from "node:crypto";
+
 import {
   PaymentAttemptStatus,
   PaymentStatus,
@@ -16,6 +18,7 @@ import {
 import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
 import type { OutboxService } from "../../outbox/services/outbox.service.js";
 import type { PaymentEventFactory } from "../events/payment-event.factory.js";
+import type { PaymentProviderStatus } from "../types/payment.types.js";
 
 type HandlePaymentWebhookInput = {
   provider: PaymentProvider;
@@ -43,28 +46,28 @@ export const createPaymentWebhookService = ({
     rawBody,
     headers,
   }: HandlePaymentWebhookInput) => {
-    // Verify the signature and normalize the provider payload.
     const provider = paymentProviderRegistry.get(providerName);
+
+    // Verify the signature before persisting or processing the event.
+    const webhook = await provider.verifyWebhook({
+      rawBody,
+      headers,
+    });
 
     const payloadHash = crypto
       .createHash("sha256")
       .update(rawBody)
       .digest("hex");
 
-    const webhook = await provider.verifyWebhook({
-      rawBody,
-      headers,
-    });
-
-    // Use the provider event ID when available; otherwise build a fallback.
-    const eventKey = webhook.providerEventId ?? buildWebhookEventKey(webhook);
+    const eventKey =
+      webhook.providerEventId ?? buildWebhookEventKey(webhook);
 
     let webhookEvent = await paymentRepository.getWebhookEvent(
       providerName,
       eventKey,
     );
 
-    // Persist the event once, handling concurrent duplicate deliveries.
+    // Persist once; concurrent deliveries may race on the unique key.
     if (!webhookEvent) {
       try {
         webhookEvent = await paymentRepository.createWebhookEvent({
@@ -91,7 +94,6 @@ export const createPaymentWebhookService = ({
       }
     }
 
-    // A completed event needs no further processing.
     if (webhookEvent.processedAt) {
       return {
         duplicate: true,
@@ -100,9 +102,19 @@ export const createPaymentWebhookService = ({
       };
     }
 
+    // Refund webhooks must be handled by the refund workflow.
+    // Leave them unprocessed until that workflow is implemented.
+    if (
+      webhook.providerRefundReference ||
+      webhook.eventType.toLowerCase().includes("refund")
+    ) {
+      throw new Error(
+        "Refund webhook received; refund processing is not configured",
+      );
+    }
+
     const providerReference = webhook.providerReference;
 
-    // Ignore events that cannot identify a payment.
     if (!providerReference) {
       await paymentRepository.markWebhookProcessed(webhookEvent.id);
 
@@ -115,21 +127,38 @@ export const createPaymentWebhookService = ({
       };
     }
 
+    // Unknown provider status is inconclusive; do not change payment state.
+    if (webhook.status === "UNKNOWN") {
+      await paymentRepository.markWebhookProcessed(webhookEvent.id);
+
+      return {
+        duplicate: false,
+        processed: true,
+        eventId: eventKey,
+        ignored: true,
+        reason: "Provider webhook status is unknown",
+      };
+    }
+
+    // The guard above excludes UNKNOWN. The mapper therefore returns
+    // a valid PaymentStatus and never requires nullable status handling.
+    const nextStatus = mapProviderStatusToPaymentStatus(webhook.status);
+
     return db.$transaction(async (tx) => {
       const repository = createPaymentRepository(tx);
       const outboxRepository = createOutboxRepository(tx);
 
-      // Lock the event to prevent concurrent processing.
-      const lockedWebhookEvent = await repository.getWebhookEventForUpdate(
+      // Serialize concurrent processing of this webhook event.
+      const lockedEvent = await repository.getWebhookEventForUpdate(
         providerName,
         eventKey,
       );
 
-      if (!lockedWebhookEvent) {
+      if (!lockedEvent) {
         throw new Error("Payment webhook event not found");
       }
 
-      if (lockedWebhookEvent.processedAt) {
+      if (lockedEvent.processedAt) {
         return {
           duplicate: true,
           processed: true,
@@ -137,91 +166,149 @@ export const createPaymentWebhookService = ({
         };
       }
 
-      // Find and lock the payment associated with this provider reference.
-      const attempt = await repository.getPaymentAttemptByProviderReference(
-        providerName,
-        providerReference,
-      );
+      const initialAttempt =
+        await repository.getPaymentAttemptByProviderReference(
+          providerName,
+          providerReference,
+        );
 
-      if (!attempt) {
+      if (!initialAttempt) {
         throw new Error(
           `Payment attempt not found for provider reference: ${providerReference}`,
         );
       }
 
-      const payment = await repository.getByIdForUpdate(attempt.paymentId);
+      // Lock the payment, then re-read the attempt to avoid using stale state.
+      const payment = await repository.getByIdForUpdate(
+        initialAttempt.paymentId,
+      );
 
       if (!payment) {
-        throw new Error(`Payment not found for payment attempt: ${attempt.id}`);
+        throw new Error(
+          `Payment not found for payment attempt: ${initialAttempt.id}`,
+        );
       }
 
-      // Reject mismatched payment details when the provider supplies them.
-      if (attempt.providerReference !== providerReference) {
+      const attempt = await repository.getPaymentAttemptById(
+        initialAttempt.id,
+      );
+
+      if (!attempt) {
+        throw new Error(
+          `Payment attempt not found: ${initialAttempt.id}`,
+        );
+      }
+
+      if (attempt.paymentId !== payment.id) {
+        throw new Error(
+          "Payment attempt does not belong to the locked payment",
+        );
+      }
+
+      if (
+        attempt.provider !== providerName ||
+        attempt.providerReference !== providerReference
+      ) {
         throw new Error(
           "Webhook provider reference does not match the payment attempt",
         );
       }
 
-      if (
-        webhook.amount !== undefined &&
-        webhook.amount !== payment.amount.toFixed(2)
-      ) {
-        throw new Error(
-          "Webhook payment amount does not match the stored payment",
+      if (webhook.amount !== undefined) {
+        let webhookAmount: Prisma.Decimal;
+
+        try {
+          webhookAmount = new Prisma.Decimal(webhook.amount);
+        } catch {
+          throw new Error("Webhook contains an invalid payment amount");
+        }
+
+        const expectedAmount = new Prisma.Decimal(
+          payment.amount.toString(),
         );
+
+        if (
+          !webhookAmount.isFinite() ||
+          expectedAmount.comparedTo(webhookAmount) !== 0
+        ) {
+          throw new Error(
+            "Webhook payment amount does not match the stored payment",
+          );
+        }
       }
 
       if (
         webhook.currency !== undefined &&
         webhook.currency.trim().toUpperCase() !==
-        payment.currency.trim().toUpperCase()
+          payment.currency.trim().toUpperCase()
       ) {
         throw new Error(
           "Webhook payment currency does not match the stored payment",
         );
       }
 
-      const nextStatus = mapProviderStatusToPaymentStatus(webhook.status);
-
       const now = new Date();
 
-      // Mark duplicate status updates processed without emitting another event.
+      // Repeated status notifications are idempotent.
       if (payment.status === nextStatus) {
-        await repository.markWebhookProcessed(lockedWebhookEvent.id, now);
+        await repository.markWebhookProcessed(lockedEvent.id, now);
 
         return {
           duplicate: false,
           processed: true,
           eventId: eventKey,
           paymentId: payment.id,
+          attemptId: attempt.id,
           status: payment.status,
+          changed: false,
+        };
+      }
+
+      // A terminal attempt cannot be reused to change payment state.
+      if (!isActiveAttempt(attempt.status)) {
+        await repository.markWebhookProcessed(lockedEvent.id, now);
+
+        return {
+          duplicate: false,
+          processed: true,
+          eventId: eventKey,
+          paymentId: payment.id,
+          attemptId: attempt.id,
+          status: payment.status,
+          changed: false,
+          ignored: true,
+          reason: "Payment attempt is already terminal",
         };
       }
 
       if (!canTransitionPaymentStatus(payment.status, nextStatus)) {
-        throw new Error(
-          `Invalid payment status transition: ${payment.status} -> ${nextStatus}`,
-        );
+        // A success notification after a conflicting state requires
+        // reconciliation instead of silently acknowledging the event.
+        if (nextStatus === PaymentStatus.SUCCESS) {
+          throw new Error(
+            `Provider reports success but payment is ${payment.status}; reconciliation is required`,
+          );
+        }
+
+        await repository.markWebhookProcessed(lockedEvent.id, now);
+
+        return {
+          duplicate: false,
+          processed: true,
+          eventId: eventKey,
+          paymentId: payment.id,
+          attemptId: attempt.id,
+          status: payment.status,
+          changed: false,
+          ignored: true,
+          reason: `Invalid transition: ${payment.status} -> ${nextStatus}`,
+        };
       }
 
-      // Prepare the payment status update.
       const paymentUpdate: Prisma.PaymentUpdateInput = {
         status: nextStatus,
       };
 
-      if (nextStatus === PaymentStatus.SUCCESS) {
-        paymentUpdate.paidAt = webhook.paidAt ?? now;
-        paymentUpdate.failedAt = null;
-        paymentUpdate.failureReason = null;
-      }
-
-      if (nextStatus === PaymentStatus.FAILED) {
-        paymentUpdate.failedAt = now;
-        paymentUpdate.failureReason =
-          webhook.failureReason ?? webhook.eventType;
-      }
-
-      // Keep the attempt status and provider verification data in sync.
       const attemptUpdate: Prisma.PaymentAttemptUpdateInput = {
         status: mapPaymentStatusToAttemptStatus(nextStatus),
         providerReference,
@@ -229,24 +316,38 @@ export const createPaymentWebhookService = ({
         lastVerifiedAt: now,
       };
 
-      if (isTerminalPaymentStatus(nextStatus)) {
-        attemptUpdate.completedAt = webhook.paidAt ?? now;
-      }
-
       if (nextStatus === PaymentStatus.SUCCESS) {
-        attemptUpdate.failureReason = null;
-      }
+        const paidAt = webhook.paidAt ?? now;
 
-      if (nextStatus === PaymentStatus.FAILED) {
-        attemptUpdate.failureReason =
-          webhook.failureReason ?? webhook.eventType;
+        paymentUpdate.paidAt = paidAt;
+        paymentUpdate.failedAt = null;
+        paymentUpdate.failureReason = null;
+
+        attemptUpdate.failureReason = null;
+        attemptUpdate.completedAt = paidAt;
+      } else if (isTerminalPaymentStatus(nextStatus)) {
+        const failureReason =
+          webhook.failureReason ??
+          `Provider reported ${webhook.status}`;
+
+        // failedAt is reserved for an actual FAILED status.
+        if (nextStatus === PaymentStatus.FAILED) {
+          paymentUpdate.failedAt = now;
+          paymentUpdate.failureReason = failureReason;
+        }
+
+        attemptUpdate.failureReason = failureReason;
+        attemptUpdate.completedAt = now;
       }
 
       await repository.updatePayment(payment.id, paymentUpdate);
 
-      await repository.updatePaymentAttempt(attempt.id, attemptUpdate);
+      await repository.updatePaymentAttempt(
+        attempt.id,
+        attemptUpdate,
+      );
 
-      // Store the domain event in the outbox within the same transaction.
+      // Persist the domain event atomically with the payment updates.
       const paymentEvent = paymentEventFactory.create({
         paymentId: payment.id,
         orderId: payment.orderId,
@@ -264,8 +365,7 @@ export const createPaymentWebhookService = ({
         repository: outboxRepository,
       });
 
-      // Complete the webhook only after all updates succeed.
-      await repository.markWebhookProcessed(lockedWebhookEvent.id, now);
+      await repository.markWebhookProcessed(lockedEvent.id, now);
 
       return {
         duplicate: false,
@@ -274,6 +374,7 @@ export const createPaymentWebhookService = ({
         paymentId: payment.id,
         attemptId: attempt.id,
         status: nextStatus,
+        changed: true,
       };
     });
   };
@@ -281,16 +382,8 @@ export const createPaymentWebhookService = ({
   return { handleWebhook };
 };
 
-// Convert provider statuses into internal payment statuses.
 const mapProviderStatusToPaymentStatus = (
-  status:
-    | "PENDING"
-    | "PROCESSING"
-    | "SUCCESS"
-    | "FAILED"
-    | "CANCELLED"
-    | "EXPIRED"
-    | "UNKNOWN",
+  status: Exclude<PaymentProviderStatus, "UNKNOWN">,
 ): PaymentStatus => {
   switch (status) {
     case "SUCCESS":
@@ -307,13 +400,10 @@ const mapProviderStatusToPaymentStatus = (
 
     case "PENDING":
     case "PROCESSING":
-    case "UNKNOWN":
-    default:
       return PaymentStatus.PROCESSING;
   }
 };
 
-// Map payment statuses to their corresponding attempt statuses.
 const mapPaymentStatusToAttemptStatus = (
   status: PaymentStatus,
 ): PaymentAttemptStatus => {
@@ -330,48 +420,40 @@ const mapPaymentStatusToAttemptStatus = (
     case PaymentStatus.EXPIRED:
       return PaymentAttemptStatus.EXPIRED;
 
-    case PaymentStatus.PROCESSING:
-    case PaymentStatus.PENDING:
     default:
       return PaymentAttemptStatus.PROCESSING;
   }
 };
 
-// Identify statuses that complete a payment attempt.
-const isTerminalPaymentStatus = (status: PaymentStatus): boolean => {
-  const terminalStatuses: PaymentStatus[] = [
-    PaymentStatus.SUCCESS,
-    PaymentStatus.FAILED,
-    PaymentStatus.CANCELLED,
-    PaymentStatus.EXPIRED,
-    PaymentStatus.REFUNDED,
-  ];
+const isActiveAttempt = (
+  status: PaymentAttemptStatus,
+): boolean =>
+  status === PaymentAttemptStatus.INITIATED ||
+  status === PaymentAttemptStatus.PROCESSING;
 
-  return terminalStatuses.includes(status);
-};
+const isTerminalPaymentStatus = (
+  status: PaymentStatus,
+): boolean =>
+  status === PaymentStatus.FAILED ||
+  status === PaymentStatus.CANCELLED ||
+  status === PaymentStatus.EXPIRED;
 
-// Build a deterministic fallback key when the provider has no event ID.
 const buildWebhookEventKey = (webhook: {
   eventType: string;
   providerReference?: string;
   providerRefundReference?: string;
   status: string;
-}) => {
-  return [
+}) =>
+  [
     webhook.eventType,
     webhook.providerReference ?? "",
     webhook.providerRefundReference ?? "",
     webhook.status,
   ].join(":");
-};
 
-// Detect duplicate event creation through Prisma's unique constraint.
-const isUniqueConstraintError = (error: unknown): boolean => {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  );
-};
+const isUniqueConstraintError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2002";
 
 export type PaymentWebhookService = ReturnType<
   typeof createPaymentWebhookService

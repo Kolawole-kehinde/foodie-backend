@@ -4,14 +4,12 @@ import { PaymentProviderError } from "../../../errors/payment-provider.error.js"
 import type { ListRefundsResult } from "../../../types/payment.types.js";
 import { createPaystackHttpHelper } from "../../helpers/paystack-http.helper.js";
 import { assertPaystackResponse } from "../../helpers/paystack-response.helper.js";
-
 import {
   fromSubunit,
   getRefundProviderReference,
   mapRefundStatus,
   normalizeProviderCurrency,
 } from "../paystack-mappers.js";
-
 import type {
   PaystackRefundListResponse,
   PaystackVerifyResponse,
@@ -29,13 +27,10 @@ export const createListRefundsOperation = ({
   const listRefunds = async (
     transactionReference: string,
   ): Promise<ListRefundsResult> => {
-    const transactionResponse =
-      await http.request<PaystackVerifyResponse>({
-        method: "GET",
-        url: `/transaction/verify/${encodeURIComponent(
-          transactionReference,
-        )}`,
-      });
+    const transactionResponse = await http.request<PaystackVerifyResponse>({
+      method: "GET",
+      url: `/transaction/verify/${encodeURIComponent(transactionReference)}`,
+    });
 
     const transactionData = assertPaystackResponse(
       transactionResponse.data,
@@ -44,10 +39,7 @@ export const createListRefundsOperation = ({
 
     const transactionId = transactionData.id;
 
-    if (
-      !Number.isSafeInteger(transactionId) ||
-      transactionId <= 0
-    ) {
+    if (!Number.isSafeInteger(transactionId) || transactionId <= 0) {
       throw new PaymentProviderError({
         provider: "PAYSTACK",
         code: "INVALID_RESPONSE",
@@ -60,15 +52,10 @@ export const createListRefundsOperation = ({
     const response = await http.request<PaystackRefundListResponse>({
       method: "GET",
       url: "/refund",
-      params: {
-        transaction: transactionId,
-      },
+      params: { transaction: transactionId },
     });
 
-    const data = assertPaystackResponse(
-      response.data,
-      "refund listing",
-    );
+    const data = assertPaystackResponse(response.data, "refund listing");
 
     if (!Array.isArray(data)) {
       throw new PaymentProviderError({
@@ -100,11 +87,11 @@ export const createListRefundsOperation = ({
           });
         }
 
-        const refundTransactionReference =
-          getRefundProviderReference(refund.transaction);
+        const refundTransactionReference = getRefundProviderReference(
+          refund.transaction,
+        );
 
         const status = mapRefundStatus(refund.status);
-
         const completedAt = refund.refunded_at
           ? new Date(refund.refunded_at)
           : undefined;
@@ -117,10 +104,9 @@ export const createListRefundsOperation = ({
           currency: normalizeProviderCurrency(refund.currency),
           status,
           providerStatus: refund.status,
+          merchantNote: refund.merchant_note ?? undefined,
           failureReason:
-            status === "FAILED"
-              ? (refund.reason ?? undefined)
-              : undefined,
+            status === "FAILED" ? refund.reason ?? undefined : undefined,
           completedAt:
             completedAt && !Number.isNaN(completedAt.getTime())
               ? completedAt

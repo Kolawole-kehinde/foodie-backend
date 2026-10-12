@@ -6,10 +6,15 @@ import {
   PrismaClient,
 } from "@prisma/client";
 
-import type { DatabaseClient } from "../../../database/prisma/types.js";
 import type { PaymentProviderClient } from "../providers/payment-provider.js";
-import { createPaymentRepository } from "../repositories/index.js";
-import type { PaymentRepository } from "../repositories/index.js";
+import { canTransitionPaymentStatus } from "../policies/payment-status-transition.policy.js";
+import {
+  createPaymentRepository,
+  type PaymentRepository,
+} from "../repositories/index.js";
+import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
+import type { OutboxService } from "../../outbox/services/outbox.service.js";
+import type { PaymentEventFactory } from "../events/payment-event.factory.js";
 
 type VerifyPaymentAttemptInput = {
   paymentId: string;
@@ -21,12 +26,50 @@ type VerifyPaymentAttemptDependencies = {
   db: PrismaClient;
   paymentRepository: PaymentRepository;
   provider: PaymentProviderClient;
+  outboxService: OutboxService;
+  paymentEventFactory: PaymentEventFactory;
+};
+
+const providerStatusToPaymentStatus = {
+  SUCCESS: PaymentStatus.SUCCESS,
+  PROCESSING: PaymentStatus.PROCESSING,
+  PENDING: PaymentStatus.PROCESSING,
+  FAILED: PaymentStatus.FAILED,
+  CANCELLED: PaymentStatus.CANCELLED,
+  EXPIRED: PaymentStatus.EXPIRED,
+} as const;
+
+const providerStatusToAttemptStatus = (
+  status: PaymentStatus,
+): PaymentAttemptStatus | null => {
+  switch (status) {
+    case PaymentStatus.SUCCESS:
+      return PaymentAttemptStatus.SUCCESS;
+
+    case PaymentStatus.FAILED:
+      return PaymentAttemptStatus.FAILED;
+
+    case PaymentStatus.CANCELLED:
+      return PaymentAttemptStatus.CANCELLED;
+
+    case PaymentStatus.EXPIRED:
+      return PaymentAttemptStatus.EXPIRED;
+
+    case PaymentStatus.PENDING:
+    case PaymentStatus.PROCESSING:
+      return PaymentAttemptStatus.PROCESSING;
+
+    default:
+      return null;
+  }
 };
 
 export const createVerifyPaymentAttemptHelper = ({
   db,
   paymentRepository,
   provider,
+  outboxService,
+  paymentEventFactory,
 }: VerifyPaymentAttemptDependencies) => {
   const verifyPaymentAttempt = async ({
     paymentId,
@@ -36,54 +79,17 @@ export const createVerifyPaymentAttemptHelper = ({
     const attempt =
       await paymentRepository.getPaymentAttemptById(attemptId);
 
-    if (!attempt) {
-      throw new Error("Payment attempt not found");
-    }
-
-    if (attempt.paymentId !== paymentId) {
-      throw new Error(
-        "Payment attempt does not belong to this payment",
-      );
+    if (!attempt || attempt.paymentId !== paymentId) {
+      throw new Error("Payment attempt not found for this payment");
     }
 
     if (attempt.providerReference !== providerReference) {
-      throw new Error(
-        "Payment attempt provider reference does not match",
-      );
+      throw new Error("Payment attempt provider reference does not match");
     }
 
-    // Provider errors propagate. A timeout or unknown reference
-    // is not, by itself, proof that the payment failed.
-    const result = await provider.verifyPayment({
-      providerReference,
-    });
+    const result = await provider.verifyPayment({ providerReference });
 
-    // Validate money before accepting provider-reported success.
-    if (result.status === "SUCCESS") {
-      const expectedAmount = new Prisma.Decimal(
-        attempt.amount.toString(),
-      );
-
-      const providerAmount = new Prisma.Decimal(result.amount);
-
-      if (expectedAmount.comparedTo(providerAmount) !== 0) {
-        throw new Error(
-          `Payment amount mismatch. Expected ${expectedAmount.toString()} but provider returned ${providerAmount.toString()}.`,
-        );
-      }
-
-      const expectedCurrency = attempt.currency.trim().toUpperCase();
-      const providerCurrency = result.currency.trim().toUpperCase();
-
-      if (expectedCurrency !== providerCurrency) {
-        throw new Error(
-          `Payment currency mismatch. Expected ${expectedCurrency} but provider returned ${providerCurrency}.`,
-        );
-      }
-    }
-
-    // UNKNOWN is not a definitive failure. Preserve the current
-    // database states and return the provider's result for review.
+    // An inconclusive response must not mutate local payment state.
     if (result.status === "UNKNOWN") {
       return {
         paymentId,
@@ -93,6 +99,7 @@ export const createVerifyPaymentAttemptHelper = ({
         amount: result.amount,
         currency: result.currency,
         status: result.status,
+        persistedStatus: null,
         providerStatus: result.providerStatus,
         paidAt: result.paidAt,
         failureReason: result.failureReason,
@@ -100,148 +107,176 @@ export const createVerifyPaymentAttemptHelper = ({
       };
     }
 
-    await db.$transaction(async (tx) => {
+    if (result.providerReference !== providerReference) {
+      throw new Error(
+        "Verified payment provider reference does not match",
+      );
+    }
+
+    // Validate financial details before accepting provider success.
+    if (result.status === "SUCCESS") {
+      const expectedAmount = new Prisma.Decimal(attempt.amount.toString());
+      const providerAmount = new Prisma.Decimal(result.amount);
+
+      if (
+        !providerAmount.isFinite() ||
+        expectedAmount.comparedTo(providerAmount) !== 0
+      ) {
+        throw new Error("Verified payment amount does not match");
+      }
+
+      if (
+        attempt.currency.trim().toUpperCase() !==
+        result.currency.trim().toUpperCase()
+      ) {
+        throw new Error("Verified payment currency does not match");
+      }
+    }
+
+    const outcome = await db.$transaction(async (tx) => {
       const repository = createPaymentRepository(tx);
+      const outboxRepository = createOutboxRepository(tx);
 
-      // Serialize changes to the payment aggregate.
-      await repository.getByIdForUpdate(paymentId);
+      const payment = await repository.getByIdForUpdate(paymentId);
 
-      const [payment, currentAttempt] = await Promise.all([
-        repository.getById(paymentId),
-        repository.getPaymentAttemptById(attemptId),
-      ]);
-
-      if (!payment || !currentAttempt) {
-        throw new Error("Payment or payment attempt not found");
+      if (!payment) {
+        throw new Error("Payment not found");
       }
 
-      if (currentAttempt.paymentId !== paymentId) {
-        throw new Error(
-          "Payment attempt does not belong to this payment",
-        );
+      const currentAttempt =
+        await repository.getPaymentAttemptById(attemptId);
+
+      if (
+        !currentAttempt ||
+        currentAttempt.paymentId !== paymentId ||
+        currentAttempt.providerReference !== providerReference
+      ) {
+        throw new Error("Payment attempt changed during verification");
       }
 
-      if (currentAttempt.providerReference !== providerReference) {
-        throw new Error(
-          "Payment attempt provider reference changed during verification",
-        );
-      }
-
-      // Never let a stale verification downgrade a successful
-      // payment or a completed refund.
+      // Do not overwrite a payment already succeeded or refunded.
       if (
         payment.status === PaymentStatus.SUCCESS ||
         payment.status === PaymentStatus.REFUNDED ||
-        payment.status === PaymentStatus.PARTIALLY_REFUNDED ||
-        currentAttempt.status === PaymentAttemptStatus.SUCCESS
+        payment.status === PaymentStatus.PARTIALLY_REFUNDED
       ) {
-        return;
+        return {
+          status: payment.status,
+          changed: false,
+        };
       }
 
-      const commonAttemptData = {
+      // Terminal attempts cannot be revived by a later verification.
+      if (
+        currentAttempt.status !== PaymentAttemptStatus.INITIATED &&
+        currentAttempt.status !== PaymentAttemptStatus.PROCESSING
+      ) {
+        return {
+          status: payment.status,
+          changed: false,
+        };
+      }
+
+      if (
+        payment.status !== PaymentStatus.PENDING &&
+        payment.status !== PaymentStatus.PROCESSING
+      ) {
+        if (result.status === "SUCCESS") {
+          throw new Error(
+            `Provider reports success but payment is ${payment.status}; reconciliation is required`,
+          );
+        }
+
+        return {
+          status: payment.status,
+          changed: false,
+        };
+      }
+if (result.status === "UNKNOWN") {
+  throw new Error(
+    "Unexpected UNKNOWN provider status during verification",
+  );
+}
+
+const nextStatus = providerStatusToPaymentStatus[result.status];
+
+      if (!canTransitionPaymentStatus(payment.status, nextStatus)) {
+        throw new Error(
+          `Invalid payment status transition: ${payment.status} -> ${nextStatus}`,
+        );
+      }
+
+      const nextAttemptStatus =
+        providerStatusToAttemptStatus(nextStatus);
+
+      if (!nextAttemptStatus) {
+        throw new Error(
+          `Unsupported payment attempt status for ${nextStatus}`,
+        );
+      }
+
+      const now = new Date();
+
+      const attemptUpdate: Prisma.PaymentAttemptUpdateInput = {
         providerStatus: result.providerStatus,
-        providerReference: result.providerReference,
+        lastVerifiedAt: now,
+        status: nextAttemptStatus,
       };
 
-      switch (result.status) {
-        case "SUCCESS": {
-          await repository.updatePaymentAttempt(attemptId, {
-            ...commonAttemptData,
-            status: PaymentAttemptStatus.SUCCESS,
-            failureReason: null,
-          });
+      const paymentUpdate: Prisma.PaymentUpdateInput = {
+        status: nextStatus,
+      };
 
-          await repository.updatePayment(paymentId, {
-            status: PaymentStatus.SUCCESS,
-            failureReason: null,
-            failedAt: null,
-          });
+      if (nextStatus === PaymentStatus.SUCCESS) {
+        const paidAt = result.paidAt ?? now;
 
-          break;
-        }
+        paymentUpdate.paidAt = paidAt;
+        paymentUpdate.failedAt = null;
+        paymentUpdate.failureReason = null;
 
-        case "PROCESSING": {
-          // Do not revive a payment that has already been marked
-          // definitively failed, cancelled, or expired.
-          if (
-            payment.status === PaymentStatus.PENDING ||
-            payment.status === PaymentStatus.PROCESSING
-          ) {
-            await repository.updatePaymentAttempt(attemptId, {
-              ...commonAttemptData,
-              status: PaymentAttemptStatus.PROCESSING,
-            });
+        attemptUpdate.failureReason = null;
+        attemptUpdate.completedAt = paidAt;
+      } else if (
+        nextStatus === PaymentStatus.FAILED ||
+        nextStatus === PaymentStatus.CANCELLED ||
+        nextStatus === PaymentStatus.EXPIRED
+      ) {
+        const reason =
+          result.failureReason ?? `Provider reported ${result.status}`;
 
-            if (payment.status === PaymentStatus.PENDING) {
-              await repository.updatePayment(paymentId, {
-                status: PaymentStatus.PROCESSING,
-              });
-            }
-          }
+        attemptUpdate.failureReason = reason;
+        attemptUpdate.completedAt = now;
 
-          break;
-        }
-
-        case "FAILED": {
-          if (
-            payment.status === PaymentStatus.PENDING ||
-            payment.status === PaymentStatus.PROCESSING
-          ) {
-            await repository.updatePaymentAttempt(attemptId, {
-              ...commonAttemptData,
-              status: PaymentAttemptStatus.FAILED,
-              failureReason: result.failureReason ?? null,
-            });
-
-            await repository.updatePayment(paymentId, {
-              status: PaymentStatus.FAILED,
-              failureReason: result.failureReason ?? null,
-            });
-          }
-
-          break;
-        }
-
-        case "CANCELLED": {
-          if (
-            payment.status === PaymentStatus.PENDING ||
-            payment.status === PaymentStatus.PROCESSING
-          ) {
-            await repository.updatePaymentAttempt(attemptId, {
-              ...commonAttemptData,
-              status: PaymentAttemptStatus.CANCELLED,
-              failureReason: result.failureReason ?? null,
-            });
-
-            await repository.updatePayment(paymentId, {
-              status: PaymentStatus.CANCELLED,
-              failureReason: result.failureReason ?? null,
-            });
-          }
-
-          break;
-        }
-
-        case "EXPIRED": {
-          if (
-            payment.status === PaymentStatus.PENDING ||
-            payment.status === PaymentStatus.PROCESSING
-          ) {
-            await repository.updatePaymentAttempt(attemptId, {
-              ...commonAttemptData,
-              status: PaymentAttemptStatus.EXPIRED,
-              failureReason: result.failureReason ?? null,
-            });
-
-            await repository.updatePayment(paymentId, {
-              status: PaymentStatus.EXPIRED,
-              failureReason: result.failureReason ?? null,
-            });
-          }
-
-          break;
+        if (nextStatus === PaymentStatus.FAILED) {
+          paymentUpdate.failedAt = now;
+          paymentUpdate.failureReason = reason;
         }
       }
+
+      await repository.updatePayment(paymentId, paymentUpdate);
+      await repository.updatePaymentAttempt(attemptId, attemptUpdate);
+
+      const event = paymentEventFactory.create({
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        userId: payment.userId,
+        provider: currentAttempt.provider,
+        providerReference: result.providerReference,
+        amount: payment.amount.toFixed(2),
+        currency: payment.currency,
+        status: nextStatus,
+        occurredAt: now,
+      });
+
+      await outboxService.createEvent({
+        event,
+        repository: outboxRepository,
+      });
+
+      return {
+        status: nextStatus,
+        changed: true,
+      };
     });
 
     return {
@@ -252,6 +287,8 @@ export const createVerifyPaymentAttemptHelper = ({
       amount: result.amount,
       currency: result.currency,
       status: result.status,
+      persistedStatus: outcome.status,
+      changed: outcome.changed,
       providerStatus: result.providerStatus,
       paidAt: result.paidAt,
       failureReason: result.failureReason,
@@ -259,9 +296,7 @@ export const createVerifyPaymentAttemptHelper = ({
     };
   };
 
-  return {
-    verifyPaymentAttempt,
-  };
+  return { verifyPaymentAttempt };
 };
 
 export type VerifyPaymentAttemptHelper = ReturnType<
