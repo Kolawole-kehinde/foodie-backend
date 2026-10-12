@@ -1,44 +1,21 @@
-import crypto from "node:crypto";
-
-import { PaymentProvider } from "@prisma/client";
 
 import { createAxiosClient } from "../../../../infrastructure/axios/axios.client.js";
-import { PaymentProviderError } from "../../errors/payment-provider.error.js";
-import type {
-
-  VerifyWebhookInput,
-  VerifyWebhookResult,
-} from "../../types/payment.types.js";
-
-import {
-  fromSubunit,
-  getRefundProviderReference,
-  getResourceType,
-  getStringMetadata,
-  mapPaymentStatus,
-  mapRefundStatus,
-  normalizeCurrency,
-  toSubunit,
-} from "./paystack-mappers.js";
-
-import type {
-  PaystackRefundListResponse,
-  PaystackRefundResponse,
-  PaystackVerifyResponse,
-} from "./paystack.types.js";
 import type { PaymentProviderClient } from "../payment-provider.js";
 import { createPaystackHttpHelper } from "../helpers/paystack-http.helper.js";
-import { assertPaystackResponse } from "../helpers/paystack-response.helper.js";
+import { createInitializePaymentOperation } from "./operations/initialize-payment.operation.js";
+import { createVerifyPaymentOperation } from "./operations/verify-payment.operation.js";
+import { createRefundPaymentOperation } from "./operations/refund-payment.operation.js";
+import { createListRefundsOperation } from "./operations/list-refunds.operation.js";
+import { createVerifyRefundOperation } from "./operations/verify-refund.operation.js";
+import { createVerifyWebhookOperation } from "./operations/verify-webhook.operation.js";
 
 type PaystackProviderDependencies = {
   secretKey: string;
   baseUrl: string;
 };
 
-export const createPaystackProvider = ({
-  secretKey,
-  baseUrl,
-}: PaystackProviderDependencies): PaymentProviderClient => {
+export const createPaystackProvider = ({ secretKey, baseUrl}: PaystackProviderDependencies): PaymentProviderClient => {
+  
   const client = createAxiosClient({
     baseUrl,
     headers: {
@@ -48,134 +25,12 @@ export const createPaystackProvider = ({
 
   const http = createPaystackHttpHelper(client);
 
-
-
-  const verifyWebhook = async (
-    input: VerifyWebhookInput,
-  ): Promise<VerifyWebhookResult> => {
-    const signature = input.headers["x-paystack-signature"];
-
-    if (!signature) {
-      throw new PaymentProviderError({
-        provider: "PAYSTACK",
-        code: "UNAUTHORIZED",
-        message: "Missing Paystack webhook signature",
-        retryable: false,
-        uncertain: false,
-      });
-    }
-
-    const expectedSignature = crypto
-      .createHmac("sha512", secretKey)
-      .update(input.rawBody)
-      .digest("hex");
-
-    const provided = Buffer.from(signature, "utf8");
-    const expected = Buffer.from(expectedSignature, "utf8");
-
-    if (
-      provided.length !== expected.length ||
-      !crypto.timingSafeEqual(provided, expected)
-    ) {
-      throw new PaymentProviderError({
-        provider: "PAYSTACK",
-        code: "UNAUTHORIZED",
-        message: "Invalid Paystack webhook signature",
-        retryable: false,
-        uncertain: false,
-      });
-    }
-
-    let payload: Record<string, unknown>;
-
-    try {
-      const parsed: unknown = JSON.parse(input.rawBody.toString("utf8"));
-
-      if (
-        typeof parsed !== "object" ||
-        parsed === null ||
-        Array.isArray(parsed)
-      ) {
-        throw new Error("Invalid webhook payload");
-      }
-
-      payload = parsed as Record<string, unknown>;
-    } catch (error) {
-      throw new PaymentProviderError({
-        provider: "PAYSTACK",
-        code: "INVALID_RESPONSE",
-        message: "Invalid Paystack webhook payload",
-        retryable: false,
-        uncertain: false,
-        cause: error,
-      });
-    }
-
-    const eventType =
-      typeof payload.event === "string" ? payload.event : undefined;
-
-    if (!eventType) {
-      throw new PaymentProviderError({
-        provider: "PAYSTACK",
-        code: "INVALID_RESPONSE",
-        message: "Paystack webhook event is missing",
-        retryable: false,
-        uncertain: false,
-      });
-    }
-
-    const data =
-      typeof payload.data === "object" &&
-      payload.data !== null &&
-      !Array.isArray(payload.data)
-        ? (payload.data as Record<string, unknown>)
-        : {};
-
-    const resourceType = getResourceType(eventType);
-
-    const providerReference =
-      typeof data.reference === "string" ? data.reference : undefined;
-
-    const providerRefundReference =
-      resourceType === "REFUND" && typeof data.id === "number"
-        ? String(data.id)
-        : undefined;
-
-    const amount =
-      typeof data.amount === "number" ? fromSubunit(data.amount) : undefined;
-
-    const currency =
-      typeof data.currency === "string"
-        ? normalizeCurrency(data.currency)
-        : undefined;
-
-    const providerStatus =
-      typeof data.status === "string" ? data.status : undefined;
-
-    const paidAt =
-      typeof data.paid_at === "string" ? new Date(data.paid_at) : undefined;
-
-    const metadata = getStringMetadata(data.metadata);
-
-    return {
-      provider: PaymentProvider.PAYSTACK,
-      resourceType,
-      eventType,
-      providerReference,
-      providerRefundReference,
-      amount,
-      currency,
-      status: providerStatus ? mapPaymentStatus(providerStatus) : "UNKNOWN",
-      providerStatus,
-      paidAt,
-      metadata,
-      payload,
-    };
-  };
-
   return {
-    verifyWebhook,
-  
-    
+    initializePayment: createInitializePaymentOperation({ http }),
+    verifyPayment: createVerifyPaymentOperation({ http }),
+    refundPayment: createRefundPaymentOperation({ http }),
+    listRefunds: createListRefundsOperation({ http }),
+    verifyRefund: createVerifyRefundOperation({ http }),
+    verifyWebhook: createVerifyWebhookOperation({ secretKey }),
   };
 };
