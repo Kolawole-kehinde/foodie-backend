@@ -1,16 +1,20 @@
+
 import { createServer } from "node:http";
 import { logger } from "../config/logger.js";
 import { env } from "../config/env.js";
 import { createApp } from "./app.js";
 import { prisma } from "../database/prisma/client.js";
 import { connectRedis, redis } from "../database/redis/client.js";
-import { notification, orderPaymentConsumer, outbox } from "./container.js";
+import {
+  notification,
+  orderPaymentConsumer,
+  outbox,
+} from "./container.js";
 
 async function bootstrap() {
   try {
     logger.info("Starting application...");
 
-    // Connect to Redis
     await connectRedis();
 
     await outbox.eventPublisher.connect();
@@ -20,13 +24,13 @@ async function bootstrap() {
 
     await notification.notificationConsumer.connect();
     await notification.notificationConsumer.start();
-    // Create Express application
-    const app = createApp();
 
-    // Create HTTP server
+    // Start background email delivery polling.
+    notification.notificationDeliveryRunner.start();
+
+    const app = createApp();
     const server = createServer(app);
 
-    // Start server
     server.listen(env.app.PORT, () => {
       logger.info(
         {
@@ -37,39 +41,50 @@ async function bootstrap() {
       );
     });
 
-    // Graceful shutdown
+    let shuttingDown = false;
+
     const shutdown = async (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+
       logger.info({ signal }, "Shutdown signal received");
 
-      server.close(async () => {
-        try {
-          await notification.notificationConsumer.disconnect();
-          await orderPaymentConsumer.disconnect();
-          await outbox.eventPublisher.disconnect();
-          await prisma.$disconnect();
-          await redis.quit();
+      try {
+        // Stop accepting new HTTP connections.
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
 
-          logger.info("Server shut down successfully");
+        // Stop polling and wait for the active delivery batch.
+        await notification.notificationDeliveryRunner.stop();
 
-          process.exit(0);
-        } catch (error) {
-          logger.error({ err: error }, "Error during shutdown");
+        await notification.notificationConsumer.disconnect();
+        await orderPaymentConsumer.disconnect();
+        await outbox.eventPublisher.disconnect();
 
-          process.exit(1);
-        }
-      });
+        await prisma.$disconnect();
+        await redis.quit();
+
+        logger.info("Server shut down successfully");
+        process.exit(0);
+      } catch (error) {
+        logger.error({ err: error }, "Error during shutdown");
+        process.exit(1);
+      }
     };
 
-    process.on("SIGINT", async () => {
-      await shutdown("SIGINT");
+    process.on("SIGINT", () => {
+      void shutdown("SIGINT");
     });
 
-    process.on("SIGTERM", async () => {
-      await shutdown("SIGTERM");
+    process.on("SIGTERM", () => {
+      void shutdown("SIGTERM");
     });
   } catch (error) {
     logger.fatal({ err: error }, "Application failed to start");
-
     process.exit(1);
   }
 }

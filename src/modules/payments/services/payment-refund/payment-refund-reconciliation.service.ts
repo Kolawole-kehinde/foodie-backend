@@ -38,10 +38,50 @@ export const createPaymentRefundReconciliationService = ({
   paymentEventFactory,
 }: PaymentRefundReconciliationServiceDependencies) => {
   const reconcileRefund = async ({ refundId }: ReconcileRefundInput) => {
-    const refund = await paymentRepository.getRefundById(refundId);
+    let refund = await paymentRepository.getRefundById(refundId);
 
     if (!refund) {
       throw new Error("Refund not found");
+    }
+
+    if (
+      refund.status !== RefundStatus.PENDING &&
+      refund.status !== RefundStatus.PROCESSING
+    ) {
+      return refund;
+    }
+
+    // Atomically claim a pending refund for reconciliation.
+    if (refund.status === RefundStatus.PENDING) {
+      refund = await db.$transaction(async (tx) => {
+        const transactionRepository = createPaymentRepository(tx);
+        const currentRefund =
+          await transactionRepository.getRefundById(refundId);
+
+        if (!currentRefund) {
+          throw new Error("Refund not found during reconciliation");
+        }
+
+        // Another worker may have changed the status while we waited.
+        if (currentRefund.status !== RefundStatus.PENDING) {
+          return currentRefund;
+        }
+
+        if (
+          !canTransitionRefundStatus(
+            currentRefund.status,
+            RefundStatus.PROCESSING,
+          )
+        ) {
+          throw new Error(
+            `Invalid refund status transition: ${currentRefund.status} -> ${RefundStatus.PROCESSING}`,
+          );
+        }
+
+        return transactionRepository.updateRefund(refundId, {
+          status: RefundStatus.PROCESSING,
+        });
+      });
     }
 
     if (refund.status !== RefundStatus.PROCESSING) {
@@ -93,9 +133,8 @@ export const createPaymentRefundReconciliationService = ({
       // Save the reference before verification so later runs can use it directly.
       await db.$transaction(async (tx) => {
         const transactionRepository = createPaymentRepository(tx);
-        const refundRecord = await transactionRepository.getRefundById(
-          refund.id,
-        );
+        const refundRecord =
+          await transactionRepository.getRefundById(refund.id);
 
         if (!refundRecord) {
           throw new Error(
@@ -137,13 +176,12 @@ export const createPaymentRefundReconciliationService = ({
 
     const finalStatus = mapProviderRefundStatus(result.status);
 
-    // Keep pending refunds processing until the provider reports a terminal state.
+    // The provider has not reported a terminal result yet.
     if (finalStatus === RefundStatus.PROCESSING) {
       return db.$transaction(async (tx) => {
         const transactionRepository = createPaymentRepository(tx);
-        const refundRecord = await transactionRepository.getRefundById(
-          refund.id,
-        );
+        const refundRecord =
+          await transactionRepository.getRefundById(refund.id);
 
         if (!refundRecord) {
           throw new Error("Refund not found during reconciliation");
@@ -184,7 +222,8 @@ export const createPaymentRefundReconciliationService = ({
         throw new Error("Payment not found during refund reconciliation");
       }
 
-      const refundRecord = await transactionRepository.getRefundById(refund.id);
+      const refundRecord =
+        await transactionRepository.getRefundById(refund.id);
 
       if (!refundRecord) {
         throw new Error("Refund not found during refund reconciliation");
@@ -229,9 +268,8 @@ export const createPaymentRefundReconciliationService = ({
       );
 
       if (finalStatus === RefundStatus.SUCCESS) {
-        const totalRefunded = await transactionRepository.getRefundedAmount(
-          payment.id,
-        );
+        const totalRefunded =
+          await transactionRepository.getRefundedAmount(payment.id);
 
         const isFullRefund =
           Number(totalRefunded) >= Number(lockedPayment.amount);

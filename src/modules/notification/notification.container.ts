@@ -1,4 +1,6 @@
+
 import type { RequestHandler } from "express";
+import type { PrismaClient } from "@prisma/client";
 import { createNotificationRepository } from "./repositories/notification.repository.js";
 import { createNotificationService } from "./services/notification.service.js";
 import { createNotificationController } from "./controllers/notification.controller.js";
@@ -6,13 +8,12 @@ import { createNotificationRoutes } from "./routes/notification.routes.js";
 import { createPaymentSucceededNotificationHandler } from "./handlers/payment-succeeded-notification.handler.js";
 import { createNotificationConsumer } from "./consumers/notification.consumer.js";
 import { createNotificationDeliveryWorker } from "./workers/notification-delivery.worker.js";
-import type { PrismaClient } from "@prisma/client";
+import { createNotificationDeliveryRunner } from "./workers/notification-delivery.runner.js";
 
 type NotificationDependencies = {
   db: PrismaClient;
   authenticate: RequestHandler;
 };
-
 
 export const createNotificationDependencies = ({
   db,
@@ -20,10 +21,11 @@ export const createNotificationDependencies = ({
 }: NotificationDependencies) => {
   const notificationRepository = createNotificationRepository(db);
 
-const notificationService = createNotificationService({
-  db,
-  notificationRepository,
-});
+  const notificationService = createNotificationService({
+    db,
+    notificationRepository,
+  });
+
   const notificationController = createNotificationController({
     notificationService,
   });
@@ -34,17 +36,24 @@ const notificationService = createNotificationService({
   });
 
   const paymentSucceededNotificationHandler =
-  createPaymentSucceededNotificationHandler({
-    notificationService,
+    createPaymentSucceededNotificationHandler({
+      notificationService,
+    });
+
+  const notificationConsumer = createNotificationConsumer({
+    db,
+    handler: paymentSucceededNotificationHandler,
   });
 
-const notificationConsumer = createNotificationConsumer({
-  db,
-  handler: paymentSucceededNotificationHandler,
-});
+  const notificationDeliveryWorker =
+    createNotificationDeliveryWorker({ db });
 
-const notificationDeliveryWorker =
-  createNotificationDeliveryWorker({ db });
+  const notificationDeliveryRunner =
+    createNotificationDeliveryRunner({
+      worker: notificationDeliveryWorker,
+      pollIntervalMs: 5_000,
+      batchSize: 20,
+    });
 
   return {
     notificationRepository,
@@ -53,6 +62,7 @@ const notificationDeliveryWorker =
     notificationRoutes,
     paymentSucceededNotificationHandler,
     notificationConsumer,
-    notificationDeliveryWorker
+    notificationDeliveryWorker,
+    notificationDeliveryRunner,
   };
 };

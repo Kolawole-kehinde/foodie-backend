@@ -100,7 +100,12 @@ export const createPaymentRefundRepository = (
   }: GetRefundsForReconciliationInput) => {
     return db.paymentRefund.findMany({
       where: {
-        status: RefundStatus.PROCESSING,
+        status: {
+          in: [
+            RefundStatus.PENDING,
+            RefundStatus.PROCESSING,
+          ],
+        },
         updatedAt: {
           lt: staleBefore,
         },
