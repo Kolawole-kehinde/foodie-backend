@@ -5,8 +5,7 @@ import { PaymentProvider } from "@prisma/client";
 import { createAxiosClient } from "../../../../infrastructure/axios/axios.client.js";
 import { PaymentProviderError } from "../../errors/payment-provider.error.js";
 import type {
-  VerifyRefundInput,
-  VerifyRefundResult,
+
   VerifyWebhookInput,
   VerifyWebhookResult,
 } from "../../types/payment.types.js";
@@ -50,69 +49,6 @@ export const createPaystackProvider = ({
   const http = createPaystackHttpHelper(client);
 
 
-
-  const verifyRefund = async (
-  input: VerifyRefundInput,
-): Promise<VerifyRefundResult> => {
-  const refundReference = encodeURIComponent(
-    input.providerRefundReference,
-  );
-
-  const response = await http.request<PaystackRefundResponse>({
-    method: "GET",
-    url: `/refund/${refundReference}`,
-  });
-
-  const data = assertPaystackResponse(
-    response.data,
-    "refund verification",
-  );
-
-  const normalizedStatus = data.status.trim().toLowerCase();
-
-  let status: VerifyRefundResult["status"];
-
-  switch (normalizedStatus) {
-    case "processed":
-      status = "SUCCESS";
-      break;
-
-    case "pending":
-    case "processing":
-    case "needs-attention":
-      status = "PROCESSING";
-      break;
-
-    case "failed":
-    case "reversed":
-      status = "FAILED";
-      break;
-
-    default:
-      status = "UNKNOWN";
-  }
-
-  return {
-    provider: PaymentProvider.PAYSTACK,
-    providerRefundReference: String(data.id),
-    amount: fromSubunit(data.amount),
-    currency: normalizeCurrency(data.currency),
-    status,
-    providerStatus: data.status,
-    failureReason:
-      status === "FAILED"
-        ? (data.reason ?? undefined)
-        : undefined,
-    completedAt: data.refunded_at
-      ? new Date(data.refunded_at)
-      : undefined,
-    metadata: {
-      transactionReference: getRefundProviderReference(
-        data.transaction,
-      ),
-    },
-  };
-};
 
   const verifyWebhook = async (
     input: VerifyWebhookInput,
@@ -239,7 +175,7 @@ export const createPaystackProvider = ({
 
   return {
     verifyWebhook,
-    verifyRefund,
+  
     
   };
 };
