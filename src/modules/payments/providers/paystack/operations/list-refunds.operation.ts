@@ -1,10 +1,21 @@
 
 import { PaymentProvider } from "@prisma/client";
-import type { ListRefundsResult,} from "../../../types/payment.types.js";
+import { PaymentProviderError } from "../../../errors/payment-provider.error.js";
+import type { ListRefundsResult } from "../../../types/payment.types.js";
 import { createPaystackHttpHelper } from "../../helpers/paystack-http.helper.js";
 import { assertPaystackResponse } from "../../helpers/paystack-response.helper.js";
-import { fromSubunit, getRefundProviderReference, mapRefundStatus, normalizeCurrency,} from "../paystack-mappers.js";
-import type { PaystackRefundListResponse, PaystackVerifyResponse,} from "../paystack.types.js";
+
+import {
+  fromSubunit,
+  getRefundProviderReference,
+  mapRefundStatus,
+  normalizeProviderCurrency,
+} from "../paystack-mappers.js";
+
+import type {
+  PaystackRefundListResponse,
+  PaystackVerifyResponse,
+} from "../paystack.types.js";
 
 type PaystackHttp = ReturnType<typeof createPaystackHttpHelper>;
 
@@ -12,11 +23,14 @@ type ListRefundsOperationDependencies = {
   http: PaystackHttp;
 };
 
-export const createListRefundsOperation = ({ http}: ListRefundsOperationDependencies) => {
-
-  const listRefunds = async ( transactionReference: string): Promise<ListRefundsResult> => {
-    // Resolve the provider reference to Paystack's transaction ID.
-    const transactionResponse = await http.request<PaystackVerifyResponse>({
+export const createListRefundsOperation = ({
+  http,
+}: ListRefundsOperationDependencies) => {
+  const listRefunds = async (
+    transactionReference: string,
+  ): Promise<ListRefundsResult> => {
+    const transactionResponse =
+      await http.request<PaystackVerifyResponse>({
         method: "GET",
         url: `/transaction/verify/${encodeURIComponent(
           transactionReference,
@@ -31,14 +45,18 @@ export const createListRefundsOperation = ({ http}: ListRefundsOperationDependen
     const transactionId = transactionData.id;
 
     if (
-      typeof transactionId !== "number" ||
       !Number.isSafeInteger(transactionId) ||
       transactionId <= 0
     ) {
-      throw new Error("Paystack transaction ID is missing or invalid");
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "INVALID_RESPONSE",
+        message: "Paystack transaction ID is missing or invalid",
+        retryable: false,
+        uncertain: true,
+      });
     }
 
-    // Fetch refunds using the numeric transaction ID.
     const response = await http.request<PaystackRefundListResponse>({
       method: "GET",
       url: "/refund",
@@ -52,29 +70,63 @@ export const createListRefundsOperation = ({ http}: ListRefundsOperationDependen
       "refund listing",
     );
 
+    if (!Array.isArray(data)) {
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "INVALID_RESPONSE",
+        message: "Paystack returned an invalid refund list",
+        retryable: false,
+        uncertain: true,
+      });
+    }
+
     return {
       provider: PaymentProvider.PAYSTACK,
       refunds: data.map((refund) => {
-        const transactionReference = getRefundProviderReference(
-          refund.transaction,
-        );
+        if (
+          !Number.isSafeInteger(refund.id) ||
+          refund.id <= 0 ||
+          !Number.isSafeInteger(refund.amount) ||
+          refund.amount < 0 ||
+          typeof refund.currency !== "string" ||
+          typeof refund.status !== "string"
+        ) {
+          throw new PaymentProviderError({
+            provider: "PAYSTACK",
+            code: "INVALID_RESPONSE",
+            message: "Paystack returned an invalid refund record",
+            retryable: false,
+            uncertain: true,
+          });
+        }
+
+        const refundTransactionReference =
+          getRefundProviderReference(refund.transaction);
+
+        const status = mapRefundStatus(refund.status);
+
+        const completedAt = refund.refunded_at
+          ? new Date(refund.refunded_at)
+          : undefined;
 
         return {
+          provider: PaymentProvider.PAYSTACK,
           providerRefundReference: String(refund.id),
-          providerReference: transactionReference,
+          providerReference: refundTransactionReference,
           amount: fromSubunit(refund.amount),
-          currency: normalizeCurrency(refund.currency),
-          status: mapRefundStatus(refund.status),
+          currency: normalizeProviderCurrency(refund.currency),
+          status,
           providerStatus: refund.status,
           failureReason:
-            refund.status.trim().toLowerCase() === "failed"
+            status === "FAILED"
               ? (refund.reason ?? undefined)
               : undefined,
-          completedAt: refund.refunded_at
-            ? new Date(refund.refunded_at)
-            : undefined,
+          completedAt:
+            completedAt && !Number.isNaN(completedAt.getTime())
+              ? completedAt
+              : undefined,
           metadata: {
-            transactionReference,
+            transactionReference: refundTransactionReference,
             transactionId,
           },
         };

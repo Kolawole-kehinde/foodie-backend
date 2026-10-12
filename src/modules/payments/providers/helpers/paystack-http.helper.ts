@@ -1,5 +1,4 @@
 import type { AxiosRequestConfig, AxiosResponse } from "axios";
-
 import type { AxiosClient } from "../../../../infrastructure/axios/axios.client.js";
 import { normalizePaystackError } from "./paystack-error.helper.js";
 
@@ -14,7 +13,5 @@ export const createPaystackHttpHelper = (client: AxiosClient) => {
     }
   };
 
-  return {
-    request,
-  };
+  return { request };
 };

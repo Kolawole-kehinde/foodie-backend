@@ -1,30 +1,50 @@
 
 import crypto from "node:crypto";
 import { PaymentProvider } from "@prisma/client";
+
 import { PaymentProviderError } from "../../../errors/payment-provider.error.js";
-import type { VerifyWebhookInput, VerifyWebhookResult,} from "../../../types/payment.types.js";
-import { fromSubunit, getResourceType, getStringMetadata, mapPaymentStatus, normalizeCurrency,} from "../paystack-mappers.js";
+import type {
+  VerifyWebhookInput,
+  VerifyWebhookResult,
+} from "../../../types/payment.types.js";
+
+import {
+  fromSubunit,
+  getRefundProviderReference,
+  getResourceType,
+  getStringMetadata,
+  mapPaymentStatus,
+  mapRefundStatus,
+  normalizeProviderCurrency,
+} from "../paystack-mappers.js";
 
 type VerifyWebhookOperationDependencies = {
   secretKey: string;
 };
 
-const isRecord = ( value: unknown): value is Record<string, unknown> =>
+const isRecord = (
+  value: unknown,
+): value is Record<string, unknown> =>
   typeof value === "object" &&
   value !== null &&
   !Array.isArray(value);
 
-
-export const createVerifyWebhookOperation = ({ secretKey}: VerifyWebhookOperationDependencies) => {
-
-  const verifyWebhook = async ( input: VerifyWebhookInput): Promise<VerifyWebhookResult> => {
+export const createVerifyWebhookOperation = ({
+  secretKey,
+}: VerifyWebhookOperationDependencies) => {
+  const verifyWebhook = async (
+    input: VerifyWebhookInput,
+  ): Promise<VerifyWebhookResult> => {
     const signature = input.headers["x-paystack-signature"];
 
-    if (!signature) {
+    if (
+      typeof signature !== "string" ||
+      !/^[a-f0-9]{128}$/i.test(signature)
+    ) {
       throw new PaymentProviderError({
         provider: "PAYSTACK",
         code: "UNAUTHORIZED",
-        message: "Missing Paystack webhook signature",
+        message: "Invalid or missing Paystack webhook signature",
         retryable: false,
         uncertain: false,
       });
@@ -33,14 +53,16 @@ export const createVerifyWebhookOperation = ({ secretKey}: VerifyWebhookOperatio
     const expectedSignature = crypto
       .createHmac("sha512", secretKey)
       .update(input.rawBody)
-      .digest("hex");
+      .digest();
 
-    const provided = Buffer.from(signature, "utf8");
-    const expected = Buffer.from(expectedSignature, "utf8");
+    const providedSignature = Buffer.from(signature, "hex");
 
     if (
-      provided.length !== expected.length ||
-      !crypto.timingSafeEqual(provided, expected)
+      providedSignature.length !== expectedSignature.length ||
+      !crypto.timingSafeEqual(
+        providedSignature,
+        expectedSignature,
+      )
     ) {
       throw new PaymentProviderError({
         provider: "PAYSTACK",
@@ -75,41 +97,112 @@ export const createVerifyWebhookOperation = ({ secretKey}: VerifyWebhookOperatio
     }
 
     const eventType =
-      typeof payload.event === "string" ? payload.event : undefined;
+      typeof payload.event === "string" &&
+      payload.event.trim().length > 0
+        ? payload.event
+        : undefined;
 
-    if (!eventType) {
+    if (!eventType || !isRecord(payload.data)) {
       throw new PaymentProviderError({
         provider: "PAYSTACK",
         code: "INVALID_RESPONSE",
-        message: "Paystack webhook event is missing",
+        message: "Paystack webhook event or data is invalid",
         retryable: false,
         uncertain: false,
       });
     }
 
-    const data = isRecord(payload.data) ? payload.data : {};
+    const data = payload.data;
     const resourceType = getResourceType(eventType);
 
-    const providerReference =
-      typeof data.reference === "string" ? data.reference : undefined;
-
-    const providerRefundReference =
-      resourceType === "REFUND" && typeof data.id === "number"
-        ? String(data.id)
+    let providerReference =
+      typeof data.reference === "string" &&
+      data.reference.trim().length > 0
+        ? data.reference
         : undefined;
 
-    const amount =
-      typeof data.amount === "number"
-        ? fromSubunit(data.amount)
-        : undefined;
+    let providerRefundReference: string | undefined;
 
-    const currency =
-      typeof data.currency === "string"
-        ? normalizeCurrency(data.currency)
-        : undefined;
+    if (resourceType === "REFUND") {
+      if (
+        !(
+          (typeof data.id === "string" &&
+            data.id.trim().length > 0) ||
+          (typeof data.id === "number" &&
+            Number.isSafeInteger(data.id) &&
+            data.id > 0)
+        )
+      ) {
+        throw new PaymentProviderError({
+          provider: "PAYSTACK",
+          code: "INVALID_RESPONSE",
+          message: "Paystack webhook contains an invalid refund ID",
+          retryable: false,
+          uncertain: false,
+        });
+      }
+
+      providerRefundReference = String(data.id);
+
+      const transactionReference =
+        getRefundProviderReference(
+          data.transaction as
+            | number
+            | string
+            | { id?: number; reference?: string },
+        );
+
+      if (
+        typeof transactionReference !== "string" ||
+        transactionReference.trim().length === 0
+      ) {
+        throw new PaymentProviderError({
+          provider: "PAYSTACK",
+          code: "INVALID_RESPONSE",
+          message:
+            "Paystack refund webhook is missing its transaction reference",
+          retryable: false,
+          uncertain: false,
+        });
+      }
+
+      providerReference = transactionReference;
+    }
+
+    let amount: string | undefined;
+    let currency: string | undefined;
+
+    try {
+      if (typeof data.amount === "number") {
+        amount = fromSubunit(data.amount);
+      }
+
+      if (typeof data.currency === "string") {
+        currency = normalizeProviderCurrency(data.currency);
+      }
+    } catch (error) {
+      throw new PaymentProviderError({
+        provider: "PAYSTACK",
+        code: "INVALID_RESPONSE",
+        message: "Paystack webhook contains invalid payment data",
+        retryable: false,
+        uncertain: false,
+        cause: error,
+      });
+    }
 
     const providerStatus =
-      typeof data.status === "string" ? data.status : undefined;
+      typeof data.status === "string"
+        ? data.status
+        : undefined;
+
+    const status = providerStatus
+      ? resourceType === "REFUND"
+        ? mapRefundStatus(providerStatus)
+        : resourceType === "PAYMENT"
+          ? mapPaymentStatus(providerStatus)
+          : "UNKNOWN"
+      : "UNKNOWN";
 
     const paidAt =
       typeof data.paid_at === "string"
@@ -124,11 +217,12 @@ export const createVerifyWebhookOperation = ({ secretKey}: VerifyWebhookOperatio
       providerRefundReference,
       amount,
       currency,
-      status: providerStatus
-        ? mapPaymentStatus(providerStatus)
-        : "UNKNOWN",
+      status,
       providerStatus,
-      paidAt,
+      paidAt:
+        paidAt && !Number.isNaN(paidAt.getTime())
+          ? paidAt
+          : undefined,
       metadata: getStringMetadata(data.metadata),
       payload,
     };

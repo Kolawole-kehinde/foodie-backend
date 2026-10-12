@@ -3,9 +3,9 @@ import { createAxiosClient } from "../../../../infrastructure/axios/axios.client
 import type { PaymentProviderClient } from "../payment-provider.js";
 import { createPaystackHttpHelper } from "../helpers/paystack-http.helper.js";
 import { createInitializePaymentOperation } from "./operations/initialize-payment.operation.js";
-import { createVerifyPaymentOperation } from "./operations/verify-payment.operation.js";
-import { createRefundPaymentOperation } from "./operations/refund-payment.operation.js";
 import { createListRefundsOperation } from "./operations/list-refunds.operation.js";
+import { createRefundPaymentOperation } from "./operations/refund-payment.operation.js";
+import { createVerifyPaymentOperation } from "./operations/verify-payment.operation.js";
 import { createVerifyRefundOperation } from "./operations/verify-refund.operation.js";
 import { createVerifyWebhookOperation } from "./operations/verify-webhook.operation.js";
 
@@ -14,8 +14,10 @@ type PaystackProviderDependencies = {
   baseUrl: string;
 };
 
-export const createPaystackProvider = ({ secretKey, baseUrl}: PaystackProviderDependencies): PaymentProviderClient => {
-  
+export const createPaystackProvider = ({
+  secretKey,
+  baseUrl,
+}: PaystackProviderDependencies): PaymentProviderClient => {
   const client = createAxiosClient({
     baseUrl,
     headers: {

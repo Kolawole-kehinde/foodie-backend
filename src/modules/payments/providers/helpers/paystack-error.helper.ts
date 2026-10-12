@@ -1,6 +1,12 @@
+
 import axios from "axios";
 
 import { PaymentProviderError } from "../../errors/payment-provider.error.js";
+
+type PaystackErrorResponse = {
+  message?: unknown;
+  code?: unknown;
+};
 
 export const normalizePaystackError = (
   error: unknown,
@@ -16,46 +22,9 @@ export const normalizePaystackError = (
     });
   }
 
-  if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
-    return new PaymentProviderError({
-      provider: "PAYSTACK",
-      code: "TIMEOUT",
-      message: "Paystack request timed out",
-      retryable: true,
-      uncertain: true,
-      cause: error,
-    });
-  }
-
-  if (error.request && !error.response) {
-    return new PaymentProviderError({
-      provider: "PAYSTACK",
-      code: "NETWORK_ERROR",
-      message: "Unable to communicate with Paystack",
-      retryable: true,
-      uncertain: true,
-      cause: error,
-    });
-  }
-
-  if (!error.response) {
-    return new PaymentProviderError({
-      provider: "PAYSTACK",
-      code: "UNKNOWN",
-      message: "Unexpected Paystack provider error",
-      retryable: false,
-      uncertain: true,
-      cause: error,
-    });
-  }
-
-  const statusCode = error.response.status;
-
-  const responseData = error.response.data as
-    | {
-        message?: unknown;
-        code?: unknown;
-      }
+  const statusCode = error.response?.status;
+  const responseData = error.response?.data as
+    | PaystackErrorResponse
     | undefined;
 
   const providerMessage =
@@ -68,105 +37,118 @@ export const normalizePaystackError = (
       ? responseData.code
       : undefined;
 
+  const base = {
+    provider: "PAYSTACK",
+    statusCode,
+    providerCode,
+    cause: error,
+  } as const;
+
+  if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+    return new PaymentProviderError({
+      ...base,
+      code: "TIMEOUT",
+      message: "Paystack request timed out",
+      retryable: true,
+      uncertain: true,
+    });
+  }
+
+  if (statusCode === 408) {
+    return new PaymentProviderError({
+      ...base,
+      code: "TIMEOUT",
+      message: providerMessage,
+      retryable: true,
+      uncertain: true,
+    });
+  }
+
+  if (error.request && !error.response) {
+    return new PaymentProviderError({
+      ...base,
+      code: "NETWORK_ERROR",
+      message: "Unable to determine the outcome of the Paystack request",
+      retryable: true,
+      uncertain: true,
+    });
+  }
+
   if (statusCode === 400) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "BAD_REQUEST",
       message: providerMessage,
       retryable: false,
       uncertain: false,
-      statusCode,
-      providerCode,
-      cause: error,
     });
   }
 
   if (statusCode === 401) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "UNAUTHORIZED",
       message: providerMessage,
       retryable: false,
       uncertain: false,
-      statusCode,
-      providerCode,
-      cause: error,
     });
   }
 
   if (statusCode === 403) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "FORBIDDEN",
       message: providerMessage,
       retryable: false,
       uncertain: false,
-      statusCode,
-      providerCode,
-      cause: error,
     });
   }
 
   if (statusCode === 404) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "NOT_FOUND",
       message: providerMessage,
       retryable: false,
       uncertain: false,
-      statusCode,
-      providerCode,
-      cause: error,
     });
   }
 
   if (statusCode === 409) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "CONFLICT",
       message: providerMessage,
       retryable: false,
       uncertain: false,
-      statusCode,
-      providerCode,
-      cause: error,
     });
   }
 
   if (statusCode === 429) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "RATE_LIMITED",
       message: providerMessage,
       retryable: true,
-      uncertain: true,
-      statusCode,
-      providerCode,
-      cause: error,
+      uncertain: false,
     });
   }
 
-  if (statusCode >= 500) {
+  if (statusCode !== undefined && statusCode >= 500) {
     return new PaymentProviderError({
-      provider: "PAYSTACK",
+      ...base,
       code: "SERVER_ERROR",
       message: providerMessage,
       retryable: true,
       uncertain: true,
-      statusCode,
-      providerCode,
-      cause: error,
     });
   }
 
   return new PaymentProviderError({
-    provider: "PAYSTACK",
+    ...base,
     code: "UNKNOWN",
     message: providerMessage,
     retryable: false,
     uncertain: true,
-    statusCode,
-    providerCode,
-    cause: error,
   });
 };

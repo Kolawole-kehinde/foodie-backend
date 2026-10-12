@@ -1,3 +1,4 @@
+
 import { PaymentProviderError } from "../../errors/payment-provider.error.js";
 
 type PaystackBaseResponse = {
@@ -7,22 +8,34 @@ type PaystackBaseResponse = {
 
 export const assertPaystackResponse = <T>(
   response: PaystackBaseResponse & {
-    data?: T;
+    data?: T | null;
   },
   operation: string,
 ): T => {
-  if (!response.status) {
-    const message =
-      typeof response.message === "string"
-        ? response.message
-        : `Paystack ${operation} failed`;
+  if (
+    typeof response !== "object" ||
+    response === null ||
+    typeof response.status !== "boolean"
+  ) {
+    throw new PaymentProviderError({
+      provider: "PAYSTACK",
+      code: "INVALID_RESPONSE",
+      message: `Paystack returned an invalid response for ${operation}`,
+      retryable: false,
+      uncertain: true,
+    });
+  }
 
+  if (response.status === false) {
     throw new PaymentProviderError({
       provider: "PAYSTACK",
       code: "UNKNOWN",
-      message,
+      message:
+        typeof response.message === "string"
+          ? response.message
+          : `Paystack ${operation} failed`,
       retryable: false,
-      uncertain: true,
+      uncertain: false,
     });
   }
 

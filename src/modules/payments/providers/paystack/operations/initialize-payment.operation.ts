@@ -1,11 +1,18 @@
 
 import { PaymentProvider } from "@prisma/client";
-import type { InitializePaymentInput, InitializePaymentResult,} from "../../../types/payment.types.js";
+
+import type {
+  InitializePaymentInput,
+  InitializePaymentResult,
+} from "../../../types/payment.types.js";
+
 import { createPaystackHttpHelper } from "../../helpers/paystack-http.helper.js";
 import { assertPaystackResponse } from "../../helpers/paystack-response.helper.js";
-import {normalizeCurrency,toSubunit,} from "../paystack-mappers.js";
 
-
+import {
+  normalizeCurrency,
+  toSubunit,
+} from "../paystack-mappers.js";
 
 import type { PaystackInitializeResponse } from "../paystack.types.js";
 
@@ -15,12 +22,12 @@ type InitializePaymentOperationDependencies = {
   http: PaystackHttp;
 };
 
-
 export const createInitializePaymentOperation = ({
   http,
 }: InitializePaymentOperationDependencies) => {
-
-  const initializePayment = async ( input: InitializePaymentInput): Promise<InitializePaymentResult> => {
+  const initializePayment = async (
+    input: InitializePaymentInput,
+  ): Promise<InitializePaymentResult> => {
     const amount = toSubunit(input.amount);
     const currency = normalizeCurrency(input.currency);
 
@@ -47,6 +54,19 @@ export const createInitializePaymentOperation = ({
       response.data,
       "payment initialization",
     );
+
+    if (
+      typeof data.reference !== "string" ||
+      data.reference.length === 0 ||
+      typeof data.authorization_url !== "string" ||
+      data.authorization_url.length === 0 ||
+      typeof data.access_code !== "string" ||
+      data.access_code.length === 0
+    ) {
+      throw new Error(
+        "Paystack returned an invalid payment initialization response",
+      );
+    }
 
     return {
       provider: PaymentProvider.PAYSTACK,
