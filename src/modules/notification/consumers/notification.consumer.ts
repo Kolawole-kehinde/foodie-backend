@@ -1,5 +1,6 @@
+
 import type { Consumer } from "kafkajs";
-import { InboxEventStatus, Prisma } from "@prisma/client";
+
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { kafka } from "../../../infrastructure/kafka/kafka.client.js";
 import {
@@ -8,22 +9,26 @@ import {
 } from "../../../infrastructure/kafka/kafka.connection.js";
 import { domainEventSchema } from "../../../shared/events/event.schema.js";
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
-import type { DomainEvent } from "../../../shared/events/event.types.js";
-import type { PaymentSucceededNotificationHandler } from "../handlers/payment-succeeded-notification.handler.js";
-import { createInboxRepository } from "../repositories/inbox.repository.js";
-import type { PublishToDlqInput } from "../types/dlq.types.js";
+import type {
+  DomainEvent,
+  OrderEvent,
+  PaymentSucceededEvent,
+} from "../../../shared/events/event.types.js";
 
-// Dependencies required to create the notification consumer.
+import type { PaymentSucceededNotificationHandler } from "../handlers/payment-succeeded-notification.handler.js";
+import type { OrderNotificationHandler } from "../handlers/order-notification.handler.js";
+
+import { createNotificationEventRouter } from "./notification-event.router.js";
+import { createNotificationEventProcessor } from "./notification-event.processor.js";
+import { createNotificationDlqPublisher } from "./notification-dlq.publisher.js";
+
+type SupportedNotificationEvent = OrderEvent | PaymentSucceededEvent;
+
 type NotificationConsumerDependencies = {
   db: DatabaseClient;
   handler: PaymentSucceededNotificationHandler;
+  orderNotificationHandler: OrderNotificationHandler;
 };
-
-// Extract the payment-succeeded event type from the domain event union.
-type PaymentSucceededEvent = Extract<
-  DomainEvent,
-  { eventType: typeof EVENT_TYPES.PAYMENT_SUCCEEDED }
->;
 
 const TOPIC = "domain-events";
 const DLQ_TOPIC = "domain-events.dlq";
@@ -32,160 +37,47 @@ const GROUP_ID = "foodie-notification-consumer";
 export const createNotificationConsumer = ({
   db,
   handler,
+  orderNotificationHandler,
 }: NotificationConsumerDependencies) => {
-  // Create a consumer with its own group and a producer for DLQ messages.
   const consumer: Consumer = kafka.consumer({
     groupId: GROUP_ID,
   });
 
   const producer = kafka.producer();
-  const inboxRepository = createInboxRepository(db);
 
-  // Publish malformed messages with enough information to investigate them.
-  const publishToDlq = async ({
-    topic,
-    partition,
-    offset,
-    timestamp,
-    key,
-    rawValue,
-    failureReason,
-  }: PublishToDlqInput) => {
-    await producer.send({
-      topic: DLQ_TOPIC,
-      acks: -1,
-      messages: [
-        {
-          key: key ?? undefined,
-          value: JSON.stringify({
-            originalMessage: rawValue,
-            failureReason,
-            source: {
-              topic,
-              partition,
-              offset,
-              timestamp,
-            },
-            failedAt: new Date().toISOString(),
-          }),
-          headers: {
-            "failure-reason": failureReason,
-            "original-topic": topic,
-            "original-partition": String(partition),
-            "original-offset": offset,
-          },
-        },
-      ],
-    });
+  const router = createNotificationEventRouter({
+    paymentSucceededHandler: handler,
+    orderHandler: orderNotificationHandler,
+  });
 
-    // Log only after Kafka acknowledges the DLQ publish.
-    console.error("[Notification] Message published to DLQ", {
-      originalTopic: topic,
-      partition,
-      offset,
-      failureReason,
-      dlqTopic: DLQ_TOPIC,
-    });
-  };
+  const processor = createNotificationEventProcessor({
+    db,
+    router,
+  });
 
-  // Process payment-success events using inbox-based idempotency.
-  const processEvent = async (event: PaymentSucceededEvent) => {
-    let inboxEvent = await inboxRepository.findByEventId(event.eventId);
+  const dlqPublisher = createNotificationDlqPublisher({
+    producer,
+  });
 
-    // Skip events that have already completed successfully.
-    if (inboxEvent?.status === InboxEventStatus.PROCESSED) {
-      console.info("[Notification] Duplicate event skipped", {
-        eventId: event.eventId,
-      });
-      return;
-    }
+  const isSupportedEvent = (
+    event: DomainEvent,
+  ): event is SupportedNotificationEvent => {
+    switch (event.eventType) {
+      case EVENT_TYPES.PAYMENT_SUCCEEDED:
+      case EVENT_TYPES.ORDER_CREATED:
+      case EVENT_TYPES.ORDER_CONFIRMED:
+      case EVENT_TYPES.ORDER_PROCESSING:
+      case EVENT_TYPES.ORDER_SHIPPED:
+      case EVENT_TYPES.ORDER_DELIVERED:
+      case EVENT_TYPES.ORDER_CANCELLED:
+      case EVENT_TYPES.ORDER_EXPIRED:
+        return true;
 
-    if (!inboxEvent) {
-      try {
-        // Create the inbox record to claim this event.
-        inboxEvent = await inboxRepository.create({
-          eventId: event.eventId,
-          eventType: event.eventType,
-          status: InboxEventStatus.PROCESSING,
-        });
-      } catch (error) {
-        // P2002 means another delivery may have created the record first.
-        if (
-          !(
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-          )
-        ) {
-          throw error;
-        }
-
-        inboxEvent = await inboxRepository.findByEventId(event.eventId);
-
-        if (!inboxEvent) {
-          throw error;
-        }
-
-        if (inboxEvent.status === InboxEventStatus.PROCESSED) {
-          console.info("[Notification] Duplicate event skipped", {
-            eventId: event.eventId,
-          });
-          return;
-        }
-
-        // Claim a FAILED or stale PROCESSING event when eligible.
-        const claimed = await inboxRepository.claimForProcessing(event.eventId);
-
-        if (!claimed) {
-          console.info("[Notification] Event is already being processed", {
-            eventId: event.eventId,
-            status: inboxEvent.status,
-          });
-          return;
-        }
-      }
-    } else {
-      // Attempt to recover an existing FAILED or stale PROCESSING event.
-      const claimed = await inboxRepository.claimForProcessing(event.eventId);
-
-      if (!claimed) {
-        console.info("[Notification] Event could not be claimed", {
-          eventId: event.eventId,
-          status: inboxEvent.status,
-        });
-        return;
-      }
-    }
-
-    try {
-      // Execute the notification-specific handler.
-      await handler.handle(event);
-
-      // Mark the inbox event complete after successful processing.
-      await inboxRepository.updateStatus(event.eventId, {
-        status: InboxEventStatus.PROCESSED,
-        processedAt: new Date(),
-        failureReason: null,
-      });
-
-      console.info("[Notification] Event processed successfully", {
-        eventId: event.eventId,
-      });
-    } catch (error) {
-      // Record the failure to support a later retry.
-      const failureReason =
-        error instanceof Error ? error.message : "Unknown processing error";
-
-      await inboxRepository.updateStatus(event.eventId, {
-        status: InboxEventStatus.FAILED,
-        failureReason,
-      });
-
-      // Let the failure propagate; do not commit the Kafka offset.
-      throw error;
+      default:
+        return false;
     }
   };
 
-  // Use the shared connection helper, then subscribe to the domain topic.
   const connect = async () => {
     await connectKafka(producer, consumer);
 
@@ -201,7 +93,6 @@ export const createNotificationConsumer = ({
     });
   };
 
-  // Start processing messages. Event routing remains local to this consumer.
   const start = async () => {
     console.info("[Notification] Starting message processing");
 
@@ -209,7 +100,6 @@ export const createNotificationConsumer = ({
       autoCommit: false,
 
       eachMessage: async ({ topic, partition, message }) => {
-        // Keep the raw payload so invalid messages can be sent to the DLQ.
         const rawValue = message.value?.toString() ?? null;
 
         let event: DomainEvent | undefined;
@@ -220,14 +110,12 @@ export const createNotificationConsumer = ({
         } else {
           let rawEvent: unknown;
 
-          // Invalid JSON is a malformed message, not a handler failure.
           try {
             rawEvent = JSON.parse(rawValue);
           } catch {
             failureReason = "Kafka message contains invalid JSON";
           }
 
-          // Validate parsed JSON against the shared domain event schema.
           if (failureReason === null) {
             const result = domainEventSchema.safeParse(rawEvent);
 
@@ -240,8 +128,7 @@ export const createNotificationConsumer = ({
         }
 
         if (failureReason !== null) {
-          // Publish first. If this fails, the original offset is not committed.
-          await publishToDlq({
+          await dlqPublisher.publish({
             topic,
             partition,
             offset: message.offset,
@@ -251,7 +138,7 @@ export const createNotificationConsumer = ({
             failureReason,
           });
 
-          // Commit only after the DLQ publish succeeds.
+          // Acknowledge only after the DLQ publication succeeds.
           await consumer.commitOffsets([
             {
               topic,
@@ -276,22 +163,17 @@ export const createNotificationConsumer = ({
           offset: message.offset,
         });
 
-        // Route each supported event to its handler.
-        switch (event.eventType) {
-          case EVENT_TYPES.PAYMENT_SUCCEEDED:
-            await processEvent(event);
-            break;
-
-          default:
-            // Valid but unsupported events are logged and acknowledged.
-            console.info("[Notification] Event type not handled", {
-              eventId: event.eventId,
-              eventType: event.eventType,
-            });
-            break;
+        if (isSupportedEvent(event)) {
+          await processor.process(event);
+        } else {
+          // Preserve existing behavior for valid but unsupported events.
+          console.info("[Notification] Event type not handled", {
+            eventId: event.eventId,
+            eventType: event.eventType,
+          });
         }
 
-        // Commit only after processing succeeds or a safe skip occurs.
+        // Commit only after processing succeeds or the event is safely skipped.
         await consumer.commitOffsets([
           {
             topic,
@@ -303,7 +185,6 @@ export const createNotificationConsumer = ({
     });
   };
 
-  // Reuse the shared helper to close both Kafka connections.
   const disconnect = async () => {
     await disconnectKafka(consumer, producer);
   };

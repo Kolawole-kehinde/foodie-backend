@@ -10,6 +10,7 @@ import { createNotificationConsumer } from "./consumers/notification.consumer.js
 import { createNotificationDeliveryWorker } from "./workers/notification-delivery.worker.js";
 import { createNotificationDeliveryRunner } from "./workers/notification-delivery.runner.js";
 import { env } from "../../config/env.js";
+import { createOrderNotificationHandler } from "./handlers/order-notification.handler.js";
 
 type NotificationDependencies = {
   db: PrismaClient;
@@ -36,8 +37,15 @@ export const createNotificationDependencies = ({
     authenticate,
   });
 
- const paymentSucceededNotificationHandler =
-  createPaymentSucceededNotificationHandler({
+
+
+  const paymentSucceededNotificationHandler =
+    createPaymentSucceededNotificationHandler({
+      notificationService,
+      clientUrl: env.mail.CLIENT_URL,
+    });
+
+  const orderNotificationHandler = createOrderNotificationHandler({
     notificationService,
     clientUrl: env.mail.CLIENT_URL,
   });
@@ -45,6 +53,7 @@ export const createNotificationDependencies = ({
   const notificationConsumer = createNotificationConsumer({
     db,
     handler: paymentSucceededNotificationHandler,
+    orderNotificationHandler,
   });
 
   const notificationDeliveryWorker =
@@ -57,12 +66,14 @@ export const createNotificationDependencies = ({
       batchSize: 20,
     });
 
+
   return {
     notificationRepository,
     notificationService,
     notificationController,
     notificationRoutes,
     paymentSucceededNotificationHandler,
+    orderNotificationHandler,
     notificationConsumer,
     notificationDeliveryWorker,
     notificationDeliveryRunner,
