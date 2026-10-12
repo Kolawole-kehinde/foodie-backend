@@ -1,4 +1,3 @@
-
 import { NotificationChannel } from "@prisma/client";
 import { env } from "../../../../config/env.js";
 import { logger } from "../../../../config/logger.js";
@@ -17,6 +16,12 @@ type MailErrorDetails = {
   message?: string;
 };
 
+type EmailTemplateContent = {
+  subject: string;
+  text: string;
+  html: string;
+};
+
 const RETRYABLE_NETWORK_CODES = new Set([
   "ETIMEDOUT",
   "ECONNECTION",
@@ -28,6 +33,43 @@ const RETRYABLE_NETWORK_CODES = new Set([
   "ESOCKET",
 ]);
 
+const isRecord = (
+  value: unknown,
+): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getEmailTemplate = (
+  metadata: unknown,
+): EmailTemplateContent | undefined => {
+  if (!isRecord(metadata) || !isRecord(metadata.email)) {
+    return undefined;
+  }
+
+  const email = metadata.email;
+
+  if (
+    typeof email.subject !== "string" ||
+    typeof email.text !== "string" ||
+    typeof email.html !== "string"
+  ) {
+    return undefined;
+  }
+
+  return {
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+  };
+};
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 const classifyMailError = (error: unknown): EmailProviderError => {
   const details = (
     error && typeof error === "object" ? error : {}
@@ -37,10 +79,12 @@ const classifyMailError = (error: unknown): EmailProviderError => {
   const responseCode = details.responseCode;
   const message = details.message ?? "Email provider request failed";
 
-  // SMTP 4xx responses are generally temporary; SMTP 5xx responses
-  // are generally permanent, except 421 which means the service is unavailable.
-  if (responseCode === 421 || (responseCode !== undefined &&
-      responseCode >= 400 && responseCode < 500)) {
+  if (
+    responseCode === 421 ||
+    (responseCode !== undefined &&
+      responseCode >= 400 &&
+      responseCode < 500)
+  ) {
     return new EmailProviderError(message, true, code, responseCode);
   }
 
@@ -52,7 +96,6 @@ const classifyMailError = (error: unknown): EmailProviderError => {
     return new EmailProviderError(message, true, code, responseCode);
   }
 
-  // Unknown errors are retried cautiously because they may be transient.
   return new EmailProviderError(message, true, code, responseCode);
 };
 
@@ -60,16 +103,23 @@ export const createEmailProvider = (): ChannelProvider => {
   const send = async (
     input: ChannelDeliveryInput,
   ): Promise<ChannelDeliveryResult> => {
-    // Resolve the recipient from the trusted user record.
-    const email = input.recipientEmail;
+    const emailAddress = input.recipientEmail;
 
-    if (!email) {
+    if (!emailAddress) {
       throw new EmailProviderError(
         `Email address is missing for notification ${input.notificationId}`,
         false,
         "MISSING_RECIPIENT",
       );
     }
+
+    const template = getEmailTemplate(input.metadata);
+
+    const subject = template?.subject ?? input.title;
+    const text = template?.text ?? input.message;
+    const html =
+      template?.html ??
+      `<h2>${escapeHtml(input.title)}</h2><p>${escapeHtml(input.message)}</p>`;
 
     logger.info(
       {
@@ -82,10 +132,10 @@ export const createEmailProvider = (): ChannelProvider => {
     try {
       const result = await emailTransporter.sendMail({
         from: env.mail.FROM,
-        to: email,
-        subject: input.title,
-        text: input.message,
-        html: `<h2>${input.title}</h2><p>${input.message}</p>`,
+        to: emailAddress,
+        subject,
+        text,
+        html,
       });
 
       return {

@@ -9,6 +9,7 @@ import { createPaymentSucceededNotificationHandler } from "./handlers/payment-su
 import { createNotificationConsumer } from "./consumers/notification.consumer.js";
 import { createNotificationDeliveryWorker } from "./workers/notification-delivery.worker.js";
 import { createNotificationDeliveryRunner } from "./workers/notification-delivery.runner.js";
+import { env } from "../../config/env.js";
 
 type NotificationDependencies = {
   db: PrismaClient;
@@ -35,10 +36,11 @@ export const createNotificationDependencies = ({
     authenticate,
   });
 
-  const paymentSucceededNotificationHandler =
-    createPaymentSucceededNotificationHandler({
-      notificationService,
-    });
+ const paymentSucceededNotificationHandler =
+  createPaymentSucceededNotificationHandler({
+    notificationService,
+    clientUrl: env.mail.CLIENT_URL,
+  });
 
   const notificationConsumer = createNotificationConsumer({
     db,

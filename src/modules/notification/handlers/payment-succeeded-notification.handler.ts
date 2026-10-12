@@ -1,25 +1,34 @@
-import { NotificationStatus, NotificationType, Prisma } from "@prisma/client";
+import {
+  NotificationStatus,
+  NotificationType,
+  Prisma,
+} from "@prisma/client";
 
 import type { PaymentSucceededEvent } from "../../../shared/events/event.types.js";
 import type { NotificationService } from "../services/notification.service.js";
+import { paymentSuccessTemplate } from "../templates/payment-success.template.js";
 
 type PaymentSucceededNotificationHandlerDependencies = {
   notificationService: NotificationService;
+  clientUrl?: string;
 };
 
 export const createPaymentSucceededNotificationHandler = ({
   notificationService,
+  clientUrl,
 }: PaymentSucceededNotificationHandlerDependencies) => {
   const handle = async (event: PaymentSucceededEvent) => {
     const { userId, paymentId, orderId, amount, currency } = event.data;
+
+    const template = paymentSuccessTemplate(event.data, { clientUrl });
 
     try {
       await notificationService.create({
         userId,
         type: NotificationType.PAYMENT_SUCCESS,
         status: NotificationStatus.UNREAD,
-        title: "Payment successful",
-        message: `Your payment of ${currency} ${amount} for order ${orderId} was successful.`,
+        title: template.inApp.title,
+        message: template.inApp.message,
         eventId: event.eventId,
         eventType: event.eventType,
         metadata: {
@@ -27,10 +36,10 @@ export const createPaymentSucceededNotificationHandler = ({
           orderId,
           amount,
           currency,
-        },
+          email: template.email,
+        } as Prisma.InputJsonValue,
       });
     } catch (error) {
-      // Ignore duplicate notifications for the same event, user, and type.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
@@ -41,7 +50,6 @@ export const createPaymentSucceededNotificationHandler = ({
         return;
       }
 
-      // Propagate genuine failures so the consumer can retry.
       throw error;
     }
   };
