@@ -5,8 +5,6 @@ import { PaymentProvider } from "@prisma/client";
 import { createAxiosClient } from "../../../../infrastructure/axios/axios.client.js";
 import { PaymentProviderError } from "../../errors/payment-provider.error.js";
 import type {
-  InitializePaymentInput,
-  InitializePaymentResult,
   ListRefundsResult,
   RefundPaymentInput,
   RefundPaymentResult,
@@ -24,12 +22,12 @@ import {
   getResourceType,
   getStringMetadata,
   mapPaymentStatus,
+  mapRefundStatus,
   normalizeCurrency,
   toSubunit,
 } from "./paystack-mappers.js";
 
 import type {
-  PaystackInitializeResponse,
   PaystackRefundListResponse,
   PaystackRefundResponse,
   PaystackVerifyResponse,
@@ -56,46 +54,6 @@ export const createPaystackProvider = ({
 
   const http = createPaystackHttpHelper(client);
 
- const initializePayment = async (
-  input: InitializePaymentInput,
-): Promise<InitializePaymentResult> => {
-  const amount = toSubunit(input.amount);
-  const currency = normalizeCurrency(input.currency);
-
-  const metadata = {
-    ...(input.metadata ?? {}),
-    paymentId: input.paymentId,
-    attemptId: input.attemptId,
-  };
-
-  const response = await http.request<PaystackInitializeResponse>({
-    method: "POST",
-    url: "/transaction/initialize",
-    data: {
-      amount,
-      currency,
-      email: input.customerEmail,
-      callback_url: input.callbackUrl,
-      reference: input.reference,
-      metadata,
-    },
-  });
-
-  const data = assertPaystackResponse(
-    response.data,
-    "payment initialization",
-  );
-
-  return {
-    provider: PaymentProvider.PAYSTACK,
-    providerReference: data.reference,
-    authorizationUrl: data.authorization_url,
-    accessCode: data.access_code,
-    status: "PROCESSING",
-    providerStatus: "initialized",
-    metadata,
-  };
-};
 
   const verifyPayment = async (
     input: VerifyPaymentInput,
@@ -117,13 +75,14 @@ export const createPaystackProvider = ({
 });
 
 const currency = normalizeCurrency(data.currency);
+const status = mapRefundStatus(data.status);
 
     return {
       provider: PaymentProvider.PAYSTACK,
       providerReference: data.reference,
       amount: fromSubunit(data.amount),
       currency,
-      status: mapPaymentStatus(data.status),
+      status: status,
       providerStatus: data.status,
       paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
       failureReason:
@@ -158,26 +117,7 @@ const currency = normalizeCurrency(data.currency);
 
     const normalizedStatus = data.status.trim().toLowerCase();
 
-    let status: RefundPaymentResult["status"];
-
-    switch (normalizedStatus) {
-      case "processed":
-        status = "SUCCESS";
-        break;
-
-      case "pending":
-      case "processing":
-      case "needs-attention":
-        status = "PROCESSING";
-        break;
-
-      case "failed":
-        status = "FAILED";
-        break;
-
-      default:
-        status = "UNKNOWN";
-    }
+const status = mapRefundStatus(data.status);
 
     return {
       provider: PaymentProvider.PAYSTACK,
@@ -187,8 +127,7 @@ const currency = normalizeCurrency(data.currency);
       currency: normalizeCurrency(data.currency),
       status,
       providerStatus: data.status,
-      failureReason:
-        normalizedStatus === "failed" ? (data.reason ?? undefined) : undefined,
+     
       metadata: {
         transactionReference: getRefundProviderReference(data.transaction),
       },
@@ -507,7 +446,6 @@ const listRefunds = async (
   };
 
   return {
-    initializePayment,
     verifyPayment,
     verifyWebhook,
     refundPayment,

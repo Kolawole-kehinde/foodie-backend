@@ -1,10 +1,11 @@
+
 import { randomUUID } from "node:crypto";
 import { NotificationChannel } from "@prisma/client";
 
 import type { DatabaseClient } from "../../../database/prisma/types.js";
+import { logger } from "../../../config/logger.js";
 import { createNotificationDeliveryRepository } from "../repositories/notification-delivery.repository.js";
 import { createEmailProvider } from "../providers/email/email.provider.js";
-import { logger } from "../../../config/logger.js";
 import { EmailProviderError } from "../providers/email/email-provider.error.js";
 
 type NotificationDeliveryWorkerDependencies = {
@@ -14,10 +15,12 @@ type NotificationDeliveryWorkerDependencies = {
 const LEASE_MS = 60_000;
 const LEASE_RENEWAL_INTERVAL_MS = 20_000;
 
+// Calculate exponential backoff with jitter, capped at one hour
+// before jitter is added.
 const getRetryDelayMs = (attempts: number) => {
-  // Exponential backoff with jitter, capped at one hour before jitter.
   const baseDelayMs = 60_000 * 2 ** Math.max(0, attempts - 1);
   const cappedDelayMs = Math.min(baseDelayMs, 60 * 60 * 1000);
+
   const jitterMs = Math.floor(
     Math.random() * Math.min(cappedDelayMs * 0.2, 30_000),
   );
@@ -31,16 +34,16 @@ export const createNotificationDeliveryWorker = ({
   const deliveryRepository = createNotificationDeliveryRepository(db);
   const emailProvider = createEmailProvider();
 
-  // Each running worker instance must have its own identity.
+  // Give every worker instance a unique identity.
   const workerId = `notification-worker-${randomUUID()}`;
 
-  // Renew the lease while the provider request is in progress.
+  // Keep extending the lease while the provider request is running.
   const startLeaseHeartbeat = (deliveryId: string) => {
     let leaseLost = false;
     let renewalInFlight: Promise<void> | undefined;
 
     const timer = setInterval(() => {
-      // Avoid overlapping renewals if the database is slow.
+      // Avoid overlapping database renewals.
       if (renewalInFlight) return;
 
       renewalInFlight = (async () => {
@@ -60,7 +63,7 @@ export const createNotificationDeliveryWorker = ({
             );
           }
         } catch (error) {
-          // Ownership is now uncertain, so do not finalize this delivery.
+          // Ownership is uncertain, so do not finalize this delivery.
           leaseLost = true;
 
           logger.error(
@@ -79,14 +82,14 @@ export const createNotificationDeliveryWorker = ({
       stop: async () => {
         clearInterval(timer);
 
-        // Wait for an outstanding renewal before finalizing the delivery.
+        // Wait for any outstanding renewal before finalization.
         await renewalInFlight;
       },
     };
   };
 
   const processPendingDeliveries = async (limit = 20) => {
-    // The claim commits before any provider call begins.
+    // Claim deliveries atomically before making provider calls.
     const deliveries = await deliveryRepository.claimPendingDeliveries({
       workerId,
       limit,
@@ -101,8 +104,8 @@ export const createNotificationDeliveryWorker = ({
     for (const delivery of deliveries) {
       processed++;
 
+      // The current claim query selects EMAIL deliveries only.
       if (delivery.channel !== NotificationChannel.EMAIL) {
-        // The claim query currently selects EMAIL only.
         skipped++;
         continue;
       }
@@ -119,7 +122,7 @@ export const createNotificationDeliveryWorker = ({
       let providerMessageId: string;
 
       try {
-        // Network I/O happens outside database transactions.
+        // Perform network I/O outside database transactions.
         const result = await emailProvider.send({
           notificationId: delivery.notification.id,
           deliveryId: delivery.id,
@@ -130,13 +133,17 @@ export const createNotificationDeliveryWorker = ({
           metadata,
         });
 
+        // A missing provider ID makes the outcome uncertain. Retry
+        // conservatively because the provider may have accepted the email.
         if (!result.providerMessageId) {
-  throw new Error(
-    "Email provider did not return a provider message ID",
-  );
-}
+          throw new EmailProviderError(
+            "Email provider did not return a provider message ID",
+            true,
+            "MISSING_PROVIDER_MESSAGE_ID",
+          );
+        }
 
-providerMessageId = result.providerMessageId;
+        providerMessageId = result.providerMessageId;
       } catch (error) {
         await heartbeat.stop();
 
@@ -145,6 +152,7 @@ providerMessageId = result.providerMessageId;
             ? error.message
             : "Unknown email delivery error";
 
+        // Do not update a delivery after losing lease ownership.
         if (heartbeat.isLeaseLost()) {
           skipped++;
 
@@ -156,28 +164,31 @@ providerMessageId = result.providerMessageId;
           continue;
         }
 
-        // Attempts were incremented when the delivery was claimed.
-       
+        // Attempts are incremented when the delivery is claimed.
+        // Unknown errors default to retryable, with retries bounded
+        // by the delivery's configured maximum attempt count.
+        const providerError =
+          error instanceof EmailProviderError ? error : null;
 
-     const providerError =
-  error instanceof EmailProviderError ? error : null;
+        const retryable = providerError?.retryable ?? true;
+        const canRetry =
+          retryable && delivery.attempts < delivery.maxAttempts;
 
-// Only retry when the provider classifies the error as retryable.
-// Unknown errors remain retryable, with the maximum attempt limit enforced.
-const retryable = providerError?.retryable ?? true;
-const canRetry = retryable && delivery.attempts < delivery.maxAttempts;
+        const nextRetryAt = canRetry
+          ? new Date(
+              Date.now() + getRetryDelayMs(delivery.attempts),
+            )
+          : null;
 
-const nextRetryAt = canRetry
-  ? new Date(Date.now() + getRetryDelayMs(delivery.attempts))
-  : null;
-
-const update = await deliveryRepository.markFailedIfOwned(
-  delivery.id,
-  workerId,
-  failureReason,
-  nextRetryAt,
-  !retryable,
-);
+        // The repository checks worker ownership and lease validity.
+        // Permanent errors are marked as dead-lettered immediately.
+        const update = await deliveryRepository.markFailedIfOwned(
+          delivery.id,
+          workerId,
+          failureReason,
+          nextRetryAt,
+          !retryable,
+        );
 
         if (update.count === 1) {
           failed++;
@@ -187,12 +198,17 @@ const update = await deliveryRepository.markFailedIfOwned(
               deliveryId: delivery.id,
               attempts: delivery.attempts,
               maxAttempts: delivery.maxAttempts,
+              retryable,
               nextRetryAt,
               failureReason,
+              providerCode: providerError?.providerCode,
+              responseCode: providerError?.responseCode,
             },
             canRetry
               ? "Notification delivery failed; retry scheduled"
-              : "Notification delivery failed; attempts exhausted",
+              : !retryable
+                ? "Notification delivery failed permanently; moved to DLQ"
+                : "Notification delivery failed; attempts exhausted",
           );
         } else {
           skipped++;
@@ -208,9 +224,9 @@ const update = await deliveryRepository.markFailedIfOwned(
 
       await heartbeat.stop();
 
+      // The provider may have accepted the email, but another worker
+      // may now own the delivery. Never finalize without a valid lease.
       if (heartbeat.isLeaseLost()) {
-        // The provider may have accepted the email, but this worker can no
-        // longer safely update the database. A duplicate on recovery is possible.
         skipped++;
 
         logger.warn(
@@ -221,7 +237,6 @@ const update = await deliveryRepository.markFailedIfOwned(
         continue;
       }
 
-      // A repository-level conditional update verifies current lease ownership.
       const update = await deliveryRepository.markSentIfOwned(
         delivery.id,
         workerId,
@@ -250,15 +265,21 @@ const update = await deliveryRepository.markFailedIfOwned(
   };
 
   const processDeadLetters = async (limit = 20) => {
-    const deliveries = await deliveryRepository.findExhaustedDeliveries(limit);
+    // Select exhausted deliveries that have not already entered the DLQ.
+    const deliveries =
+      await deliveryRepository.findExhaustedDeliveries(limit);
 
     let deadLettered = 0;
     let skipped = 0;
 
     for (const delivery of deliveries) {
-      const result = await deliveryRepository.markAsDeadLettered(delivery.id);
+      const result = await deliveryRepository.markAsDeadLettered(
+        delivery.id,
+      );
 
       if (result.count === 1) {
+        deadLettered++;
+
         logger.error(
           {
             deliveryId: delivery.id,
@@ -269,9 +290,8 @@ const update = await deliveryRepository.markFailedIfOwned(
           },
           "Notification delivery moved to DLQ",
         );
-
-        deadLettered++;
       } else {
+        // Another worker may already have processed this delivery.
         skipped++;
       }
     }

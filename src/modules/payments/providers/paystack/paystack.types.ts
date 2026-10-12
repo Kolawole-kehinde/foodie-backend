@@ -23,26 +23,6 @@ export type PaystackVerifyResponse = {
   };
 };
 
-export type PaystackRefundResponse = {
-  status: boolean;
-  message: string;
-  data?: {
-    id: number;
-    amount: number;
-    currency: string;
-    status: string;
-    transaction:
-      | number
-      | string
-      | {
-          id?: number;
-          reference?: string;
-        };
-    reason?: string | null;
-    refunded_at?: string | null;
-  };
-};
-
 export type PaystackRefundTransaction =
   | number
   | string
@@ -51,23 +31,24 @@ export type PaystackRefundTransaction =
       reference?: string;
     };
 
+export type PaystackRefundData = {
+  id: number;
+  amount: number;
+  currency: string;
+  status: string;
+  transaction: PaystackRefundTransaction;
+  reason?: string | null;
+  refunded_at?: string | null;
+};
 
-    export type PaystackRefundListResponse = {
+export type PaystackRefundResponse = {
   status: boolean;
   message: string;
-  data?: Array<{
-    id: number;
-    amount: number;
-    currency: string;
-    status: string;
-    transaction:
-      | number
-      | string
-      | {
-          id?: number;
-          reference?: string;
-        };
-    reason?: string | null;
-    refunded_at?: string | null;
-  }>;
+  data?: PaystackRefundData;
+};
+
+export type PaystackRefundListResponse = {
+  status: boolean;
+  message: string;
+  data?: PaystackRefundData[];
 };

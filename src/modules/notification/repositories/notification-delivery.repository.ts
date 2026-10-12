@@ -224,29 +224,38 @@ export const createNotificationDeliveryRepository = (db: DatabaseClient) => {
   };
 
 
+// Find only exhausted deliveries that have not already entered the DLQ.
+// PostgreSQL compares attempts with maxAttempts directly, avoiding an
+// inefficient query that fetches many records and filters them in memory.
 const findExhaustedDeliveries = async (limit = 20) => {
-  const deliveries = await db.notificationDelivery.findMany({
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error("limit must be a positive integer");
+  }
+
+  const rows = await db.$queryRaw<Array<{ id: string }>>(
+    Prisma.sql`
+      SELECT "id"
+      FROM "NotificationDelivery"
+      WHERE
+        "status" = 'FAILED'
+        AND "channel" = 'EMAIL'
+        AND "deadLetteredAt" IS NULL
+        AND "attempts" >= "maxAttempts"
+      ORDER BY "updatedAt" ASC
+      LIMIT ${limit}
+    `,
+  );
+
+  if (rows.length === 0) return [];
+
+  return db.notificationDelivery.findMany({
     where: {
+      id: { in: rows.map((row) => row.id) },
       status: DeliveryStatus.FAILED,
-      channel: "EMAIL",
-      OR: [
-        { deadLetteredAt: { not: null } },
-        { attempts: { gte: 1 } },
-      ],
+      deadLetteredAt: null,
     },
     orderBy: { updatedAt: "asc" },
-    take: Math.max(limit * 5, 100),
   });
-
-  // Include permanent failures already marked as dead-lettered and
-  // deliveries that have exhausted their allowed attempts.
-  return deliveries
-    .filter(
-      (delivery) =>
-        delivery.deadLetteredAt !== null ||
-        delivery.attempts >= delivery.maxAttempts,
-    )
-    .slice(0, limit);
 };
 
   const markAsDeadLettered = async (id: string) =>

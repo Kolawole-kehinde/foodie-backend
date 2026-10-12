@@ -1,10 +1,17 @@
+import type {
+  PaymentProviderStatus,
+  PaymentResourceType,
+} from "../../types/payment.types.js";
 
-
-import type { PaymentProviderStatus, PaymentResourceType } from "../../types/payment.types.js";
 import type { PaystackRefundTransaction } from "./paystack.types.js";
 
+export type PaystackRefundStatus =
+  | "SUCCESS"
+  | "PROCESSING"
+  | "FAILED"
+  | "UNKNOWN";
 
-  export const toSubunit = (amount: string): number => {
+export const toSubunit = (amount: string): number => {
   const normalized = amount.trim();
 
   if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
@@ -13,9 +20,7 @@ import type { PaystackRefundTransaction } from "./paystack.types.js";
 
   const [whole, fraction = ""] = normalized.split(".");
 
-  const minorUnits = BigInt(
-    `${whole}${fraction.padEnd(2, "0")}`,
-  );
+  const minorUnits = BigInt(`${whole}${fraction.padEnd(2, "0")}`);
 
   const value = Number(minorUnits);
 
@@ -44,9 +49,7 @@ export const normalizeCurrency = (currency: string): string => {
   return normalized;
 };
 
-export const mapPaymentStatus = (
-  status: string,
-): PaymentProviderStatus => {
+export const mapPaymentStatus = (status: string): PaymentProviderStatus => {
   switch (status.trim().toLowerCase()) {
     case "success":
       return "SUCCESS";
@@ -68,10 +71,27 @@ export const mapPaymentStatus = (
   }
 };
 
-export const getResourceType = (
-  eventType: string,
-): PaymentResourceType => {
-  const normalized = eventType.toLowerCase();
+export const mapRefundStatus = (status: string): PaystackRefundStatus => {
+  switch (status.trim().toLowerCase()) {
+    case "processed":
+      return "SUCCESS";
+
+    case "pending":
+    case "processing":
+    case "needs-attention":
+      return "PROCESSING";
+
+    case "failed":
+    case "reversed":
+      return "FAILED";
+
+    default:
+      return "UNKNOWN";
+  }
+};
+
+export const getResourceType = (eventType: string): PaymentResourceType => {
+  const normalized = eventType.trim().toLowerCase();
 
   if (normalized.startsWith("refund.")) {
     return "REFUND";
@@ -90,11 +110,7 @@ export const getResourceType = (
 export const getStringMetadata = (
   value: unknown,
 ): Record<string, unknown> | undefined => {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    Array.isArray(value)
-  ) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
 
