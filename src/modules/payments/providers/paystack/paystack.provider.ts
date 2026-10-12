@@ -8,8 +8,6 @@ import type {
   ListRefundsResult,
   RefundPaymentInput,
   RefundPaymentResult,
-  VerifyPaymentInput,
-  VerifyPaymentResult,
   VerifyRefundInput,
   VerifyRefundResult,
   VerifyWebhookInput,
@@ -53,45 +51,6 @@ export const createPaystackProvider = ({
   });
 
   const http = createPaystackHttpHelper(client);
-
-
-  const verifyPayment = async (
-    input: VerifyPaymentInput,
-  ): Promise<VerifyPaymentResult> => {
-    const reference = encodeURIComponent(input.providerReference);
-
-    const response = await http.request<PaystackVerifyResponse>({
-      method: "GET",
-      url: `/transaction/verify/${reference}`,
-    });
-
-    const data = assertPaystackResponse(response.data, "payment verification");
-    console.info("[Paystack Verification Response]", {
-  reference: data.reference,
-  status: data.status,
-  amount: data.amount,
-  currency: data.currency,
-  gatewayResponse: data.gateway_response,
-});
-
-const currency = normalizeCurrency(data.currency);
-const status = mapRefundStatus(data.status);
-
-    return {
-      provider: PaymentProvider.PAYSTACK,
-      providerReference: data.reference,
-      amount: fromSubunit(data.amount),
-      currency,
-      status: status,
-      providerStatus: data.status,
-      paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
-      failureReason:
-        data.status.toLowerCase() === "failed"
-          ? (data.gateway_response ?? undefined)
-          : undefined,
-      metadata: getStringMetadata(data.metadata),
-    };
-  };
 
   const refundPayment = async (
     input: RefundPaymentInput,
@@ -446,7 +405,6 @@ const listRefunds = async (
   };
 
   return {
-    verifyPayment,
     verifyWebhook,
     refundPayment,
     verifyRefund,
