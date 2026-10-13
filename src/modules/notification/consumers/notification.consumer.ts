@@ -12,21 +12,21 @@ import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type {
   DomainEvent,
   OrderEvent,
-  PaymentSucceededEvent,
+  PaymentEvent,
 } from "../../../shared/events/event.types.js";
 
-import type { PaymentSucceededNotificationHandler } from "../handlers/payment-succeeded-notification.handler.js";
 import type { OrderNotificationHandler } from "../handlers/order-notification.handler.js";
+import type { PaymentNotificationHandler } from "../handlers/payment-notification.handler.js";
 
-import { createNotificationEventRouter } from "./notification-event.router.js";
-import { createNotificationEventProcessor } from "./notification-event.processor.js";
 import { createNotificationDlqPublisher } from "./notification-dlq.publisher.js";
+import { createNotificationEventProcessor } from "./notification-event.processor.js";
+import { createNotificationEventRouter } from "./notification-event.router.js";
 
-type SupportedNotificationEvent = OrderEvent | PaymentSucceededEvent;
+type SupportedNotificationEvent = OrderEvent | PaymentEvent;
 
 type NotificationConsumerDependencies = {
   db: DatabaseClient;
-  handler: PaymentSucceededNotificationHandler;
+  handler: PaymentNotificationHandler;
   orderNotificationHandler: OrderNotificationHandler;
 };
 
@@ -46,7 +46,7 @@ export const createNotificationConsumer = ({
   const producer = kafka.producer();
 
   const router = createNotificationEventRouter({
-    paymentSucceededHandler: handler,
+    paymentHandler: handler,
     orderHandler: orderNotificationHandler,
   });
 
@@ -63,7 +63,13 @@ export const createNotificationConsumer = ({
     event: DomainEvent,
   ): event is SupportedNotificationEvent => {
     switch (event.eventType) {
+      case EVENT_TYPES.PAYMENT_PROCESSING:
       case EVENT_TYPES.PAYMENT_SUCCEEDED:
+      case EVENT_TYPES.PAYMENT_FAILED:
+      case EVENT_TYPES.PAYMENT_CANCELLED:
+      case EVENT_TYPES.PAYMENT_EXPIRED:
+      case EVENT_TYPES.PAYMENT_PARTIALLY_REFUNDED:
+      case EVENT_TYPES.PAYMENT_REFUNDED:
       case EVENT_TYPES.ORDER_CREATED:
       case EVENT_TYPES.ORDER_CONFIRMED:
       case EVENT_TYPES.ORDER_PROCESSING:
@@ -76,6 +82,20 @@ export const createNotificationConsumer = ({
       default:
         return false;
     }
+  };
+
+  const commitOffset = async (
+    topic: string,
+    partition: number,
+    offset: string,
+  ) => {
+    await consumer.commitOffsets([
+      {
+        topic,
+        partition,
+        offset: (BigInt(offset) + 1n).toString(),
+      },
+    ]);
   };
 
   const connect = async () => {
@@ -138,15 +158,8 @@ export const createNotificationConsumer = ({
             failureReason,
           });
 
-          // Acknowledge only after the DLQ publication succeeds.
-          await consumer.commitOffsets([
-            {
-              topic,
-              partition,
-              offset: (BigInt(message.offset) + 1n).toString(),
-            },
-          ]);
-
+          // Commit only after DLQ publication succeeds.
+          await commitOffset(topic, partition, message.offset);
           return;
         }
 
@@ -163,24 +176,10 @@ export const createNotificationConsumer = ({
           offset: message.offset,
         });
 
-        if (isSupportedEvent(event)) {
-          await processor.process(event);
-        } else {
-          // Preserve existing behavior for valid but unsupported events.
-          console.info("[Notification] Event type not handled", {
-            eventId: event.eventId,
-            eventType: event.eventType,
-          });
-        }
+     await processor.process(event);
 
-        // Commit only after processing succeeds or the event is safely skipped.
-        await consumer.commitOffsets([
-          {
-            topic,
-            partition,
-            offset: (BigInt(message.offset) + 1n).toString(),
-          },
-        ]);
+        // Do not commit if processing throws.
+        await commitOffset(topic, partition, message.offset);
       },
     });
   };

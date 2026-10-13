@@ -5,12 +5,13 @@ import { createNotificationRepository } from "./repositories/notification.reposi
 import { createNotificationService } from "./services/notification.service.js";
 import { createNotificationController } from "./controllers/notification.controller.js";
 import { createNotificationRoutes } from "./routes/notification.routes.js";
-import { createPaymentSucceededNotificationHandler } from "./handlers/payment-succeeded-notification.handler.js";
+
 import { createNotificationConsumer } from "./consumers/notification.consumer.js";
 import { createNotificationDeliveryWorker } from "./workers/notification-delivery.worker.js";
 import { createNotificationDeliveryRunner } from "./workers/notification-delivery.runner.js";
 import { env } from "../../config/env.js";
 import { createOrderNotificationHandler } from "./handlers/order-notification.handler.js";
+import { createPaymentNotificationHandler } from "./handlers/payment-notification.handler.js";
 
 type NotificationDependencies = {
   db: PrismaClient;
@@ -39,22 +40,21 @@ export const createNotificationDependencies = ({
 
 
 
-  const paymentSucceededNotificationHandler =
-    createPaymentSucceededNotificationHandler({
-      notificationService,
-      clientUrl: env.mail.CLIENT_URL,
-    });
+  const paymentNotificationHandler = createPaymentNotificationHandler({
+  notificationService,
+  clientUrl: env.mail.CLIENT_URL,
+});
 
-  const orderNotificationHandler = createOrderNotificationHandler({
-    notificationService,
-    clientUrl: env.mail.CLIENT_URL,
-  });
+const orderNotificationHandler = createOrderNotificationHandler({
+  notificationService,
+  clientUrl: env.mail.CLIENT_URL,
+});
 
-  const notificationConsumer = createNotificationConsumer({
-    db,
-    handler: paymentSucceededNotificationHandler,
-    orderNotificationHandler,
-  });
+const notificationConsumer = createNotificationConsumer({
+  db,
+  handler: paymentNotificationHandler,
+  orderNotificationHandler,
+});
 
   const notificationDeliveryWorker =
     createNotificationDeliveryWorker({ db });
@@ -72,7 +72,7 @@ export const createNotificationDependencies = ({
     notificationService,
     notificationController,
     notificationRoutes,
-    paymentSucceededNotificationHandler,
+    paymentNotificationHandler,
     orderNotificationHandler,
     notificationConsumer,
     notificationDeliveryWorker,

@@ -1,4 +1,3 @@
-export { paymentSuccessTemplate } from "./payment-success.template.js";
-export { paymentFailedTemplate } from "./payment-failed.template.js";
-export { paymentRefundedTemplate } from "./payment-refunded.template.js";
+
 export { orderNotificationTemplate } from "./order-notification.template.js";
+export { paymentNotificationTemplate } from "./payment-notification.template.js";

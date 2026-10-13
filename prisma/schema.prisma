@@ -722,8 +722,8 @@ enum RefundStatus {
   CANCELLED
 }
 
-
 enum NotificationType {
+  PAYMENT_PROCESSING
   PAYMENT_SUCCESS
   PAYMENT_FAILED
   PAYMENT_CANCELLED
@@ -739,7 +739,6 @@ enum NotificationType {
   ORDER_CANCELLED
   ORDER_EXPIRED
 }
-
 
 enum NotificationChannel {
   IN_APP
