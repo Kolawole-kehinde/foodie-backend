@@ -1,33 +1,23 @@
 
 import type { Consumer } from "kafkajs";
-
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { kafka } from "../../../infrastructure/kafka/kafka.client.js";
-import {
-  connectKafka,
-  disconnectKafka,
-} from "../../../infrastructure/kafka/kafka.connection.js";
+import {connectKafka,disconnectKafka,} from "../../../infrastructure/kafka/kafka.connection.js";
 import { domainEventSchema } from "../../../shared/events/event.schema.js";
-import { EVENT_TYPES } from "../../../shared/events/event.types.js";
-import type {
-  DomainEvent,
-  OrderEvent,
-  PaymentEvent,
-} from "../../../shared/events/event.types.js";
-
+import type { DomainEvent } from "../../../shared/events/event.types.js";
 import type { OrderNotificationHandler } from "../handlers/order-notification.handler.js";
 import type { PaymentNotificationHandler } from "../handlers/payment-notification.handler.js";
-
+import { isSupportedNotificationEvent } from "../constants/supported-notification-events.constant.js";
 import { createNotificationDlqPublisher } from "./notification-dlq.publisher.js";
 import { createNotificationEventProcessor } from "./notification-event.processor.js";
 import { createNotificationEventRouter } from "./notification-event.router.js";
-
-type SupportedNotificationEvent = OrderEvent | PaymentEvent;
+import type { IdentityNotificationHandler } from "../handlers/identity-notification.handler.js";
 
 type NotificationConsumerDependencies = {
   db: DatabaseClient;
   handler: PaymentNotificationHandler;
   orderNotificationHandler: OrderNotificationHandler;
+  identityNotificationHandler: IdentityNotificationHandler;
 };
 
 const TOPIC = "domain-events";
@@ -38,6 +28,7 @@ export const createNotificationConsumer = ({
   db,
   handler,
   orderNotificationHandler,
+  identityNotificationHandler,
 }: NotificationConsumerDependencies) => {
   const consumer: Consumer = kafka.consumer({
     groupId: GROUP_ID,
@@ -48,6 +39,7 @@ export const createNotificationConsumer = ({
   const router = createNotificationEventRouter({
     paymentHandler: handler,
     orderHandler: orderNotificationHandler,
+    identityHandler: identityNotificationHandler,
   });
 
   const processor = createNotificationEventProcessor({
@@ -58,31 +50,6 @@ export const createNotificationConsumer = ({
   const dlqPublisher = createNotificationDlqPublisher({
     producer,
   });
-
-  const isSupportedEvent = (
-    event: DomainEvent,
-  ): event is SupportedNotificationEvent => {
-    switch (event.eventType) {
-      case EVENT_TYPES.PAYMENT_PROCESSING:
-      case EVENT_TYPES.PAYMENT_SUCCEEDED:
-      case EVENT_TYPES.PAYMENT_FAILED:
-      case EVENT_TYPES.PAYMENT_CANCELLED:
-      case EVENT_TYPES.PAYMENT_EXPIRED:
-      case EVENT_TYPES.PAYMENT_PARTIALLY_REFUNDED:
-      case EVENT_TYPES.PAYMENT_REFUNDED:
-      case EVENT_TYPES.ORDER_CREATED:
-      case EVENT_TYPES.ORDER_CONFIRMED:
-      case EVENT_TYPES.ORDER_PROCESSING:
-      case EVENT_TYPES.ORDER_SHIPPED:
-      case EVENT_TYPES.ORDER_DELIVERED:
-      case EVENT_TYPES.ORDER_CANCELLED:
-      case EVENT_TYPES.ORDER_EXPIRED:
-        return true;
-
-      default:
-        return false;
-    }
-  };
 
   const commitOffset = async (
     topic: string,
@@ -96,6 +63,37 @@ export const createNotificationConsumer = ({
         offset: (BigInt(offset) + 1n).toString(),
       },
     ]);
+  };
+
+  const publishToDlqAndCommit = async ({
+    topic,
+    partition,
+    message,
+    rawValue,
+    failureReason,
+  }: {
+    topic: string;
+    partition: number;
+    message: {
+      offset: string;
+      timestamp: string;
+      key: Buffer | null;
+    };
+    rawValue: string | null;
+    failureReason: string;
+  }) => {
+    await dlqPublisher.publish({
+      topic,
+      partition,
+      offset: message.offset,
+      timestamp: message.timestamp,
+      key: message.key,
+      rawValue,
+      failureReason,
+    });
+
+    // Commit only after DLQ publication succeeds.
+    await commitOffset(topic, partition, message.offset);
   };
 
   const connect = async () => {
@@ -148,18 +146,14 @@ export const createNotificationConsumer = ({
         }
 
         if (failureReason !== null) {
-          await dlqPublisher.publish({
+          await publishToDlqAndCommit({
             topic,
             partition,
-            offset: message.offset,
-            timestamp: message.timestamp,
-            key: message.key,
+            message,
             rawValue,
             failureReason,
           });
 
-          // Commit only after DLQ publication succeeds.
-          await commitOffset(topic, partition, message.offset);
           return;
         }
 
@@ -176,7 +170,19 @@ export const createNotificationConsumer = ({
           offset: message.offset,
         });
 
-     await processor.process(event);
+        if (!isSupportedNotificationEvent(event)) {
+          await publishToDlqAndCommit({
+            topic,
+            partition,
+            message,
+            rawValue,
+            failureReason: `Unsupported notification event type: ${event.eventType}`,
+          });
+
+          return;
+        }
+
+        await processor.process(event);
 
         // Do not commit if processing throws.
         await commitOffset(topic, partition, message.offset);

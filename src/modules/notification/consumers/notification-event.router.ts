@@ -1,17 +1,20 @@
 
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type { DomainEvent } from "../../../shared/events/event.types.js";
+import type { IdentityNotificationHandler } from "../handlers/identity-notification.handler.js";
 import type { OrderNotificationHandler } from "../handlers/order-notification.handler.js";
 import type { PaymentNotificationHandler } from "../handlers/payment-notification.handler.js";
 
 type NotificationEventRouterDependencies = {
   paymentHandler: PaymentNotificationHandler;
   orderHandler: OrderNotificationHandler;
+  identityHandler: IdentityNotificationHandler
 };
 
 export const createNotificationEventRouter = ({
   paymentHandler,
   orderHandler,
+  identityHandler,
 }: NotificationEventRouterDependencies) => {
 
   const route = async (event: DomainEvent): Promise<boolean> => {
