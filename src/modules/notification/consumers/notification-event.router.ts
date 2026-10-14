@@ -13,7 +13,7 @@ export const createNotificationEventRouter = ({
   paymentHandler,
   orderHandler,
 }: NotificationEventRouterDependencies) => {
-    
+
   const route = async (event: DomainEvent): Promise<boolean> => {
     switch (event.eventType) {
       case EVENT_TYPES.PAYMENT_PROCESSING:
@@ -34,6 +34,15 @@ export const createNotificationEventRouter = ({
       case EVENT_TYPES.ORDER_CANCELLED:
       case EVENT_TYPES.ORDER_EXPIRED:
         await orderHandler.handle(event);
+        return true;
+
+
+      case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED:
+      case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT:
+      case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
+      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
+      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED:
+        await identityHandler.handle(event);
         return true;
     }
   };
