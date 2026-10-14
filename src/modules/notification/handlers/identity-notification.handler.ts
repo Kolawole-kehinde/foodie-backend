@@ -8,6 +8,7 @@ import {
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type { IdentityEvent } from "../../../shared/events/event.types.js";
 import type { NotificationService } from "../services/notification.service.js";
+import { identityNotificationTemplate } from "../templates/identity-notification.template.js";
 
 type IdentityNotificationHandlerDependencies = {
   notificationService: NotificationService;
@@ -18,31 +19,27 @@ export const createIdentityNotificationHandler = ({
 }: IdentityNotificationHandlerDependencies) => {
   const handle = async (event: IdentityEvent): Promise<boolean> => {
     let userId: string;
-    let email: string;
     let type: NotificationType;
-    let title: string;
-    let message: string;
 
     switch (event.eventType) {
       case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
         userId = event.data.userId;
-        email = event.data.email;
-        type = NotificationType.;
-        title = "Email verified";
-        message = "Your email address has been successfully verified.";
+        type = NotificationType.IDENTITY_EMAIL_VERIFIED;
         break;
 
       case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
         userId = event.data.userId;
-        email = event.data.email;
         type = NotificationType.IDENTITY_PASSWORD_RESET_COMPLETED;
-        title = "Password changed";
-        message = "Your password has been successfully changed.";
         break;
 
       default:
-        // Request events need secure email delivery before being handled here.
         return false;
+    }
+
+    const template = identityNotificationTemplate(event);
+
+    if (!template.inApp) {
+      return false;
     }
 
     try {
@@ -50,12 +47,12 @@ export const createIdentityNotificationHandler = ({
         userId,
         type,
         status: NotificationStatus.UNREAD,
-        title,
-        message,
+        title: template.inApp.title,
+        message: template.inApp.message,
         eventId: event.eventId,
         eventType: event.eventType,
         metadata: {
-          email,
+          email: event.data.email,
         } as Prisma.InputJsonValue,
       });
 
