@@ -1,16 +1,19 @@
+
+import { OrderStatus, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
 
 import { EVENT_TYPES } from "./event.types.js";
-import { OrderStatus, PaymentStatus } from "@prisma/client";
 
 const baseEventSchema = z.object({
   eventId: z.string().min(1),
   eventType: z.string().min(1),
   occurredAt: z.string().datetime(),
-  aggregateType: z.enum(["order", "payment"]),
+  aggregateType: z.enum(["order", "payment", "identity"]),
   aggregateId: z.string().min(1),
   data: z.record(z.string(), z.unknown()),
 });
+
+// Order schemas
 
 const orderEventItemSchema = z.object({
   productId: z.string().min(1),
@@ -42,6 +45,8 @@ const orderStatusChangedDataSchema = z.object({
   newStatus: z.nativeEnum(OrderStatus),
 });
 
+// Payment schema
+
 const paymentDataSchema = z.object({
   paymentId: z.string().min(1),
   orderId: z.string().min(1),
@@ -53,7 +58,34 @@ const paymentDataSchema = z.object({
   status: z.nativeEnum(PaymentStatus),
 });
 
+// Identity schemas
+
+const identityEmailVerificationRequestedDataSchema = z.object({
+  email: z.string().email(),
+});
+
+const identityEmailVerificationResentDataSchema = z.object({
+  email: z.string().email(),
+});
+
+const identityEmailVerifiedDataSchema = z.object({
+  userId: z.string().min(1),
+  email: z.string().email(),
+});
+
+const identityPasswordResetRequestedDataSchema = z.object({
+  userId: z.string().min(1),
+  email: z.string().email(),
+});
+
+const identityPasswordResetCompletedDataSchema = z.object({
+  userId: z.string().min(1),
+  email: z.string().email(),
+});
+
 export const domainEventSchema = z.discriminatedUnion("eventType", [
+  // Order events
+
   baseEventSchema.extend({
     eventType: z.literal(EVENT_TYPES.ORDER_CREATED),
     aggregateType: z.literal("order"),
@@ -96,6 +128,8 @@ export const domainEventSchema = z.discriminatedUnion("eventType", [
     data: orderStatusChangedDataSchema,
   }),
 
+  // Payment events
+
   baseEventSchema.extend({
     eventType: z.literal(EVENT_TYPES.PAYMENT_PROCESSING),
     aggregateType: z.literal("payment"),
@@ -136,5 +170,41 @@ export const domainEventSchema = z.discriminatedUnion("eventType", [
     eventType: z.literal(EVENT_TYPES.PAYMENT_REFUNDED),
     aggregateType: z.literal("payment"),
     data: paymentDataSchema,
+  }),
+
+  // Identity events
+
+  baseEventSchema.extend({
+    eventType: z.literal(
+      EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED,
+    ),
+    aggregateType: z.literal("identity"),
+    data: identityEmailVerificationRequestedDataSchema,
+  }),
+
+  baseEventSchema.extend({
+    eventType: z.literal(
+      EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT,
+    ),
+    aggregateType: z.literal("identity"),
+    data: identityEmailVerificationResentDataSchema,
+  }),
+
+  baseEventSchema.extend({
+    eventType: z.literal(EVENT_TYPES.IDENTITY_EMAIL_VERIFIED),
+    aggregateType: z.literal("identity"),
+    data: identityEmailVerifiedDataSchema,
+  }),
+
+  baseEventSchema.extend({
+    eventType: z.literal(EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED),
+    aggregateType: z.literal("identity"),
+    data: identityPasswordResetRequestedDataSchema,
+  }),
+
+  baseEventSchema.extend({
+    eventType: z.literal(EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED),
+    aggregateType: z.literal("identity"),
+    data: identityPasswordResetCompletedDataSchema,
   }),
 ]);

@@ -31,6 +31,8 @@ async function bootstrap() {
     const app = createApp();
     const server = createServer(app);
 
+
+
     server.listen(env.app.PORT, () => {
       logger.info(
         {
@@ -40,6 +42,8 @@ async function bootstrap() {
         "Server started successfully",
       );
     });
+
+
 
     let shuttingDown = false;
 

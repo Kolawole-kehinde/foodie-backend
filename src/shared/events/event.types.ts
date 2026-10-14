@@ -16,14 +16,19 @@ export const EVENT_TYPES = {
   PAYMENT_EXPIRED: "payment.expired.v1",
   PAYMENT_PARTIALLY_REFUNDED: "payment.partially_refunded.v1",
   PAYMENT_REFUNDED: "payment.refunded.v1",
+
+  IDENTITY_EMAIL_VERIFICATION_REQUESTED: "identity.email_verification_requested.v1",
+  IDENTITY_EMAIL_VERIFICATION_RESENT: "identity.email_verification_resent.v1",
+  IDENTITY_EMAIL_VERIFIED: "identity.email_verified.v1",
+  IDENTITY_PASSWORD_RESET_REQUESTED: "identity.password_reset_requested.v1",
+  IDENTITY_PASSWORD_RESET_COMPLETED: "identity.password_reset_completed.v1",
 } as const;
 
-export type EventType =
-  (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
+export type EventType = (typeof EVENT_TYPES)[keyof typeof EVENT_TYPES];
 
-export type AggregateType =
-  | "order"
-  | "payment";
+export type AggregateType = "order" | "payment" | "identity";
+
+// Order event data
 
 export type OrderEventItem = {
   productId: string;
@@ -59,6 +64,8 @@ export type OrderStatusChangedEventData = {
   newStatus: OrderStatus;
 };
 
+// Payment event data
+
 export type PaymentEventData = {
   paymentId: string;
   orderId: string;
@@ -70,11 +77,34 @@ export type PaymentEventData = {
   status: PaymentStatus;
 };
 
-export type BaseEvent<
-  TEventType extends EventType,
-  TData,
-  TAggregateType extends AggregateType = AggregateType,
-> = {
+// Identity event data
+
+export type IdentityEmailVerificationRequestedEventData = {
+  email: string;
+};
+
+export type IdentityEmailVerificationResentEventData = {
+  email: string;
+};
+
+export type IdentityEmailVerifiedEventData = {
+  userId: string;
+  email: string;
+};
+
+export type IdentityPasswordResetRequestedEventData = {
+  userId: string;
+  email: string;
+};
+
+export type IdentityPasswordResetCompletedEventData = {
+  userId: string;
+  email: string;
+};
+
+// Base event
+
+export type BaseEvent< TEventType extends EventType, TData, TAggregateType extends AggregateType = AggregateType> = {
   eventId: string;
   eventType: TEventType;
   occurredAt: string;
@@ -83,6 +113,7 @@ export type BaseEvent<
   data: TData;
 };
 
+// Order events
 export type OrderCreatedEvent = BaseEvent<
   typeof EVENT_TYPES.ORDER_CREATED,
   OrderCreatedEventData,
@@ -124,6 +155,17 @@ export type OrderDeliveredEvent = BaseEvent<
   OrderStatusChangedEventData,
   "order"
 >;
+
+export type OrderEvent =
+  | OrderCreatedEvent
+  | OrderCancelledEvent
+  | OrderExpiredEvent
+  | OrderConfirmedEvent
+  | OrderProcessingEvent
+  | OrderShippedEvent
+  | OrderDeliveredEvent;
+
+// Payment events
 
 export type PaymentProcessingEvent = BaseEvent<
   typeof EVENT_TYPES.PAYMENT_PROCESSING,
@@ -167,15 +209,6 @@ export type PaymentRefundedEvent = BaseEvent<
   "payment"
 >;
 
-export type OrderEvent =
-  | OrderCreatedEvent
-  | OrderCancelledEvent
-  | OrderExpiredEvent
-  | OrderConfirmedEvent
-  | OrderProcessingEvent
-  | OrderShippedEvent
-  | OrderDeliveredEvent;
-
 export type PaymentEvent =
   | PaymentProcessingEvent
   | PaymentSucceededEvent
@@ -185,4 +218,45 @@ export type PaymentEvent =
   | PaymentPartiallyRefundedEvent
   | PaymentRefundedEvent;
 
-export type DomainEvent = OrderEvent | PaymentEvent;
+// Identity events
+
+export type IdentityEmailVerificationRequestedEvent = BaseEvent<
+  typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED,
+  IdentityEmailVerificationRequestedEventData,
+  "identity"
+>;
+
+export type IdentityEmailVerificationResentEvent = BaseEvent<
+  typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT,
+  IdentityEmailVerificationResentEventData,
+  "identity"
+>;
+
+export type IdentityEmailVerifiedEvent = BaseEvent<
+  typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFIED,
+  IdentityEmailVerifiedEventData,
+  "identity"
+>;
+
+export type IdentityPasswordResetRequestedEvent = BaseEvent<
+  typeof EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED,
+  IdentityPasswordResetRequestedEventData,
+  "identity"
+>;
+
+export type IdentityPasswordResetCompletedEvent = BaseEvent<
+  typeof EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED,
+  IdentityPasswordResetCompletedEventData,
+  "identity"
+>;
+
+export type IdentityEvent =
+  | IdentityEmailVerificationRequestedEvent
+  | IdentityEmailVerificationResentEvent
+  | IdentityEmailVerifiedEvent
+  | IdentityPasswordResetRequestedEvent
+  | IdentityPasswordResetCompletedEvent;
+
+// All domain events
+
+export type DomainEvent = OrderEvent | PaymentEvent | IdentityEvent;

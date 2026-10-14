@@ -34,6 +34,9 @@ import "./orders/orders.js";
 // Payment Documentation
 import "./payments/payment.js";
 
+// Notification documentation
+import "./notifications/notifications.js";
+
 // Role documentation
 import "./role/roles.js";
 import "./role/role-permissions.js";
@@ -98,6 +101,11 @@ export const swaggerSpec = generator.generateDocument({
       name: "Payments",
       description:
         "Payment initialization, verification, refunds, and webhook endpoints",
+    },
+    {
+      name: "Notifications",
+      description:
+        "Authenticated user notification retrieval and read-status management endpoints",
     },
     {
       name: "Profile",
