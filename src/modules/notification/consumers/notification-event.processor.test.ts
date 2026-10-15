@@ -15,11 +15,13 @@ const createDatabaseMock = () => ({
   },
 });
 
+
 const createEvent = (): DomainEvent =>
   ({
     eventId: "event-123",
     eventType: "test.event",
-  }) as DomainEvent;
+  }) as unknown as DomainEvent;
+
 
 const createInboxRecord = (
   status: InboxEventStatus = InboxEventStatus.PROCESSING,
@@ -99,7 +101,7 @@ describe("createNotificationEventProcessor", () => {
     expect(route).toHaveBeenCalledWith(event);
     expect(db.inboxEvent.updateMany).toHaveBeenCalledTimes(1);
 
-    const [query] = db.inboxEvent.updateMany.mock.calls[0];
+const [query] = db.inboxEvent.updateMany.mock.calls[0]!;
 
     expect(query.where).toMatchObject({
       eventId: event.eventId,
@@ -161,7 +163,7 @@ describe("createNotificationEventProcessor", () => {
 
     expect(db.inboxEvent.updateMany).toHaveBeenCalledTimes(1);
 
-    const [query] = db.inboxEvent.updateMany.mock.calls[0];
+    const [query] = db.inboxEvent.updateMany.mock.calls[0]!;
 
     expect(query.where).toMatchObject({
       eventId: event.eventId,

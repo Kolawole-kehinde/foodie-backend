@@ -37,7 +37,7 @@ describe("createInboxRepository", () => {
 
       expect(claimed).toBe(true);
 
-      const [query] = db.inboxEvent.updateMany.mock.calls[0];
+      const [query] = db.inboxEvent.updateMany.mock.calls[0]!;
 
       expect(query.where).toMatchObject({
         eventId: "event-123",
@@ -88,7 +88,7 @@ describe("createInboxRepository", () => {
 
       expect(renewed).toBe(true);
 
-      const [query] = db.inboxEvent.updateMany.mock.calls[0];
+     const [query] = db.inboxEvent.updateMany.mock.calls[0]!;
 
       expect(query.where).toMatchObject({
         eventId: "event-123",
@@ -124,7 +124,7 @@ describe("createInboxRepository", () => {
 
       expect(processed).toBe(true);
 
-      const [query] = db.inboxEvent.updateMany.mock.calls[0];
+      const [query] = db.inboxEvent.updateMany.mock.calls[0]!;
 
       expect(query.where).toMatchObject({
         eventId: "event-123",
@@ -167,7 +167,7 @@ describe("createInboxRepository", () => {
 
       expect(failed).toBe(true);
 
-      const [query] = db.inboxEvent.updateMany.mock.calls[0];
+      const [query] = db.inboxEvent.updateMany.mock.calls[0]!;
 
       expect(query.where).toMatchObject({
         eventId: "event-123",
