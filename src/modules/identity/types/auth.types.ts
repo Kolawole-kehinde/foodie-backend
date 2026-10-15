@@ -15,6 +15,7 @@ import type { SessionService } from "../services/session.service.js";
 import type { PasswordResetTokenRepository } from "../repositories/password-reset-token.repository.js";
 import type { EmailVerificationOtpService } from "../services/email-verification-otp.service.js";
 import type { RedisClient } from "../../../database/redis/client.js";
+import type { OutboxService } from "../../outbox/services/outbox.service.js";
 
 export type AuthContext = {
   ipAddress?: string;
@@ -54,4 +55,5 @@ export type AuthDependencies = {
   repositories: AuthRepositories;
   services: AuthServices;
   queues: AuthQueues;
+    outboxService: OutboxService;
 };

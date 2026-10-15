@@ -1,21 +1,23 @@
+
+import { randomUUID } from "node:crypto";
 import { RoleName, UserStatus } from "@prisma/client";
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
+import { EVENT_TYPES } from "../../../shared/events/event.types.js";
+import type { IdentityEmailVerifiedEvent } from "../../../shared/events/event.types.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
 import { createPendingRegistrationRepository } from "../repositories/pending-registration.repository.js";
 import { createUserRepository } from "../repositories/user.repository.js";
+import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 import { AuditActions } from "../constants/audit-action.constants.js";
 
+export const createVerifyEmailService = ({ prisma, repositories, services, outboxService,}: AuthDependencies) => {
 
+  const verifyEmail = async (
+ dto: VerifyEmailRequestDto,
+    context?: AuthContext,
+  ): Promise<{ message: string }> => {
 
-export const createVerifyEmailService = ({prisma,repositories,services,}: AuthDependencies) => {
-
-  const verifyEmail = async (dto: VerifyEmailRequestDto,
-    context?: AuthContext): Promise<{ message: string }> => {
-
-
-    // Verify the OTP stored in Redis.
-    // The OTP service also handles expiration and failed-attempt limits.
     const isValidOtp = await services.emailVerificationOtp.verify(
       dto.email,
       dto.otp,
@@ -25,39 +27,52 @@ export const createVerifyEmailService = ({prisma,repositories,services,}: AuthDe
       throw new ConflictError("Invalid or expired verification code");
     }
 
-    // Find the pending registration using the email.
-    const pendingRegistration = await repositories.pendingRegistration.findByEmail(dto.email);
+    const pendingRegistration =
+      await repositories.pendingRegistration.findByEmail(dto.email);
 
     if (!pendingRegistration) {
       throw new ConflictError("Invalid or expired verification code");
     }
 
-    // Create the real user and remove the pending registration
-    // in the same database transaction.
     const user = await prisma.$transaction(async (tx) => {
       const userRepository = createUserRepository(tx);
-
-      const pendingRegistrationRepository =
-        createPendingRegistrationRepository(tx);
+      const pendingRegistrationRepository = createPendingRegistrationRepository(tx);
+      const transactionOutboxRepository = createOutboxRepository(tx);
 
       const createdUser = await userRepository.create({
         email: pendingRegistration.email,
         passwordHash: pendingRegistration.passwordHash,
         status: UserStatus.ACTIVE,
         emailVerifiedAt: new Date(),
-
         roles: {
           create: {
             role: {
-              connect: {
-                name: RoleName.USER,
-              },
+              connect: { name: RoleName.USER },
             },
           },
         },
       });
 
-      await pendingRegistrationRepository.deleteById(pendingRegistration.id);
+      const event: IdentityEmailVerifiedEvent = {
+        eventId: randomUUID(),
+        eventType: EVENT_TYPES.IDENTITY_EMAIL_VERIFIED,
+        occurredAt: new Date().toISOString(),
+        aggregateType: "identity",
+        aggregateId: createdUser.id,
+        data: {
+          userId: createdUser.id,
+          email: createdUser.email,
+        },
+      };
+
+      await outboxService.createEvent({
+        event,
+        repository: transactionOutboxRepository,
+      });
+
+      await pendingRegistrationRepository.deleteById(
+        pendingRegistration.id,
+      );
 
       return createdUser;
     });
@@ -69,14 +84,12 @@ export const createVerifyEmailService = ({prisma,repositories,services,}: AuthDe
       userAgent: context?.userAgent,
     });
 
-    return {
-      message: "Email verified successfully.",
-    };
+    return { message: "Email verified successfully." };
   };
 
-  return {
-    verifyEmail,
-  };
+  return { verifyEmail };
 };
 
-export type VerifyEmailService = ReturnType<typeof createVerifyEmailService>;
+export type VerifyEmailService = ReturnType<
+  typeof createVerifyEmailService
+>;
