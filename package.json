@@ -8,7 +8,9 @@
     "worker:email": "tsx watch src/workers/email.worker.ts",
     "worker:email-dlq": "tsx watch src/workers/email-dlq.worker.ts",
     "build": "tsc",
-    "start": "node dist/server.ts"
+    "start": "node dist/server.ts",
+     "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

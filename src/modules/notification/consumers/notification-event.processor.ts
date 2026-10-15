@@ -15,11 +15,93 @@ type NotificationEventProcessorDependencies = {
   router: NotificationEventRouter;
 };
 
+type LeaseHeartbeatState = {
+  leaseLost: boolean;
+  leaseRenewalError: unknown;
+};
+
 export const createNotificationEventProcessor = ({
   db,
   router,
 }: NotificationEventProcessorDependencies) => {
   const inboxRepository = createInboxRepository(db);
+
+  const startLeaseHeartbeat = (
+    eventId: string,
+    claimToken: string,
+  ) => {
+    let stopped = false;
+    let leaseLost = false;
+    let leaseRenewalError: unknown;
+
+    let renewalTimer: ReturnType<typeof setTimeout> | undefined;
+    let renewalInProgress: Promise<void> | undefined;
+
+    const scheduleRenewal = () => {
+      if (stopped || leaseLost) {
+        return;
+      }
+
+      renewalTimer = setTimeout(() => {
+        renewalInProgress = renewLease();
+      }, LEASE_RENEW_INTERVAL_MS);
+    };
+
+    const renewLease = async (): Promise<void> => {
+      try {
+        const renewed = await inboxRepository.renewLease(
+          eventId,
+          claimToken,
+          LEASE_DURATION_MS,
+        );
+
+        if (!renewed) {
+          leaseLost = true;
+
+          console.error("[Notification] Processing lease lost", {
+            eventId,
+          });
+
+          return;
+        }
+      } catch (error: unknown) {
+        leaseLost = true;
+        leaseRenewalError = error;
+
+        console.error("[Notification] Lease renewal failed", {
+          eventId,
+          error:
+            error instanceof Error ? error.message : "Unknown error",
+        });
+
+        return;
+      } finally {
+        renewalInProgress = undefined;
+        scheduleRenewal();
+      }
+    };
+
+    scheduleRenewal();
+
+    const stop = async (): Promise<LeaseHeartbeatState> => {
+      stopped = true;
+
+      if (renewalTimer) {
+        clearTimeout(renewalTimer);
+        renewalTimer = undefined;
+      }
+
+      // Wait for a renewal already in progress before changing inbox status.
+      await renewalInProgress;
+
+      return {
+        leaseLost,
+        leaseRenewalError,
+      };
+    };
+
+    return { stop };
+  };
 
   const process = async (event: DomainEvent): Promise<void> => {
     let inboxEvent = await inboxRepository.findByEventId(event.eventId);
@@ -92,40 +174,17 @@ export const createNotificationEventProcessor = ({
       }
     }
 
-    let leaseLost = false;
-    let leaseRenewalError: unknown;
-
-    const renewalTimer = setInterval(() => {
-      void inboxRepository
-        .renewLease(event.eventId, claimToken, LEASE_DURATION_MS)
-        .then((renewed) => {
-          if (!renewed) {
-            leaseLost = true;
-
-            console.error("[Notification] Processing lease lost", {
-              eventId: event.eventId,
-            });
-          }
-        })
-        .catch((error: unknown) => {
-          leaseLost = true;
-          leaseRenewalError = error;
-
-          console.error("[Notification] Lease renewal failed", {
-            eventId: event.eventId,
-            error:
-              error instanceof Error ? error.message : "Unknown error",
-          });
-        });
-    }, LEASE_RENEW_INTERVAL_MS);
+    const heartbeat = startLeaseHeartbeat(event.eventId, claimToken);
 
     try {
       await router.route(event);
 
-      if (leaseLost) {
+      const heartbeatState = await heartbeat.stop();
+
+      if (heartbeatState.leaseLost) {
         throw new Error(
           `Notification processing lease was lost: ${event.eventId}`,
-          { cause: leaseRenewalError },
+          { cause: heartbeatState.leaseRenewalError },
         );
       }
 
@@ -145,6 +204,9 @@ export const createNotificationEventProcessor = ({
         eventType: event.eventType,
       });
     } catch (error) {
+      // Stop and settle the heartbeat before attempting to mark the event failed.
+      await heartbeat.stop();
+
       const failureReason =
         error instanceof Error ? error.message : "Unknown processing error";
 
@@ -162,22 +224,17 @@ export const createNotificationEventProcessor = ({
           );
         }
       } catch (statusError) {
-        console.error(
-          "[Notification] Failed to record processing failure",
-          {
-            eventId: event.eventId,
-            processingError: failureReason,
-            statusError:
-              statusError instanceof Error
-                ? statusError.message
-                : "Unknown status update error",
-          },
-        );
+        console.error("[Notification] Failed to record processing failure", {
+          eventId: event.eventId,
+          processingError: failureReason,
+          statusError:
+            statusError instanceof Error
+              ? statusError.message
+              : "Unknown status update error",
+        });
       }
 
       throw error;
-    } finally {
-      clearInterval(renewalTimer);
     }
   };
 
