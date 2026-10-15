@@ -51,13 +51,8 @@ export const createNotificationConsumer = ({
     producer,
   });
 
-  const commitOffset = async (
-    topic: string,
-    partition: number,
-    offset: string,
-  ) => {
-    await consumer.commitOffsets([
-      {
+  const commitOffset = async ( topic: string, partition: number, offset: string) => {
+    await consumer.commitOffsets([ {
         topic,
         partition,
         offset: (BigInt(offset) + 1n).toString(),

@@ -4,7 +4,6 @@ import {
   NotificationType,
   Prisma,
 } from "@prisma/client";
-
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type { IdentityEvent } from "../../../shared/events/event.types.js";
 import type { NotificationService } from "../services/notification.service.js";
@@ -12,12 +11,13 @@ import { identityNotificationTemplate } from "../templates/identity-notification
 
 type IdentityNotificationHandlerDependencies = {
   notificationService: NotificationService;
+  clientUrl?: string;
 };
 
 export const createIdentityNotificationHandler = ({
   notificationService,
 }: IdentityNotificationHandlerDependencies) => {
-  const handle = async (event: IdentityEvent): Promise<boolean> => {
+  const handle = async (event: IdentityEvent): Promise<void> => {
     let userId: string;
     let type: NotificationType;
 
@@ -33,13 +33,17 @@ export const createIdentityNotificationHandler = ({
         break;
 
       default:
-        return false;
+        throw new Error(
+          `Unsupported identity notification event: ${event.eventType}`,
+        );
     }
 
     const template = identityNotificationTemplate(event);
 
     if (!template.inApp) {
-      return false;
+      throw new Error(
+        `Missing in-app template for identity event: ${event.eventType}`,
+      );
     }
 
     try {
@@ -55,18 +59,18 @@ export const createIdentityNotificationHandler = ({
           email: event.data.email,
         } as Prisma.InputJsonValue,
       });
-
-      return true;
     } catch (error) {
+      
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
         console.info(
-          `[Notification] Duplicate identity notification skipped: ${event.eventId}`,
+          "[Notification] Duplicate identity notification skipped",
+          { eventId: event.eventId },
         );
 
-        return true;
+        return;
       }
 
       throw error;

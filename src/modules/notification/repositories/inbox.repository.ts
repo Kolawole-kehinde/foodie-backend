@@ -2,8 +2,6 @@
 import type { Prisma } from "@prisma/client";
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 
-const STALE_PROCESSING_MS = 5 * 60 * 1000;
-
 export const createInboxRepository = (db: DatabaseClient) => {
   const findByEventId = async (eventId: string) => {
     return db.inboxEvent.findUnique({
@@ -12,14 +10,15 @@ export const createInboxRepository = (db: DatabaseClient) => {
   };
 
   const create = async (data: Prisma.InboxEventCreateInput) => {
-    return db.inboxEvent.create({
-      data,
-    });
+    return db.inboxEvent.create({ data });
   };
 
-  const claimForProcessing = async (eventId: string) => {
+  const claimForProcessing = async (
+    eventId: string,
+    claimToken: string,
+    leaseDurationMs: number,
+  ) => {
     const now = new Date();
-    const staleBefore = new Date(now.getTime() - STALE_PROCESSING_MS);
 
     const result = await db.inboxEvent.updateMany({
       where: {
@@ -28,12 +27,15 @@ export const createInboxRepository = (db: DatabaseClient) => {
           { status: "FAILED" },
           {
             status: "PROCESSING",
-            updatedAt: { lt: staleBefore },
+            leaseExpiresAt: { lte: now },
           },
         ],
       },
       data: {
         status: "PROCESSING",
+        claimToken,
+        leaseExpiresAt: new Date(now.getTime() + leaseDurationMs),
+        processedAt: null,
         failureReason: null,
       },
     });
@@ -41,20 +43,84 @@ export const createInboxRepository = (db: DatabaseClient) => {
     return result.count === 1;
   };
 
-  const updateStatus = async (
+  const renewLease = async (
     eventId: string,
-    data: Prisma.InboxEventUpdateInput,
+    claimToken: string,
+    leaseDurationMs: number,
   ) => {
-    return db.inboxEvent.update({
-      where: { eventId },
-      data,
+    const now = new Date();
+
+    const result = await db.inboxEvent.updateMany({
+      where: {
+        eventId,
+        status: "PROCESSING",
+        claimToken,
+        leaseExpiresAt: { gt: now },
+      },
+      data: {
+        leaseExpiresAt: new Date(now.getTime() + leaseDurationMs),
+      },
     });
+
+    return result.count === 1;
+  };
+
+  const markProcessed = async (
+    eventId: string,
+    claimToken: string,
+  ) => {
+    const now = new Date();
+
+    const result = await db.inboxEvent.updateMany({
+      where: {
+        eventId,
+        status: "PROCESSING",
+        claimToken,
+        leaseExpiresAt: { gt: now },
+      },
+      data: {
+        status: "PROCESSED",
+        processedAt: now,
+        failureReason: null,
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+
+    return result.count === 1;
+  };
+
+  const markFailed = async (
+    eventId: string,
+    claimToken: string,
+    failureReason: string,
+  ) => {
+    const now = new Date();
+
+    const result = await db.inboxEvent.updateMany({
+      where: {
+        eventId,
+        status: "PROCESSING",
+        claimToken,
+        leaseExpiresAt: { gt: now },
+      },
+      data: {
+        status: "FAILED",
+        failureReason,
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+
+    return result.count === 1;
   };
 
   return {
     findByEventId,
     create,
     claimForProcessing,
-    updateStatus,
+    renewLease,
+    markProcessed,
+    markFailed,
   };
 };

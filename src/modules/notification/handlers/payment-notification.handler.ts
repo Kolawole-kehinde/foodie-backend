@@ -33,7 +33,7 @@ export const createPaymentNotificationHandler = ({
   notificationService,
   clientUrl,
 }: PaymentNotificationHandlerDependencies) => {
-  const handle = async (event: PaymentEvent) => {
+const handle = async (event: PaymentEvent): Promise<void> => {
     const template = paymentNotificationTemplate(event, { clientUrl });
 
     try {

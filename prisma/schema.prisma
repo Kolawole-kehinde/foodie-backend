@@ -659,6 +659,7 @@ model OutboxEvent {
   @@index([createdAt])
 }
 
+
 model InboxEvent {
   id String @id @default(uuid())
 
@@ -666,6 +667,9 @@ model InboxEvent {
   eventType String
 
   status InboxEventStatus
+
+  claimToken    String?
+  leaseExpiresAt DateTime?
 
   receivedAt  DateTime  @default(now())
   processedAt DateTime?
@@ -677,6 +681,7 @@ model InboxEvent {
 
   @@index([eventType])
   @@index([status])
+  @@index([status, leaseExpiresAt])
 }
 
 enum OrderStatus {

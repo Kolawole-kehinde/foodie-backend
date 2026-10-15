@@ -32,7 +32,7 @@ export const createOrderNotificationHandler = ({
   notificationService,
   clientUrl,
 }: OrderNotificationHandlerDependencies) => {
-  const handle = async (event: OrderEvent) => {
+ const handle = async (event: OrderEvent): Promise<void> => {
     const template = orderNotificationTemplate(event, { clientUrl });
 
     try {

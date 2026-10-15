@@ -1,6 +1,7 @@
 
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type { DomainEvent } from "../../../shared/events/event.types.js";
+
 import type { IdentityNotificationHandler } from "../handlers/identity-notification.handler.js";
 import type { OrderNotificationHandler } from "../handlers/order-notification.handler.js";
 import type { PaymentNotificationHandler } from "../handlers/payment-notification.handler.js";
@@ -8,7 +9,7 @@ import type { PaymentNotificationHandler } from "../handlers/payment-notificatio
 type NotificationEventRouterDependencies = {
   paymentHandler: PaymentNotificationHandler;
   orderHandler: OrderNotificationHandler;
-  identityHandler: IdentityNotificationHandler
+  identityHandler: IdentityNotificationHandler;
 };
 
 export const createNotificationEventRouter = ({
@@ -16,8 +17,7 @@ export const createNotificationEventRouter = ({
   orderHandler,
   identityHandler,
 }: NotificationEventRouterDependencies) => {
-
-  const route = async (event: DomainEvent): Promise<boolean> => {
+  const route = async (event: DomainEvent): Promise<void> => {
     switch (event.eventType) {
       case EVENT_TYPES.PAYMENT_PROCESSING:
       case EVENT_TYPES.PAYMENT_SUCCEEDED:
@@ -27,7 +27,7 @@ export const createNotificationEventRouter = ({
       case EVENT_TYPES.PAYMENT_PARTIALLY_REFUNDED:
       case EVENT_TYPES.PAYMENT_REFUNDED:
         await paymentHandler.handle(event);
-        return true;
+        return;
 
       case EVENT_TYPES.ORDER_CREATED:
       case EVENT_TYPES.ORDER_CONFIRMED:
@@ -37,20 +37,25 @@ export const createNotificationEventRouter = ({
       case EVENT_TYPES.ORDER_CANCELLED:
       case EVENT_TYPES.ORDER_EXPIRED:
         await orderHandler.handle(event);
-        return true;
+        return;
 
+      case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
+      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
+        await identityHandler.handle(event);
+        return;
 
       case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED:
       case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT:
-      case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
-      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
       case EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED:
-        await identityHandler.handle(event);
-        return true;
+        throw new Error(
+          "Identity email delivery is not implemented for this event yet.",
+        );
     }
   };
 
   return { route };
 };
 
-export type NotificationEventRouter = ReturnType<typeof createNotificationEventRouter>;
+export type NotificationEventRouter = ReturnType<
+  typeof createNotificationEventRouter
+>;
