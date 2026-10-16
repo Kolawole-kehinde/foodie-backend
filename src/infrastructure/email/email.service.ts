@@ -9,40 +9,31 @@ export const createEmailService = () => {
   const sendVerificationEmail = async (
     email: string,
     otp: string,
-  ) => {
+  ): Promise<void> => {
     const emailContent = verifyEmailTemplate(otp);
-
-    logger.info(
-      {
-        email,
-      },
-      "Sending verification email",
-    );
 
     await emailTransporter.sendMail({
       from: env.mail.FROM,
       to: email,
       ...emailContent,
     });
+
+    logger.info("Verification email sent successfully");
   };
 
   const sendForgotPasswordEmail = async (
     email: string,
     resetUrl: string,
-  ) => {
-    const emailContent =
-      forgotPasswordTemplate(resetUrl);
-
-    logger.info(
-      { email },
-      "Sending forgot password email",
-    );
+  ): Promise<void> => {
+    const emailContent = forgotPasswordTemplate(resetUrl);
 
     await emailTransporter.sendMail({
       from: env.mail.FROM,
       to: email,
       ...emailContent,
     });
+
+    logger.info("Password reset email sent successfully");
   };
 
   return {
@@ -51,6 +42,4 @@ export const createEmailService = () => {
   };
 };
 
-export type EmailService = ReturnType<
-  typeof createEmailService
->;
+export type EmailService = ReturnType<typeof createEmailService>;
