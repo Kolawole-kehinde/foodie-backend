@@ -1,4 +1,3 @@
-
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type { DomainEvent } from "../../../shared/events/event.types.js";
 
@@ -39,13 +38,10 @@ export const createNotificationEventRouter = ({
         await orderHandler.handle(event);
         return;
 
-     case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED:
-case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT:
-case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
-case EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED:
-case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
-  await identityHandler.handle(event);
-  return;
+      case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
+      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
+        await identityHandler.handle(event);
+        return;
     }
   };
 
