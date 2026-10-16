@@ -2,7 +2,6 @@
 import { EVENT_TYPES } from "../../../shared/events/event.types.js";
 import type {
   DomainEvent,
-  IdentityEvent,
   OrderEvent,
   PaymentEvent,
 } from "../../../shared/events/event.types.js";
@@ -24,23 +23,14 @@ export const SUPPORTED_NOTIFICATION_EVENT_TYPES = [
   EVENT_TYPES.ORDER_CANCELLED,
   EVENT_TYPES.ORDER_EXPIRED,
 
-  EVENT_TYPES.IDENTITY_EMAIL_VERIFIED,
-  EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED,
+
 ] as const;
 
-type IdentityCompletionEvent = Extract<
-  IdentityEvent,
-  {
-    eventType:
-      | typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFIED
-      | typeof EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED;
-  }
->;
+
 
 export type SupportedNotificationEvent =
   | OrderEvent
   | PaymentEvent
-  | IdentityCompletionEvent;
 
 const supportedEventTypes: ReadonlySet<string> = new Set(
   SUPPORTED_NOTIFICATION_EVENT_TYPES,

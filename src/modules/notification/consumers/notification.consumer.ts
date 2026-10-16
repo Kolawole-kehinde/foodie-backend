@@ -1,23 +1,25 @@
-
 import type { Consumer } from "kafkajs";
+
 import type { DatabaseClient } from "../../../database/prisma/types.js";
 import { kafka } from "../../../infrastructure/kafka/kafka.client.js";
-import {connectKafka,disconnectKafka,} from "../../../infrastructure/kafka/kafka.connection.js";
+import {
+  connectKafka,
+  disconnectKafka,
+} from "../../../infrastructure/kafka/kafka.connection.js";
 import { domainEventSchema } from "../../../shared/events/event.schema.js";
 import type { DomainEvent } from "../../../shared/events/event.types.js";
+
 import type { OrderNotificationHandler } from "../handlers/order-notification.handler.js";
 import type { PaymentNotificationHandler } from "../handlers/payment-notification.handler.js";
 import { isSupportedNotificationEvent } from "../constants/supported-notification-events.constant.js";
 import { createNotificationDlqPublisher } from "./notification-dlq.publisher.js";
 import { createNotificationEventProcessor } from "./notification-event.processor.js";
 import { createNotificationEventRouter } from "./notification-event.router.js";
-import type { IdentityNotificationHandler } from "../handlers/identity-notification.handler.js";
 
 type NotificationConsumerDependencies = {
   db: DatabaseClient;
   handler: PaymentNotificationHandler;
   orderNotificationHandler: OrderNotificationHandler;
-  identityNotificationHandler: IdentityNotificationHandler;
 };
 
 const TOPIC = "domain-events";
@@ -28,7 +30,6 @@ export const createNotificationConsumer = ({
   db,
   handler,
   orderNotificationHandler,
-  identityNotificationHandler,
 }: NotificationConsumerDependencies) => {
   const consumer: Consumer = kafka.consumer({
     groupId: GROUP_ID,
@@ -39,7 +40,6 @@ export const createNotificationConsumer = ({
   const router = createNotificationEventRouter({
     paymentHandler: handler,
     orderHandler: orderNotificationHandler,
-    identityHandler: identityNotificationHandler,
   });
 
   const processor = createNotificationEventProcessor({
@@ -51,8 +51,13 @@ export const createNotificationConsumer = ({
     producer,
   });
 
-  const commitOffset = async ( topic: string, partition: number, offset: string) => {
-    await consumer.commitOffsets([ {
+  const commitOffset = async (
+    topic: string,
+    partition: number,
+    offset: string,
+  ) => {
+    await consumer.commitOffsets([
+      {
         topic,
         partition,
         offset: (BigInt(offset) + 1n).toString(),
@@ -166,17 +171,18 @@ export const createNotificationConsumer = ({
         });
 
         if (!isSupportedNotificationEvent(event)) {
+          const eventType = (event as { eventType: string }).eventType;
+
           await publishToDlqAndCommit({
             topic,
             partition,
             message,
             rawValue,
-            failureReason: `Unsupported notification event type: ${event.eventType}`,
+            failureReason: `Unsupported notification event type: ${eventType}`,
           });
 
           return;
         }
-
         await processor.process(event);
 
         // Do not commit if processing throws.

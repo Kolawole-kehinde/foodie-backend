@@ -1,19 +1,9 @@
-
 import type { RequestHandler } from "express";
-import type { OutboxService } from "../outbox/services/outbox.service.js";
-import type { AuthService } from "./services/auth.service.js";
-import type { AuthController } from "./controllers/auth.controller.js";
-
 import { prisma } from "../../database/prisma/client.js";
 import { redis } from "../../database/redis/client.js";
-
 import { createAuthController } from "./controllers/auth.controller.js";
 import { createRoleController } from "./controllers/role.controller.js";
 import { createUserRoleController } from "./controllers/user-role.controller.js";
-import { createRolePermissionController } from "./controllers/role-permission.controller.js";
-import { createPermissionController } from "./controllers/permission.controller.js";
-import { createUserController } from "./controllers/user.controller.js";
-
 import { createAuthorizationRepository } from "./repositories/authorization.repository.js";
 import { createAuditRepository } from "./repositories/audit.repository.js";
 import { createLoginAttemptRepository } from "./repositories/login-attempt.repository.js";
@@ -25,20 +15,12 @@ import { createSecurityEventRepository } from "./repositories/security-event.rep
 import { createUserRepository } from "./repositories/user.repository.js";
 import { createUserRoleRepository } from "./repositories/user-role.repository.js";
 import { createUserSessionRepository } from "./repositories/user-session.repository.js";
-import { createRolePermissionRepository } from "./repositories/role-permission.repository.js";
-import { createPermissionRepository } from "./repositories/permission.repository.js";
-
 import { createAuthRoutes } from "./routes/auth.routes.js";
 import { createRoleRoutes } from "./routes/role.routes.js";
 import { createUserRoleRoutes } from "./routes/user-role.routes.js";
-import { createRolePermissionRoutes } from "./routes/role-permission.routes.js";
-import { createPermissionRoutes } from "./routes/permission.routes.js";
-import { createUserRoutes } from "./routes/user.routes.js";
-
 import { createGeoLocationService } from "./security/geo-location.service.js";
 import { createImpossibleTravelService } from "./security/impossible-travel.service.js";
 import { createSecurityEventService } from "./security/security-event.service.js";
-
 import { createAuthorizationService } from "./services/authorization.service.js";
 import { createAuthorizationCacheService } from "./services/authorization-cache.service.js";
 import { createAuditService } from "./services/audit.service.js";
@@ -48,28 +30,33 @@ import { createRoleService } from "./services/role.service.js";
 import { createSessionService } from "./services/session.service.js";
 import { createTokenService } from "./services/token.service.js";
 import { createUserRoleService } from "./services/user-role.service.js";
-import { createRolePermissionService } from "./services/role-permission.service.js";
-import { createPermissionService } from "./services/permission.service.js";
-import { createUserService } from "./services/user.service.js";
-import { createEmailVerificationOtpService } from "./services/email-verification-otp.service.js";
-
 import { createPermissionCache } from "./cache/permission.cache.js";
 import { createEmailQueueService } from "../../queues/email/email.queue.service.js";
-
 import { createAuthenticate } from "../../middlewares/authentication.js";
 import { createAuthorizePermission } from "../../middlewares/authorize-permission.js";
+import { createRolePermissionRepository } from "./repositories/role-permission.repository.js";
+import { createRolePermissionService } from "./services/role-permission.service.js";
+import { createPermissionRepository } from "./repositories/permission.repository.js";
+import { createRolePermissionRoutes } from "./routes/role-permission.routes.js";
+import { createRolePermissionController } from "./controllers/role-permission.controller.js";
+import { createPermissionService } from "./services/permission.service.js";
+import { createPermissionController } from "./controllers/permission.controller.js";
+import { createPermissionRoutes } from "./routes/permission.routes.js";
+import { createUserService } from "./services/user.service.js";
+import { createUserController } from "./controllers/user.controller.js";
+import { createUserRoutes } from "./routes/user.routes.js";
+import { createEmailVerificationOtpService } from "./services/email-verification-otp.service.js";
+
 
 // Repositories
 const userRepository = createUserRepository(prisma);
-const pendingRegistrationRepository =
-  createPendingRegistrationRepository(prisma);
+const pendingRegistrationRepository = createPendingRegistrationRepository(prisma);
 const auditRepository = createAuditRepository(prisma);
 const userSessionRepository = createUserSessionRepository(prisma);
 const refreshTokenRepository = createRefreshTokenRepository(prisma);
 const loginAttemptRepository = createLoginAttemptRepository(prisma);
 const securityEventRepository = createSecurityEventRepository(prisma);
-const passwordResetTokenRepository =
-  createPasswordResetTokenRepository(prisma);
+const passwordResetTokenRepository = createPasswordResetTokenRepository(prisma);
 const authorizationRepository = createAuthorizationRepository(prisma);
 const roleRepository = createRoleRepository(prisma);
 const userRoleRepository = createUserRoleRepository(prisma);
@@ -93,7 +80,9 @@ const sessionService = createSessionService({
 });
 
 // Authorization
-const permissionCache = createPermissionCache({ redis });
+const permissionCache = createPermissionCache({
+  redis,
+});
 
 const authorizationCacheService = createAuthorizationCacheService({
   permissionCache,
@@ -108,7 +97,7 @@ const authorizePermission = createAuthorizePermission({
   authorizationService,
 });
 
-// Authentication middleware
+// Authentication
 const authenticate: RequestHandler = createAuthenticate({
   tokenService,
   sessionService,
@@ -133,90 +122,62 @@ const userRoleService = createUserRoleService({
   authorizationCacheService,
 });
 
-// Role Permission Management
+  // Role permission Management
 const rolePermissionService = createRolePermissionService({
-  roleRepository,
-  permissionRepository,
-  rolePermissionRepository,
-  authorizationCacheService,
+roleRepository,
+permissionRepository,
+rolePermissionRepository,
+authorizationCacheService
 });
 
-// Permission Management
-const permissionService = createPermissionService({
-  permissionRepository,
-});
 
-// User Management
+// Permission Management 
+ const permissionService = createPermissionService({ 
+  permissionRepository,
+ });
+
+ // User Management
+
 const userService = createUserService({
   userRepository,
 });
 
+
 // Auth Service
-// The shared outbox service is injected by the application composition root.
-const createIdentityAuthService = (
-  outboxService: OutboxService,
-): AuthService => {
-  return createAuthService({
-    prisma,
-    redis,
-    outboxService,
+const authService = createAuthService({
+  prisma,
+   redis,
 
-    repositories: {
-      user: userRepository,
-      pendingRegistration: pendingRegistrationRepository,
-      session: userSessionRepository,
-      refreshToken: refreshTokenRepository,
-      loginAttempt: loginAttemptRepository,
-      passwordResetToken: passwordResetTokenRepository,
-    },
+  repositories: {
+    user: userRepository,
+    pendingRegistration: pendingRegistrationRepository,
+    session: userSessionRepository,
+    refreshToken: refreshTokenRepository,
+    loginAttempt: loginAttemptRepository,
+    passwordResetToken: passwordResetTokenRepository,
+  },
 
-    services: {
-      password: passwordService,
-      token: tokenService,
-      audit: auditService,
-      impossibleTravel,
-      geoLocation,
-      securityEvent: securityEventService,
-      session: sessionService,
-      emailVerificationOtp: emailVerificationOtpService,
-    },
+  services: {
+    password: passwordService,
+    token: tokenService,
+    audit: auditService,
+    impossibleTravel,
+    geoLocation,
+    securityEvent: securityEventService,
+    session: sessionService,
+    emailVerificationOtp: emailVerificationOtpService,
+  },
 
-    queues: {
-      email: emailQueueService,
-    },
-  });
-};
+  queues: {
+    email: emailQueueService,
+  },
+});
 
-// Initialize only the identity components that depend on AuthService.
-// Call this once from the application composition root.
-type IdentityAuthInitialization = {
-  authService: AuthService;
-  authController: AuthController;
-  authRoutes: ReturnType<typeof createAuthRoutes>;
-};
+// Controllers
+const authController = createAuthController({
+  authService,
+});
 
-export const initializeIdentityAuth = (
-  outboxService: OutboxService,
-): IdentityAuthInitialization => {
-  const authService = createIdentityAuthService(outboxService);
-
-  const authController = createAuthController({
-    authService,
-  });
-
-  const authRoutes = createAuthRoutes({
-    authController,
-    authenticate,
-  });
-
-  return {
-    authService,
-    authController,
-    authRoutes,
-  };
-};
-
-// Other Controllers
 const roleController = createRoleController({
   roleService,
 });
@@ -230,14 +191,18 @@ const rolePermissionController = createRolePermissionController({
 });
 
 const permissionController = createPermissionController({
-  permissionService,
-});
+   permissionService, });
 
-const userController = createUserController({
+   const userController = createUserController({
   userService,
 });
 
-// Other Routes
+// Routes
+const authRoutes = createAuthRoutes({
+  authController,
+  authenticate,
+});
+
 const roleRoutes = createRoleRoutes({
   roleController,
   authenticate,
@@ -256,13 +221,13 @@ const rolePermissionRoutes = createRolePermissionRoutes({
   authorizePermission,
 });
 
-const permissionRoutes = createPermissionRoutes({
+const permissionRoutes = createPermissionRoutes({ 
   permissionController,
-  authenticate,
-  authorizePermission,
-});
+   authenticate, 
+   authorizePermission, 
+  });
 
-const userRoutes = createUserRoutes({
+  const userRoutes = createUserRoutes({
   userController,
   authenticate,
   authorizePermission,
@@ -270,6 +235,7 @@ const userRoutes = createUserRoutes({
 
 // Public Identity Dependencies
 export {
+  authRoutes,
   roleRoutes,
   userRoleRoutes,
   permissionRoutes,
@@ -284,11 +250,12 @@ export {
   userRepository,
   userSessionRepository,
   userRoleRepository,
+  authService,
   permissionCache,
   roleRepository,
   roleService,
   roleController,
   userRoleService,
   userRoleController,
-  emailVerificationOtpService,
+  emailVerificationOtpService
 };

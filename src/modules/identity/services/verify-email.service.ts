@@ -1,33 +1,23 @@
 
-import { randomUUID } from "node:crypto";
 import { RoleName, UserStatus } from "@prisma/client";
 
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
-import { EVENT_TYPES } from "../../../shared/events/event.types.js";
-import type { IdentityEmailVerifiedEvent } from "../../../shared/events/event.types.js";
-
+import { AuditActions } from "../constants/audit-action.constants.js";
 import type { VerifyEmailRequestDto } from "../dto/verify-email-request.dto.js";
+import { createAuditRepository } from "../repositories/audit.repository.js";
 import { createPendingRegistrationRepository } from "../repositories/pending-registration.repository.js";
 import { createUserRepository } from "../repositories/user.repository.js";
-import { createAuditRepository } from "../repositories/audit.repository.js";
-
-import { createAuditService } from "./audit.service.js";
-
-import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
-
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
-import { AuditActions } from "../constants/audit-action.constants.js";
+import { createAuditService } from "./audit.service.js";
 
 export const createVerifyEmailService = ({
   prisma,
   repositories,
   services,
-  outboxService,
 }: AuthDependencies) => {
-  const verifyEmail = async (
-    dto: VerifyEmailRequestDto,
-    context?: AuthContext,
-  ): Promise<{ message: string }> => {
+
+  const verifyEmail = async ( dto: VerifyEmailRequestDto, context?: AuthContext): Promise<{ message: string }> => {
+
     const isValidOtp = await services.emailVerificationOtp.verify(
       dto.email,
       dto.otp,
@@ -46,14 +36,9 @@ export const createVerifyEmailService = ({
 
     await prisma.$transaction(async (tx) => {
       const userRepository = createUserRepository(tx);
-
       const pendingRegistrationRepository =
         createPendingRegistrationRepository(tx);
-
-      const transactionOutboxRepository = createOutboxRepository(tx);
-
       const transactionAuditRepository = createAuditRepository(tx);
-
       const transactionAuditService = createAuditService(
         transactionAuditRepository,
       );
@@ -70,23 +55,6 @@ export const createVerifyEmailService = ({
             },
           },
         },
-      });
-
-      const event: IdentityEmailVerifiedEvent = {
-        eventId: randomUUID(),
-        eventType: EVENT_TYPES.IDENTITY_EMAIL_VERIFIED,
-        occurredAt: new Date().toISOString(),
-        aggregateType: "identity",
-        aggregateId: createdUser.id,
-        data: {
-          userId: createdUser.id,
-          email: createdUser.email,
-        },
-      };
-
-      await outboxService.createEvent({
-        event,
-        repository: transactionOutboxRepository,
       });
 
       await transactionAuditService.log({

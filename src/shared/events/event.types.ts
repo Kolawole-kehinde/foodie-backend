@@ -77,33 +77,6 @@ export type PaymentEventData = {
   status: PaymentStatus;
 };
 
-// Identity event data
-
-export type IdentityEmailVerificationRequestedEventData = {
-  email: string;
-  verificationOtp: string;
-};
-
-export type IdentityEmailVerificationResentEventData = {
-  email: string;
-  verificationOtp: string;
-};
-
-export type IdentityEmailVerifiedEventData = {
-  userId: string;
-  email: string;
-};
-
-export type IdentityPasswordResetRequestedEventData = {
-  userId: string;
-  email: string;
-  resetUrl: string;
-};
-
-export type IdentityPasswordResetCompletedEventData = {
-  userId: string;
-  email: string;
-};
 
 // Base event
 
@@ -221,45 +194,9 @@ export type PaymentEvent =
   | PaymentPartiallyRefundedEvent
   | PaymentRefundedEvent;
 
-// Identity events
 
-export type IdentityEmailVerificationRequestedEvent = BaseEvent<
-  typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED,
-  IdentityEmailVerificationRequestedEventData,
-  "identity"
->;
 
-export type IdentityEmailVerificationResentEvent = BaseEvent<
-  typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT,
-  IdentityEmailVerificationResentEventData,
-  "identity"
->;
-
-export type IdentityEmailVerifiedEvent = BaseEvent<
-  typeof EVENT_TYPES.IDENTITY_EMAIL_VERIFIED,
-  IdentityEmailVerifiedEventData,
-  "identity"
->;
-
-export type IdentityPasswordResetRequestedEvent = BaseEvent<
-  typeof EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED,
-  IdentityPasswordResetRequestedEventData,
-  "identity"
->;
-
-export type IdentityPasswordResetCompletedEvent = BaseEvent<
-  typeof EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED,
-  IdentityPasswordResetCompletedEventData,
-  "identity"
->;
-
-export type IdentityEvent =
-  | IdentityEmailVerificationRequestedEvent
-  | IdentityEmailVerificationResentEvent
-  | IdentityEmailVerifiedEvent
-  | IdentityPasswordResetRequestedEvent
-  | IdentityPasswordResetCompletedEvent;
 
 // All domain events
 
-export type DomainEvent = OrderEvent | PaymentEvent | IdentityEvent;
+export type DomainEvent = OrderEvent | PaymentEvent;

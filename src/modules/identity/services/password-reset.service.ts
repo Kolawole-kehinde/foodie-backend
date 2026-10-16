@@ -1,29 +1,24 @@
-import { randomUUID } from "node:crypto";
 
 import { env } from "../../../config/env.js";
 import { UnauthorizedError } from "../../../shared/errors/UnauthorizedError.js";
-import { EVENT_TYPES } from "../../../shared/events/event.types.js";
-import type { IdentityPasswordResetCompletedEvent } from "../../../shared/events/event.types.js";
+
 import type {
   ForgotPasswordDto,
   ForgotPasswordResponseDto,
   ResetPasswordDto,
 } from "../dto/forgot-password-dto.js";
 import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
-import { createOutboxRepository } from "../../outbox/repositories/outbox.repository.js";
 
 export const createPasswordResetService = ({
   repositories,
   services,
   prisma,
   queues,
-  outboxService,
 }: AuthDependencies) => {
-
-  const passwordReset = async ( dto: ForgotPasswordDto,
+  const passwordReset = async (
+    dto: ForgotPasswordDto,
     _context: AuthContext,
   ): Promise<ForgotPasswordResponseDto> => {
-    
     const genericResponse: ForgotPasswordResponseDto = {
       message:
         "If an account exists with this email, a password reset link has been sent.",
@@ -37,8 +32,10 @@ export const createPasswordResetService = ({
 
     const token = services.token.generateRandomToken();
     const tokenHash = services.token.hashToken(token);
+
     const expiresAt = new Date(
-      Date.now() + env.auth.PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES * 60 * 1000,
+      Date.now() +
+        env.auth.PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES * 60 * 1000,
     );
 
     await repositories.passwordResetToken.create({
@@ -71,12 +68,9 @@ export const createPasswordResetService = ({
     }
 
     const passwordHash = await services.password.hash(dto.newPassword);
-
     const now = new Date();
 
     await prisma.$transaction(async (tx) => {
-      // Atomically claim the reset token. Only one concurrent
-      // request can consume this token successfully.
       const claimed = await tx.passwordResetToken.updateMany({
         where: {
           id: resetToken.id,
@@ -104,23 +98,6 @@ export const createPasswordResetService = ({
           revokedAt: now,
           revokeReason: "PASSWORD_RESET",
         },
-      });
-
-      const event: IdentityPasswordResetCompletedEvent = {
-        eventId: randomUUID(),
-        eventType: EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED,
-        occurredAt: now.toISOString(),
-        aggregateType: "identity",
-        aggregateId: resetToken.userId,
-        data: {
-          userId: resetToken.userId,
-          email: resetToken.user.email,
-        },
-      };
-
-      await outboxService.createEvent({
-        event,
-        repository: createOutboxRepository(tx),
       });
     });
 

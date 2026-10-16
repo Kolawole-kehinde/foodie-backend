@@ -58,34 +58,6 @@ const paymentDataSchema = z.object({
   status: z.nativeEnum(PaymentStatus),
 });
 
-// Identity schemas
-
-const identityEmailVerificationRequestedDataSchema = z.object({
-  email: z.string().email(),
-  verificationOtp: z.string().min(1),
-});
-
-
-const identityEmailVerificationResentDataSchema = z.object({
-  email: z.string().email(),
-  verificationOtp: z.string().min(1),
-});
-
-const identityEmailVerifiedDataSchema = z.object({
-  userId: z.string().min(1),
-  email: z.string().email(),
-});
-
-const identityPasswordResetRequestedDataSchema = z.object({
-  userId: z.string().min(1),
-  email: z.string().email(),
-  resetUrl: z.string().url(),
-});
-
-const identityPasswordResetCompletedDataSchema = z.object({
-  userId: z.string().min(1),
-  email: z.string().email(),
-});
 
 export const domainEventSchema = z.discriminatedUnion("eventType", [
   // Order events
@@ -176,39 +148,5 @@ export const domainEventSchema = z.discriminatedUnion("eventType", [
     data: paymentDataSchema,
   }),
 
-  // Identity events
 
-  baseEventSchema.extend({
-    eventType: z.literal(
-      EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED,
-    ),
-    aggregateType: z.literal("identity"),
-    data: identityEmailVerificationRequestedDataSchema,
-  }),
-
-  baseEventSchema.extend({
-    eventType: z.literal(
-      EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT,
-    ),
-    aggregateType: z.literal("identity"),
-    data: identityEmailVerificationResentDataSchema,
-  }),
-
-  baseEventSchema.extend({
-    eventType: z.literal(EVENT_TYPES.IDENTITY_EMAIL_VERIFIED),
-    aggregateType: z.literal("identity"),
-    data: identityEmailVerifiedDataSchema,
-  }),
-
-  baseEventSchema.extend({
-    eventType: z.literal(EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED),
-    aggregateType: z.literal("identity"),
-    data: identityPasswordResetRequestedDataSchema,
-  }),
-
-  baseEventSchema.extend({
-    eventType: z.literal(EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED),
-    aggregateType: z.literal("identity"),
-    data: identityPasswordResetCompletedDataSchema,
-  }),
 ]);
