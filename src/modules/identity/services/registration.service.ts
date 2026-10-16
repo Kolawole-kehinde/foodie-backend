@@ -1,18 +1,20 @@
-
 import { ConflictError } from "../../../shared/errors/ConflictError.js";
-
+import { logger } from "../../../config/logger.js";
 import { AuditActions } from "../constants/audit-action.constants.js";
 import { AUTH_EXPIRATION } from "../constants/auth.constants.js";
 import type { RegisterRequestDto } from "../dto/register-request.dto.js";
 import type { RegisterResponseDto } from "../dto/register-response.dto.js";
-import type {
-  AuthContext,
-  AuthDependencies,
-} from "../types/auth.types.js";
+import type { AuthContext, AuthDependencies } from "../types/auth.types.js";
 
-export const createRegistrationService = ({repositories,services,queues,}: AuthDependencies) => {
-
-  const register = async (dto: RegisterRequestDto,context?: AuthContext,): Promise<RegisterResponseDto> => {
+export const createRegistrationService = ({
+  repositories,
+  services,
+  queues,
+}: AuthDependencies) => {
+  const register = async (
+    dto: RegisterRequestDto,
+    context?: AuthContext,
+  ): Promise<RegisterResponseDto> => {
     const { email, password } = dto;
 
     const existingUser = await repositories.user.findByEmail(email);
@@ -31,51 +33,55 @@ export const createRegistrationService = ({repositories,services,queues,}: AuthD
     }
 
     const passwordHash = await services.password.hash(password);
-
     const now = Date.now();
 
-    await repositories.pendingRegistration.create({
+    const pendingRegistration = await repositories.pendingRegistration.create({
       email,
       passwordHash,
-
-      expiresAt: new Date(
-        now + AUTH_EXPIRATION.PENDING_REGISTRATION_MS,
-      ),
-
+      expiresAt: new Date(now + AUTH_EXPIRATION.PENDING_REGISTRATION_MS),
       ipAddress: context?.ipAddress,
       userAgent: context?.userAgent,
     });
 
-    // Generate and store the OTP in Redis.
-    // Only the hashed OTP is stored; the raw OTP is returned
-    // so it can be sent to the user's email.
-    const verificationOtp = await services.emailVerificationOtp.generate(email);
+    try {
+      const verificationOtp =
+        await services.emailVerificationOtp.generate(email);
 
-    await services.audit.log({
-      action: AuditActions.REGISTRATION_INITIATED,
-      ipAddress: context?.ipAddress,
-      userAgent: context?.userAgent,
-      metadata: {
-        email,
-      },
-    });
+      await queues.email.sendVerificationEmail(email, verificationOtp);
 
-    await queues.email.sendVerificationEmail(
-      email,
-      verificationOtp,
-    );
+      await services.audit.log({
+        action: AuditActions.REGISTRATION_INITIATED,
+        ipAddress: context?.ipAddress,
+        userAgent: context?.userAgent,
+        metadata: { email },
+      });
 
-    return {
-      message:
-        "Registration successful. Please verify your email.",
-    };
+      return {
+        message: "Registration successful. Please verify your email.",
+      };
+    } catch (error) {
+      try {
+        await services.emailVerificationOtp.invalidate(email);
+        await repositories.pendingRegistration.deleteById(
+          pendingRegistration.id,
+        );
+      } catch (cleanupError) {
+        logger.error(
+          {
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : "Unknown cleanup error",
+          },
+          "Failed to clean up pending registration after delivery failure",
+        );
+      }
+
+      throw error;
+    }
   };
 
-  return {
-    register,
-  };
+  return { register };
 };
 
-export type RegistrationService = ReturnType<
-  typeof createRegistrationService
->;
+export type RegistrationService = ReturnType<typeof createRegistrationService>;
