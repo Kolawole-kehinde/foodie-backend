@@ -62,10 +62,13 @@ const paymentDataSchema = z.object({
 
 const identityEmailVerificationRequestedDataSchema = z.object({
   email: z.string().email(),
+  verificationOtp: z.string().min(1),
 });
+
 
 const identityEmailVerificationResentDataSchema = z.object({
   email: z.string().email(),
+  verificationOtp: z.string().min(1),
 });
 
 const identityEmailVerifiedDataSchema = z.object({
@@ -76,6 +79,7 @@ const identityEmailVerifiedDataSchema = z.object({
 const identityPasswordResetRequestedDataSchema = z.object({
   userId: z.string().min(1),
   email: z.string().email(),
+  resetUrl: z.string().url(),
 });
 
 const identityPasswordResetCompletedDataSchema = z.object({

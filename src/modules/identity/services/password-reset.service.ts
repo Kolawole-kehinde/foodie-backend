@@ -26,7 +26,7 @@ export const createPasswordResetService = ({ repositories, services, prisma, que
 
     // Generate a cryptographically secure random reset token
     const token = services.token.generateRandomToken();
-    console.log(token)
+   
 
     // Store only the hash of the token in the database
     // The raw token will later be sent to the user via email
@@ -53,10 +53,7 @@ export const createPasswordResetService = ({ repositories, services, prisma, que
 
     // console.log(resetUrl);
 
-await queues.email.sendForgotPasswordEmail(
-  user.email,
-  resetUrl,
-);
+
 
 
     // Return the same generic response used when the user does not exist

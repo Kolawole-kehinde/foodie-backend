@@ -39,17 +39,13 @@ export const createNotificationEventRouter = ({
         await orderHandler.handle(event);
         return;
 
-      case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
-      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
-        await identityHandler.handle(event);
-        return;
-
-      case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED:
-      case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT:
-      case EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED:
-        throw new Error(
-          "Identity email delivery is not implemented for this event yet.",
-        );
+     case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_REQUESTED:
+case EVENT_TYPES.IDENTITY_EMAIL_VERIFICATION_RESENT:
+case EVENT_TYPES.IDENTITY_EMAIL_VERIFIED:
+case EVENT_TYPES.IDENTITY_PASSWORD_RESET_REQUESTED:
+case EVENT_TYPES.IDENTITY_PASSWORD_RESET_COMPLETED:
+  await identityHandler.handle(event);
+  return;
     }
   };
 

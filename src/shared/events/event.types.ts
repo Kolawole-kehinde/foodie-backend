@@ -81,10 +81,12 @@ export type PaymentEventData = {
 
 export type IdentityEmailVerificationRequestedEventData = {
   email: string;
+  verificationOtp: string;
 };
 
 export type IdentityEmailVerificationResentEventData = {
   email: string;
+  verificationOtp: string;
 };
 
 export type IdentityEmailVerifiedEventData = {
@@ -95,6 +97,7 @@ export type IdentityEmailVerifiedEventData = {
 export type IdentityPasswordResetRequestedEventData = {
   userId: string;
   email: string;
+  resetUrl: string;
 };
 
 export type IdentityPasswordResetCompletedEventData = {

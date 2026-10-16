@@ -1,4 +1,5 @@
-import { Worker } from "bullmq";
+
+import { Worker, type Job } from "bullmq";
 
 import { logger } from "../config/logger.js";
 import { redis } from "../database/redis/client.js";
@@ -8,6 +9,105 @@ import {
   emailDlq,
   type EmailJob,
 } from "../queues/email/email.queue.js";
+
+const MAX_ERROR_MESSAGE_LENGTH = 1_000;
+
+const getSafeErrorDetails = (error: Error) => ({
+  errorName: error.name,
+  errorMessage: error.message.slice(0, MAX_ERROR_MESSAGE_LENGTH),
+});
+
+const processEmailJob = async (
+  job: Job<EmailJob>,
+): Promise<void> => {
+  switch (job.data.type) {
+    case "VERIFICATION_EMAIL":
+      await createEmailService().sendVerificationEmail(
+        job.data.email,
+        job.data.otp,
+      );
+      return;
+
+    case "PASSWORD_RESET_EMAIL":
+      await createEmailService().sendForgotPasswordEmail(
+        job.data.email,
+        job.data.resetUrl,
+      );
+      return;
+
+    default: {
+      const unsupportedJob: never = job.data;
+      throw new Error(
+        `Unsupported email job: ${JSON.stringify(unsupportedJob)}`,
+      );
+    }
+  }
+};
+
+const moveToDeadLetterQueue = async (
+  job: Job<EmailJob>,
+  error: Error,
+): Promise<void> => {
+  const attempts = job.opts.attempts ?? 1;
+
+  if (job.attemptsMade < attempts) {
+    logger.warn(
+      {
+        jobId: job.id,
+        type: job.data.type,
+        attemptsMade: job.attemptsMade,
+        attempts,
+        ...getSafeErrorDetails(error),
+      },
+      "Email job failed and will be retried",
+    );
+
+    return;
+  }
+
+  try {
+    await emailDlq.add(
+      "dead-letter-email",
+      {
+        originalJobId: job.id ?? "unknown",
+        originalJobName: job.name,
+        payload: job.data,
+        attemptsMade: job.attemptsMade,
+        failedReason: error.message.slice(
+          0,
+          MAX_ERROR_MESSAGE_LENGTH,
+        ),
+        failedAt: new Date().toISOString(),
+      },
+      {
+        jobId: `email-${job.id}`,
+      },
+    );
+
+    logger.error(
+      {
+        jobId: job.id,
+        type: job.data.type,
+        attemptsMade: job.attemptsMade,
+        ...getSafeErrorDetails(error),
+      },
+      "Email job moved to dead-letter queue",
+    );
+  } catch (dlqError) {
+    logger.error(
+      {
+        jobId: job.id,
+        type: job.data.type,
+        ...getSafeErrorDetails(error),
+        dlqError:
+          dlqError instanceof Error
+            ? getSafeErrorDetails(dlqError)
+            : { errorMessage: "Unknown dead-letter queue error" },
+      },
+      "Failed to move email job to dead-letter queue",
+    );
+  }
+};
 
 export const createEmailWorker = () => {
   const emailService = createEmailService();
@@ -38,8 +138,12 @@ export const createEmailWorker = () => {
           );
           break;
 
-        default:
-          throw new Error("Unsupported email job type");
+        default: {
+          const unsupportedJob: never = job.data;
+          throw new Error(
+            `Unsupported email job: ${JSON.stringify(unsupportedJob)}`,
+          );
+        }
       }
     },
     {
@@ -54,66 +158,26 @@ export const createEmailWorker = () => {
 
   worker.on("completed", (job) => {
     logger.info(
-      {
-        jobId: job.id,
-      },
+      { jobId: job.id },
       "Email job completed",
     );
   });
 
-  worker.on("failed", async (job, error) => {
-    if (!job || !job.id) {
+  worker.on("failed", (job, error) => {
+    if (!job) {
       logger.error(
-        { err: error },
+        getSafeErrorDetails(error),
         "Email worker failed without job information",
       );
       return;
     }
 
-    const attempts = job.opts.attempts ?? 1;
-    const exhausted = job.attemptsMade >= attempts;
-
-    if (exhausted) {
-      await emailDlq.add("dead-letter-email", {
-        originalJobId: job.id,
-        originalJobName: job.name,
-        payload: job.data,
-        attemptsMade: job.attemptsMade,
-        failedReason: error.message,
-        failedAt: new Date().toISOString(),
-      });
-
-      logger.error(
-        {
-          jobId: job.id,
-          type: job.data.type,
-          attemptsMade: job.attemptsMade,
-          attempts,
-          err: error,
-        },
-        "Email job moved to DLQ after exhausting all retries",
-      );
-
-      return;
-    }
-
-    logger.warn(
-      {
-        jobId: job.id,
-        type: job.data.type,
-        attemptsMade: job.attemptsMade,
-        attempts,
-        err: error,
-      },
-      "Email job failed, retrying",
-    );
+    void moveToDeadLetterQueue(job, error);
   });
 
   worker.on("error", (error) => {
     logger.error(
-      {
-        err: error,
-      },
+      getSafeErrorDetails(error),
       "Email worker error",
     );
   });
@@ -121,6 +185,6 @@ export const createEmailWorker = () => {
   return worker;
 };
 
-const emailWorker = createEmailWorker();
+export const emailWorker = createEmailWorker();
 
 logger.info("Email worker started");
